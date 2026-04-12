@@ -1,0 +1,87 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pocket-desk-agent"
+version = "0.3.0"
+description = "Pocket Desk Agent — a secure Telegram bot that gives you full remote control of your Windows PC, powered by Google Gemini AI."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "techgniouss", email = "techgniouss@users.noreply.github.com" },
+]
+keywords = [
+    "telegram",
+    "bot",
+    "gemini",
+    "ai",
+    "automation",
+    "remote-control",
+    "windows",
+    "desktop-agent",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Communications :: Chat",
+    "Topic :: Desktop Environment",
+    "Topic :: Office/Business",
+]
+dependencies = [
+    "python-telegram-bot>=21.0",
+    "python-dotenv>=1.0.0",
+    "requests>=2.31.0",
+    "pillow>=10.0.0",
+    "wakepy>=0.9.0",
+    "psutil>=5.9.0",
+    "pyperclip>=1.8.2",
+    "pytesseract>=0.3.10",
+    "dropbox>=11.36.0",
+    "opencv-python>=4.8.0",
+    "numpy>=1.24.0",
+    # Windows-only UI automation deps — gated so the package can build and
+    # install on non-Windows runners (e.g. the Linux GitHub Actions runner
+    # that publishes to PyPI).
+    'pywinauto>=0.6.8; sys_platform == "win32"',
+    'pygetwindow>=0.0.9; sys_platform == "win32"',
+    'pyautogui>=0.9.54; sys_platform == "win32"',
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "black>=24.0.0",
+    "flake8>=7.0.0",
+    "mypy>=1.8.0",
+    "build>=1.0.0",
+    "twine>=5.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/techgniouss/pocket-desk-agent"
+Repository = "https://github.com/techgniouss/pocket-desk-agent"
+Issues = "https://github.com/techgniouss/pocket-desk-agent/issues"
+Changelog = "https://github.com/techgniouss/pocket-desk-agent/releases"
+
+[project.scripts]
+pdagent = "pocket_desk_agent.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["pocket_desk_agent"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/pocket_desk_agent",
+    "/README.md",
+    "/LICENSE",
+    "/requirements.txt",
+]

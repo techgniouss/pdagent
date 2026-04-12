@@ -1,0 +1,370 @@
+# Pocket Desk Agent
+
+<p align="center">
+  <a href="https://pypi.org/project/pocket-desk-agent/"><img src="https://img.shields.io/pypi/v/pocket-desk-agent.svg?style=for-the-badge&color=3776AB" alt="PyPI" /></a>
+  <img src="https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
+  <img src="https://img.shields.io/badge/Gemini-2.0_Flash-4285F4?style=for-the-badge&logo=google-gemini&logoColor=white" alt="Gemini" />
+  <img src="https://img.shields.io/badge/Windows-Supported-0078D6?style=for-the-badge&logo=windows&logoColor=white" alt="Windows" />
+  <img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge" alt="License" />
+</p>
+
+<p align="center"><strong>Your PC in your pocket — remote control, developer tools, and optional AI — all via Telegram.</strong></p>
+
+Pocket Desk Agent is a Telegram bot that runs locally on your Windows PC and gives you full remote control from your phone. Manage files, automate UI interactions, control Claude Desktop and VS Code, schedule tasks, and build Android APKs — all via Telegram messages. **No AI required.** Optionally connect **Google Gemini 2.0 Flash** to add conversational AI, image analysis, and prompt enhancement on top.
+
+---
+
+## Table of Contents
+
+- [Key Features](#key-features)
+- [Before You Start](#before-you-start)
+- [Quick Start & Installation](#quick-start--installation)
+- [Configuration](#configuration)
+- [Running the Service](#running-the-service)
+- [Commands Quick Reference](#commands-quick-reference)
+- [Security](#security)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+
+---
+
+## Key Features
+
+Everything below works with no AI configuration required:
+
+- **File System Explorer**: Browse, read, and search local PC directories from your phone, sandboxed to approved paths.
+- **Desktop Control**: Take screenshots, send keyboard shortcuts, manage the clipboard, check battery, and trigger sleep/shutdown.
+- **Vision & UI Automation**: OCR-based clicking via Tesseract — find and click any visible text on screen. Computer vision (OpenCV) for icon and UI element detection.
+- **Macro Recording**: Record multi-step UI sequences and replay them with a single command.
+- **Claude Desktop Integration**: Remote control of Claude Desktop App — send prompts, switch models, manage workspaces, and automate chat flows without touching your PC.
+- **VS Code / Antigravity Integration**: Open folders, switch AI models, and drive the Antigravity VS Code extension remotely.
+- **Task Scheduler**: Schedule automation flows or Claude prompts to run at a specified time, even while you sleep. Tasks survive restarts.
+- **Build Automation**: Trigger React Native Android builds and retrieve APKs directly in Telegram.
+- **Auto-Update**: The bot can check for and apply updates on demand.
+
+**Optional — requires Google Gemini credentials:**
+
+- **AI Chat**: Google Gemini 2.0 Flash with multi-turn conversation, image analysis, and tool-calling. Send any text or photo directly to the bot to chat with Gemini.
+- **Prompt Enhancement**: Use `/enhance` to let Gemini rewrite and improve a prompt before sending it anywhere.
+
+---
+
+## Before You Start
+
+You only need two things to get started. Google credentials are optional and only needed if you want AI chat.
+
+### 1. Create a Telegram Bot
+
+1. Open Telegram and message **[@BotFather](https://t.me/BotFather)**
+2. Send `/newbot` and follow the prompts to name your bot
+3. Copy the **bot token** (looks like `123456789:ABCdef...`) — this is your `TELEGRAM_BOT_TOKEN`
+
+### 2. Get Your Telegram User ID
+
+1. Message **[@userinfobot](https://t.me/userinfobot)** on Telegram
+2. It will reply with your numeric user ID — this is your `AUTHORIZED_USER_IDS`
+
+> Only Telegram accounts listed in `AUTHORIZED_USER_IDS` can control the bot. Keep this to yourself.
+
+### 3. (Optional) Get Google / Gemini Credentials
+
+Only needed if you want AI chat, image analysis, or the `/enhance` command. All other features work without this.
+
+Choose one option:
+
+**Option A — OAuth (Recommended):** Gives you a proper login flow via `/login` in the bot.
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a project → enable the **Generative Language API**
+3. Create an **OAuth 2.0 Client ID** (Desktop app type)
+4. Download the credentials to get your `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`
+
+**Option B — API Key:** Simpler, no login flow required.
+1. Go to [Google AI Studio](https://aistudio.google.com/app/apikey)
+2. Create an API key — this is your `GOOGLE_API_KEY`
+
+---
+
+## Quick Start & Installation
+
+### System Requirements
+
+- **Python 3.11+**
+- **Windows** — UI automation features (`pywinauto`, `pyautogui`) are Windows-only
+- **Tesseract OCR** — needed for `/findtext`, `/smartclick`, and Claude/Antigravity UI automation. `pdagent` detects if it's missing on first run and offers to install it automatically via winget. Run `pdagent setup` at any time to re-check.
+
+### Option A: Install from PyPI (Recommended)
+
+```bash
+pip install pocket-desk-agent
+pdagent
+```
+
+On the first run, `pdagent` launches an interactive setup wizard that walks you through all configuration values and offers to install Tesseract OCR automatically. That's it.
+
+```bash
+pdagent start        # run as a background daemon instead
+pdagent configure    # re-run the setup wizard at any time
+pdagent setup        # re-check and install system dependencies (e.g. Tesseract)
+```
+
+### Option B: Local Developer Mode
+
+```bash
+git clone https://github.com/techgniouss/pocket-desk-agent.git
+cd pocket-desk-agent
+pip install -e ".[dev]"
+pdagent
+```
+
+---
+
+## Configuration
+
+### Using the Setup Wizard (Recommended)
+
+```bash
+pdagent configure
+```
+
+This walks you through setting all required values and saves them to `~/.pdagent/config.ini`.
+
+### Manual Configuration
+
+Copy the template and edit it:
+
+```bash
+cp .env.example .env
+```
+
+**Required variables:**
+
+```ini
+TELEGRAM_BOT_TOKEN="your_telegram_bot_token"
+TELEGRAM_BOT_USERNAME="your_bot_username"
+AUTHORIZED_USER_IDS="123456789"
+APPROVED_DIRECTORIES="C:\Users\YourName\Documents"
+```
+
+**Google/Gemini authentication — optional, required only for AI chat and `/enhance`:**
+
+```ini
+# Option 1: OAuth (recommended — use /login in the bot to authenticate)
+GOOGLE_OAUTH_ENABLED=true
+GOOGLE_OAUTH_CLIENT_ID="your_client_id"
+GOOGLE_OAUTH_CLIENT_SECRET="your_client_secret"
+
+# Option 2: Direct API key
+GOOGLE_OAUTH_ENABLED=false
+GOOGLE_API_KEY="your_google_ai_studio_key"
+```
+
+**Optional variables:**
+
+| Variable | Default | Purpose |
+| :--- | :--- | :--- |
+| `GEMINI_MODEL` | `gemini-2.0-flash` | Gemini model to use |
+| `UPLOAD_EXPIRY_TIME` | `1h` | Dropbox link expiry (`1h`/`12h`/`24h`/`72h`) |
+| `LOG_LEVEL` | `INFO` | Logging verbosity |
+| `MAX_TOKENS_PER_REQUEST` | `8000` | Gemini token limit per request |
+| `CLAUDE_DEFAULT_REPO_PATH` | `~/Documents` | Default repo root for Claude CLI integration |
+| `SYSTEM_PROMPT` | — | Custom Gemini system prompt |
+| `DROPBOX_ACCESS_TOKEN` | — | Dropbox token for large file uploads (see [docs/dropbox-setup.md](docs/dropbox-setup.md)) |
+
+### Config File Locations (precedence order)
+
+1. Shell environment variables
+2. `~/.pdagent/config.ini`
+3. `~/.pdagent/.env`
+4. `.env` in current directory
+
+---
+
+## Running the Service
+
+| Command | Description |
+| :--- | :--- |
+| `pdagent` | Run in foreground (attached to terminal) |
+| `pdagent start` | Start as background daemon |
+| `pdagent stop` | Stop the background daemon |
+| `pdagent restart` | Restart the daemon |
+| `pdagent status` | Check if the daemon is running |
+| `pdagent configure` | Run the interactive setup wizard |
+| `pdagent setup` | Check and install system dependencies (e.g. Tesseract OCR) |
+| `pdagent auth` | Manage Google OAuth credentials |
+| `pdagent version` | Print the installed version |
+
+---
+
+## Commands Quick Reference
+
+> For the complete reference with all 65+ commands, see **[docs/COMMANDS.md](docs/COMMANDS.md)**.
+
+<details>
+<summary><strong>Expand cheat sheet</strong></summary>
+
+### Authentication & Core
+
+| Command | Description |
+| :--- | :--- |
+| `/start` | Initialize the bot |
+| `/help` | Show the help menu |
+| `/status` | Check Gemini API and session status |
+| `/login` | Start Google OAuth login flow |
+| `/authcode <code>` | Enter an OAuth verification code |
+| `/checkauth` | Check current authentication status |
+| `/logout` | Sign out of Google |
+| `/new` | Clear chat history and start fresh |
+| `/enhance <prompt>` | Let Gemini improve a prompt |
+| *(any text/photo)* | Chat with Gemini 2.0 Flash |
+
+### File System
+
+| Command | Description |
+| :--- | :--- |
+| `/pwd` | Show current directory |
+| `/ls [path]` | List files |
+| `/cd <path>` | Change directory |
+| `/cat <file>` | Read file contents |
+| `/find <pattern>` | Search files by glob |
+| `/info <path>` | File/folder metadata |
+
+### Desktop Control
+
+| Command | Description |
+| :--- | :--- |
+| `/screenshot` | Capture the current display |
+| `/hotkey <keys>` | Send a keyboard shortcut (e.g. `ctrl+c`) |
+| `/clipboard <text>` | Set the clipboard |
+| `/viewclipboard` | Read the clipboard |
+| `/battery` | Battery status |
+| `/sleep` | Put PC to sleep |
+| `/shutdown` | Shut down the PC |
+| `/wakeup` | Wake-on-LAN instructions |
+| `/stopbot` | Stop the bot process |
+
+### UI Automation
+
+> Requires Tesseract OCR. Run `pdagent setup` to install.
+
+| Command | Description |
+| :--- | :--- |
+| `/smartclick <text>` | Find text on screen and click it |
+| `/findtext <text>` | Locate text on screen (returns coordinates, no click) |
+| `/clicktext <x> <y>` | Click at specific coordinates |
+| `/findelements` | Detect and number all visible UI icons |
+| `/clickelement <id>` | Click a detected element by number |
+| `/typeenter <text>` | Type text and press Enter |
+| `/pasteenter <text>` | Paste text and press Enter |
+| `/scrollup` / `/scrolldown` | Scroll the active window |
+
+### Macro Recording
+
+| Command | Description |
+| :--- | :--- |
+| `/savecommand <name>` | Start recording a custom macro |
+| `/done` | Finish recording and save |
+| `/cancelrecord` | Discard the current recording |
+| `/listcommands` | List all saved macros |
+| `/deletecommand <name>` | Delete a saved macro |
+
+### Claude Desktop Integration
+
+| Command | Description |
+| :--- | :--- |
+| `/openclaude` | Launch Claude Desktop |
+| `/stopclaude` | Kill Claude Desktop |
+| `/clauderemote` | Open cmd at default repo path and run `claude remote-control` |
+| `/claudeask <prompt>` | Send a detailed prompt to Claude Desktop |
+| `/claudechat <prompt>` | Automated Claude chat flow |
+| `/claudenew` | Start a new Claude chat session |
+| `/clauderepo <path>` | Sync a repository with Claude |
+| `/claudebranch` | Claude branch management |
+| `/claudelatest` | Get the latest Claude response |
+| `/claudesearch <query>` | Search Claude chat history |
+| `/claudeselect` | Select Claude workspace |
+| `/claudemode` | Switch Claude mode |
+| `/claudemodel` | Switch Claude model |
+| `/claudescreen` | Screenshot of the Claude app |
+| `/claudeschedule <HH:MM> <text>` | Schedule a Claude prompt |
+
+### VS Code / Antigravity Integration
+
+| Command | Description |
+| :--- | :--- |
+| `/openantigravity` | Open VS Code with Antigravity |
+| `/antigravitychat` | Focus the Antigravity chat panel |
+| `/antigravitymode` | Switch Antigravity mode |
+| `/antigravitymodel` | Switch the Antigravity AI model |
+| `/antigravityclaudecodeopen` | Open the Claude Code panel in VS Code |
+| `/antigravityopenfolder <path>` | Open a folder in VS Code |
+| `/claudecli [path]` | Open Claude Code CLI in a folder |
+| `/claudeclisend <text>` | Send a prompt to an active Claude CLI session |
+| `/openbrowser [browser]` | Open Edge, Chrome, Firefox, or Brave |
+
+### Scheduling
+
+| Command | Description |
+| :--- | :--- |
+| `/schedule <HH:MM> <command>` | Schedule a macro to run later |
+| `/claudeschedule <HH:MM> <text>` | Schedule a Claude prompt |
+| `/listschedules` | View all pending scheduled tasks |
+| `/cancelschedule <id>` | Cancel a scheduled task |
+
+### Build Automation
+
+| Command | Description |
+| :--- | :--- |
+| `/build` | Start a React Native Android build |
+| `/getapk` | Download the latest built APK |
+
+</details>
+
+---
+
+## Security
+
+Pocket Desk Agent runs **entirely on your local machine** — no data is sent to any third-party server beyond Google's Gemini API and Telegram's message relay. Configure it carefully, as it provides system-level access to your workstation.
+
+1. **User allowlist**: Every request is checked against `AUTHORIZED_USER_IDS`. Unrecognized Telegram accounts are silently rejected — no error is returned to the sender.
+2. **Directory sandboxing**: File operations are restricted to `APPROVED_DIRECTORIES` using `Path.relative_to()` validation. Path traversal attacks (`../`) are blocked at the framework level.
+3. **Rate limiting**: All commands are rate-limited per user. Dangerous operations (shutdown, restart, update) have strict per-minute caps.
+4. **Secret isolation**: Credentials live in `~/.pdagent/` with restricted file permissions. Never commit `.env` files or `tokens.json`.
+5. **AI safety**: Gemini AI cannot execute shell commands directly. Tool access is restricted to an explicit allowlist to prevent prompt-injection-to-RCE attacks.
+
+---
+
+## Troubleshooting
+
+**Bot starts but doesn't respond to messages**
+- Confirm your Telegram user ID is in `AUTHORIZED_USER_IDS` (get it from [@userinfobot](https://t.me/userinfobot))
+- Check `bot.log` in your working directory for errors
+- Run `/status` in the bot chat to verify the Gemini connection
+
+**`/findtext` or `/smartclick` returns an error**
+- Tesseract OCR is not installed or not on PATH
+- Run `pdagent setup` to install it automatically, or manually: `winget install UB-Mannheim.TesseractOCR`
+- After installing, restart your terminal before running the bot again
+
+**Google authentication fails**
+- Run `pdagent auth` and choose "Login" to re-authenticate
+- For OAuth: verify your Client ID/Secret in `~/.pdagent/config.ini` match what's in Google Cloud Console
+- For API key mode: check your key is valid at [Google AI Studio](https://aistudio.google.com/app/apikey)
+
+**Bot crashes on startup with `ImportError`**
+- Run `pip install --upgrade pocket-desk-agent` to ensure all dependencies are current
+- On Windows, some packages (`pywinauto`, `pyautogui`) require Visual C++ Redistributables
+
+**"Another bot instance is already running"**
+- Run `pdagent stop` to clear the stale process lock, then `pdagent start`
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, coding standards, and how to add new commands.
+
+---
+
+## License
+
+Distributed under the MIT License. See [LICENSE](LICENSE) for details.
