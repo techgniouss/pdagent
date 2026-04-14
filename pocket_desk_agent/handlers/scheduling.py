@@ -383,16 +383,27 @@ async def run_custom_actions(actions):
     """Helper to run a sequence of actions without an update object."""
     import pyautogui
     import pyperclip
-    from pocket_desk_agent.automation_utils import find_text_in_image, map_keys_to_pyautogui
+    from pocket_desk_agent.automation_utils import (
+        find_text_in_image,
+        map_keys_to_pyautogui,
+        press_key,
+        send_hotkey,
+        typewrite_text,
+    )
     
     for action in actions:
         if action.type == "hotkey":
             if len(action.args) >= 1:
                 keys = map_keys_to_pyautogui(action.args[0])
-                pyautogui.hotkey(*keys)
+                if not keys:
+                    logger.warning("[scheduler] hotkey skipped because no keys were parsed")
+                elif len(keys) == 1:
+                    press_key(pyautogui, keys[0])
+                else:
+                    send_hotkey(pyautogui, *keys)
                 if len(action.args) >= 2: # text to type
                     await asyncio.sleep(0.5)
-                    pyautogui.typewrite(action.args[1], interval=0.02)
+                    typewrite_text(pyautogui, action.args[1], interval=0.02)
         elif action.type == "clipboard":
             if action.args:
                 pyperclip.copy(action.args[0])
@@ -422,13 +433,17 @@ async def run_custom_actions(actions):
                 except Exception as e:
                     logger.warning(f"[scheduler] smartclick failed: {e}")
         elif action.type == "pasteenter":
-            pyautogui.hotkey('ctrl', 'v')
+            send_hotkey(pyautogui, "ctrl", "v")
             await asyncio.sleep(0.5)
-            pyautogui.press('enter')
+            press_key(pyautogui, "enter")
         elif action.type == "typeenter":
             if action.args:
-                pyautogui.typewrite(action.args[0], interval=0.02)
-                pyautogui.press('enter')
+                if action.args[0] == "_":
+                    text_to_type = "".join(action.args[1:])
+                else:
+                    text_to_type = " ".join(action.args)
+                typewrite_text(pyautogui, text_to_type, interval=0.02)
+                press_key(pyautogui, "enter")
         
         await asyncio.sleep(0.5)  # Gap between actions
 

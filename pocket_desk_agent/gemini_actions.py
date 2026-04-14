@@ -837,23 +837,31 @@ async def _execute_confirmed_action(pending: PendingGeminiAction, bot: Any) -> G
 
     if action_type == "press_hotkey":
         import pyautogui
-        from pocket_desk_agent.automation_utils import map_keys_to_pyautogui
+        from pocket_desk_agent.automation_utils import (
+            map_keys_to_pyautogui,
+            press_key,
+            send_hotkey,
+            write_text,
+        )
 
         keys = str(args.get("keys", ""))
         text = args.get("text")
         if keys.lower() == "type":
             if not text:
                 return GeminiToolResult(False, "The special 'type' mode requires text.")
-            pyautogui.write(str(text), interval=0.05)
+            write_text(pyautogui, str(text), interval=0.05)
             return GeminiToolResult(True, f"Typed {_shorten(str(text))}")
 
         mapped_keys = map_keys_to_pyautogui(keys)
         if not mapped_keys:
             return GeminiToolResult(False, f"Unsupported hotkey string: {keys}")
-        pyautogui.hotkey(*mapped_keys)
+        if len(mapped_keys) == 1:
+            press_key(pyautogui, mapped_keys[0])
+        else:
+            send_hotkey(pyautogui, *mapped_keys)
         if text:
             await asyncio.sleep(0.4)
-            pyautogui.write(str(text), interval=0.05)
+            write_text(pyautogui, str(text), interval=0.05)
             return GeminiToolResult(True, f"Sent hotkey '{keys}' and typed {_shorten(str(text))}")
         return GeminiToolResult(True, f"Sent hotkey '{keys}'")
 

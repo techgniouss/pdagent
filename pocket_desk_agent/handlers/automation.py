@@ -471,6 +471,7 @@ async def pasteenter_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     try:
         import pyautogui
+        from pocket_desk_agent.automation_utils import press_key, send_hotkey
         import pyperclip
         
         # Record action if recording — skip actual execution if recording
@@ -492,9 +493,9 @@ async def pasteenter_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text("⌨️ Pasting and pressing Enter...")
         
         # Execute Ctrl+V then Enter
-        pyautogui.hotkey('ctrl', 'v')
+        send_hotkey(pyautogui, "ctrl", "v")
         await asyncio.sleep(0.2)
-        pyautogui.press('enter')
+        press_key(pyautogui, "enter")
         
         # Send confirmation with text preview
         preview = clipboard_content[:200]
@@ -559,6 +560,7 @@ async def typeenter_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     try:
         import pyautogui
+        from pocket_desk_agent.automation_utils import press_key, write_text
         
         # Record action if recording — skip actual typing if recording
         user_id = update.effective_user.id
@@ -567,13 +569,13 @@ async def typeenter_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return  # Don't execute, just record
         
         # Type the text
-        pyautogui.write(text_to_type, interval=0.05)
+        write_text(pyautogui, text_to_type, interval=0.05)
         
         # Wait a bit
         await asyncio.sleep(0.2)
         
         # Press Enter
-        pyautogui.press('enter')
+        press_key(pyautogui, "enter")
         
         await update.message.reply_text(
             f"✅ Typed '{text_to_type}' and pressed Enter"

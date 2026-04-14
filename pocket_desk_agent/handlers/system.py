@@ -254,7 +254,9 @@ async def hotkey_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         try:
             import pyautogui
-            pyautogui.write(text_to_type, interval=0.05)
+            from pocket_desk_agent.automation_utils import write_text
+
+            write_text(pyautogui, text_to_type, interval=0.05)
             await update.message.reply_text(f"✅ Typed: {text_to_type[:100]}{'...' if len(text_to_type) > 100 else ''}")
             logger.info(f"Typed text: {text_to_type[:50]}")
         except Exception as e:
@@ -290,7 +292,11 @@ async def hotkey_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             time.sleep(0.2)
         
         # Map the keys using utility function
-        from pocket_desk_agent.automation_utils import map_keys_to_pyautogui
+        from pocket_desk_agent.automation_utils import (
+            map_keys_to_pyautogui,
+            press_key,
+            send_hotkey,
+        )
         mapped_keys = map_keys_to_pyautogui(hotkey_str)
         
         if not mapped_keys:
@@ -301,9 +307,9 @@ async def hotkey_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Execute the hotkey
         if len(mapped_keys) == 1:
-            pyautogui.press(mapped_keys[0])
+            press_key(pyautogui, mapped_keys[0])
         else:
-            pyautogui.hotkey(*mapped_keys)
+            send_hotkey(pyautogui, *mapped_keys)
         
         time.sleep(0.3)
         
