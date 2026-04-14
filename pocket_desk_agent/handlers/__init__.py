@@ -57,6 +57,8 @@ from pocket_desk_agent.handlers.system import (  # noqa: F401
     sleep_command,
     wakeup_command,
     hotkey_command,
+    windows_command,
+    focuswindow_command,
     clipboard_command,
     viewclipboard_command,
 )

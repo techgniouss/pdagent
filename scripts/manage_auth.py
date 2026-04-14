@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Antigravity Authentication Manager
-CLI tool for managing Antigravity OAuth tokens on the server
+Pocket Desk Agent Authentication Manager
+CLI tool for managing Gemini authentication tokens on the local machine
 """
 
 import sys
@@ -11,13 +11,26 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from pocket_desk_agent.antigravity_auth import AntigravityOAuth
-
-
 def manage_auth():
     """Interactive authentication manager"""
+    from pocket_desk_agent.config import Config
+    from pocket_desk_agent.constants import AUTH_MODE_GEMINI_CLI, AUTH_MODE_APIKEY
+
+    if Config.GEMINI_AUTH_MODE == AUTH_MODE_APIKEY:
+        print("Bot is configured to use API Key. Authentication via OAuth is not needed.")
+        return
+
+    if Config.GEMINI_AUTH_MODE == AUTH_MODE_GEMINI_CLI:
+        from pocket_desk_agent.gemini_cli_auth import GeminiCLIOAuth
+        oauth = GeminiCLIOAuth()
+        mode_name = "Gemini CLI OAuth"
+    else:
+        from pocket_desk_agent.antigravity_auth import AntigravityOAuth
+        oauth = AntigravityOAuth()
+        mode_name = "Antigravity OAuth"
+
     print("=" * 50)
-    print("ANTIGRAVITY AUTHENTICATION MANAGER")
+    print(f"POCKET DESK AGENT AUTHENTICATION ({mode_name})")
     print("=" * 50)
     print("\n1. Login (Authenticate)")
     print("2. Logout (Clear Tokens)")
@@ -27,14 +40,13 @@ def manage_auth():
     
     choice = input("\nEnter choice (1-5): ").strip()
     
-    oauth = AntigravityOAuth()
-    tokens_file = Path.home() / ".config" / "pocket-desk-agent" / "tokens.json"
+    tokens_file = oauth.storage.tokens_file
     
     if choice == "1":
         print("\n" + "=" * 50)
         print("STARTING LOGIN FLOW")
         print("=" * 50)
-        print("\nThis will open your browser for Google authentication.")
+        print(f"\nThis will open your browser for {mode_name} authentication.")
         print("Make sure you're running this on a machine with a browser.")
         input("\nPress Enter to continue...")
         
@@ -45,7 +57,8 @@ def manage_auth():
             print("✅ LOGIN SUCCESSFUL")
             print("=" * 50)
             print(f"Email: {oauth.email}")
-            print(f"Project ID: {oauth.project_id}")
+            if getattr(oauth, 'project_id', None):
+                print(f"Project ID: {oauth.project_id}")
             print(f"Tokens saved to: {tokens_file}")
             print("\nYou can now use the Telegram bot!")
         else:
@@ -70,7 +83,8 @@ def manage_auth():
         if oauth.load_saved_tokens():
             print(f"\n✅ Authenticated")
             print(f"Email: {oauth.email}")
-            print(f"Project ID: {oauth.project_id}")
+            if getattr(oauth, 'project_id', None):
+                print(f"Project ID: {oauth.project_id}")
             print(f"Token expires: {time.ctime(oauth.expires_at)}")
             print(f"Valid: {'Yes' if oauth.is_authenticated() else 'No (expired)'}")
             print(f"Tokens file: {tokens_file}")

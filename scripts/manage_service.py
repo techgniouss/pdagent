@@ -3,6 +3,7 @@ Process management utility for Pocket Desk Agent.
 Handles stopping and status checking of the background bot.
 """
 
+import os
 import sys
 import subprocess
 from pathlib import Path
@@ -84,10 +85,13 @@ def restart_bot():
     python_exe = sys.executable
     if not python_exe or 'python' not in python_exe.lower():
         python_exe = 'python'
+    child_env = dict(os.environ)
+    child_env["PDAGENT_ENABLE_RELOADER"] = "0"
 
     # Run in background. Let python handle its own logging to bot.log
     subprocess.Popen(
         [python_exe, "-m", "pocket_desk_agent.main"],
+        env=child_env,
         creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
     )
     import time

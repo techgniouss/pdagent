@@ -2,6 +2,7 @@
 
 import logging
 import platform
+from typing import Any
 from telegram import Update, BotCommand
 from telegram.ext import ContextTypes
 
@@ -15,8 +16,17 @@ from pocket_desk_agent.handlers._shared import (
 )
 from pocket_desk_agent.updater import get_version_string
 from pocket_desk_agent.config import Config
+from pocket_desk_agent.constants import AUTH_MODE_APIKEY
 
 logger = logging.getLogger(__name__)
+
+
+def _get_gemini_auth_context(user_id: int) -> tuple[str, Any | None]:
+    """Resolve the active auth mode and OAuth instance for the current user."""
+    auth_mode = auth_client.get_auth_mode(user_id, fallback=Config.GEMINI_AUTH_MODE)
+    if auth_mode == AUTH_MODE_APIKEY:
+        return auth_mode, None
+    return auth_mode, auth_client._get_oauth_instance(user_id, auth_mode=auth_mode)
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command."""
@@ -250,8 +260,15 @@ Please enhance this prompt by:
 Provide ONLY the enhanced prompt, without any explanations or meta-commentary."""
 
     try:
+        auth_mode, oauth = _get_gemini_auth_context(user_id)
         # Get response from Gemini
-        response = await gemini_client.send_message(user_id, enhancement_prompt, file_manager)
+        response = await gemini_client.send_message(
+            user_id,
+            enhancement_prompt,
+            file_manager,
+            auth_mode=auth_mode,
+            oauth=oauth,
+        )
         
         # Send enhanced prompt
         await update.message.reply_text(
@@ -330,9 +347,18 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Show typing indicator
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-    
+
+    auth_mode, oauth = _get_gemini_auth_context(user_id)
+
     # Get response from Gemini with full file manager access
-    response = await gemini_client.send_message(user_id, user_message, file_manager)
+    response = await gemini_client.send_message(
+        user_id,
+        user_message,
+        file_manager,
+        tool_runtime={"bot": context.bot, "chat_id": update.effective_chat.id},
+        auth_mode=auth_mode,
+        oauth=oauth,
+    )
     
     # Send response
     await update.message.reply_text(response)
@@ -358,9 +384,17 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     caption = update.message.caption or "What's in this image?"
     
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-    
+
+    auth_mode, oauth = _get_gemini_auth_context(user_id)
+
     # Send to Gemini
-    response = await gemini_client.send_message_with_image(user_id, caption, bytes(photo_bytes))
+    response = await gemini_client.send_message_with_image(
+        user_id,
+        caption,
+        bytes(photo_bytes),
+        auth_mode=auth_mode,
+        oauth=oauth,
+    )
     
     await update.message.reply_text(response)
 

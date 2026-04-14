@@ -14,7 +14,14 @@ class FileManager:
     """Manages file system access within approved directory."""
     
     def __init__(self):
-        self.approved_dirs = Config.APPROVED_DIRECTORIES
+        self.approved_dirs = list(Config.APPROVED_DIRECTORIES)
+        
+        # Always allow access to the default projects directory
+        if Config.CLAUDE_DEFAULT_REPO_PATH:
+            repo_path = Path(Config.CLAUDE_DEFAULT_REPO_PATH)
+            if repo_path not in self.approved_dirs:
+                self.approved_dirs.append(repo_path)
+                
         self.current_dirs = {}  # user_id -> current_directory
     
     def _is_safe_path(self, path: Path) -> bool:
@@ -41,8 +48,11 @@ class FileManager:
     def get_current_dir(self, user_id: int) -> Path:
         """Get user's current directory."""
         if user_id not in self.current_dirs:
-            # Default to the first approved directory
-            self.current_dirs[user_id] = self.approved_dirs[0] if self.approved_dirs else Path(".")
+            # Default to the default repo path if available, else first approved directory
+            if Config.CLAUDE_DEFAULT_REPO_PATH and Path(Config.CLAUDE_DEFAULT_REPO_PATH).exists():
+                self.current_dirs[user_id] = Path(Config.CLAUDE_DEFAULT_REPO_PATH)
+            else:
+                self.current_dirs[user_id] = self.approved_dirs[0] if self.approved_dirs else Path(".")
         return self.current_dirs[user_id]
     
     def set_current_dir(self, user_id: int, path: str) -> Tuple[bool, str]:

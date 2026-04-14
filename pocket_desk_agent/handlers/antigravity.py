@@ -17,13 +17,24 @@ from pocket_desk_agent.handlers._shared import (
 )
 from pocket_desk_agent.config import Config
 
-if platform.system() == "Windows":
-    try:
-        from pywinauto import Application
-        from pywinauto.keyboard import send_keys
-        import pygetwindow as gw
-    except ImportError:
-        pass
+# Lazy-loaded on first call to _load_win_deps() to avoid ~15 MB at startup.
+Application = None
+send_keys = None
+gw = None
+
+
+def _load_win_deps():
+    """Load Windows UI automation modules on first use (cached after that)."""
+    global Application, send_keys, gw
+    if gw is not None:
+        return
+    from pywinauto import Application as _App
+    from pywinauto.keyboard import send_keys as _sk
+    import pygetwindow as _gw
+    Application = _App
+    send_keys = _sk
+    gw = _gw
+
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +42,8 @@ def find_antigravity_window():
     """Find Antigravity desktop window and restore if minimized."""
     if not PYWINAUTO_AVAILABLE:
         return None
-    
+    _load_win_deps()
+
     try:
         # Try to find Antigravity window
         window = None

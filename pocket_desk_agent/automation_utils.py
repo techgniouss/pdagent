@@ -1,10 +1,13 @@
 """Utility functions for Windows automation commands."""
 
+import os
+import platform
 import re
 import logging
-from typing import List, Tuple, Optional
+from difflib import SequenceMatcher
+from typing import Any, List, Optional
 from dataclasses import dataclass
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
 
 logger = logging.getLogger(__name__)
 
@@ -43,93 +46,277 @@ def find_text_in_image(image: Image.Image, search_text: str) -> List[OCRMatch]:
     """
     try:
         import pytesseract
-        import platform
-        import os
-        from PIL import ImageOps
-        
-        # Set Tesseract path for Windows if not already set
-        if platform.system() == "Windows":
-            try:
-                pytesseract.get_tesseract_version()
-            except Exception:
-                tesseract_paths = [
-                    r"C:\Program Files\Tesseract-OCR\tesseract.exe",
-                    r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
-                    os.path.expandvars(r"%LOCALAPPDATA%\Programs\Tesseract-OCR\tesseract.exe"),
-                ]
-                for path in tesseract_paths:
-                    if os.path.exists(path):
-                        pytesseract.pytesseract.tesseract_cmd = path
-                        break
     except ImportError:
         logger.error("pytesseract not installed")
         raise ImportError("pytesseract is required. Install: pip install pytesseract")
-    
-    matches = []
-    search_text_lower = search_text.lower()
-    
+
+    _configure_tesseract(pytesseract)
+
+    cleaned_search_text = search_text.strip()
+    if not cleaned_search_text:
+        return []
+
+    normalized_search = _normalize_ocr_text(cleaned_search_text)
+    compact_search = _compact_ocr_text(cleaned_search_text)
+    search_words = _split_normalized_words(cleaned_search_text)
+    max_window = max(1, min(max(len(search_words) + 2, 3), 8))
+    scored_matches: list[tuple[float, OCRMatch]] = []
+
     try:
-        # PREPROCESSING: Improve OCR accuracy for small text/buttons
-        # 1. Convert to grayscale
-        processed_image = ImageOps.grayscale(image)
-        
-        # 2. Resize (2x upscaling) to help with small UI elements
-        width, height = processed_image.size
-        upscale_factor = 2
-        processed_image = processed_image.resize(
-            (width * upscale_factor, height * upscale_factor), 
-            resample=Image.LANCZOS
-        )
-        
-        # Get OCR data with bounding boxes
-        # Using --psm 11 (Sparse text) which is often better for UI buttons
-        custom_config = r'--oem 3 --psm 11'
-        ocr_data = pytesseract.image_to_data(processed_image, output_type=pytesseract.Output.DICT, config=custom_config)
-        
-        # Iterate through detected text
-        n_boxes = len(ocr_data['text'])
-        for i in range(n_boxes):
-            text = ocr_data['text'][i].strip()
-            if not text or len(text) < 2: # Ignore single character artifacts
-                continue
-                
-            # Case-insensitive substring match
-            if search_text_lower in text.lower():
-                # Get coordinates in the upscaled image
-                u_left = ocr_data['left'][i]
-                u_top = ocr_data['top'][i]
-                u_width = ocr_data['width'][i]
-                u_height = ocr_data['height'][i]
-                u_confidence = float(ocr_data['conf'][i])
-                
-                # Scale back to original coordinates
-                left = u_left // upscale_factor
-                top = u_top // upscale_factor
-                width_orig = u_width // upscale_factor
-                height_orig = u_height // upscale_factor
-                
-                # Calculate center coordinates on original scale
-                center_x = left + width_orig // 2
-                center_y = top + height_orig // 2
-                
-                match = OCRMatch(
-                    text=text,
-                    x=center_x,
-                    y=center_y,
-                    left=left,
-                    top=top,
-                    width=width_orig,
-                    height=height_orig,
-                    confidence=u_confidence
+        for processed_image, upscale_factor, config in _build_ocr_passes(image):
+            ocr_data = pytesseract.image_to_data(
+                processed_image,
+                output_type=pytesseract.Output.DICT,
+                config=config,
+            )
+            words = _extract_ocr_words(ocr_data, upscale_factor)
+            candidates = _build_phrase_candidates(words, max_window=max_window)
+            for candidate in candidates:
+                score = _score_ocr_candidate(
+                    candidate["text"],
+                    normalized_search,
+                    compact_search,
                 )
-                matches.append(match)
-                
-        logger.info(f"OCR Pre-processed: Found {len(matches)} occurrences of '{search_text}'")
+                if score is None:
+                    continue
+                match = OCRMatch(
+                    text=candidate["text"],
+                    x=candidate["x"],
+                    y=candidate["y"],
+                    left=candidate["left"],
+                    top=candidate["top"],
+                    width=candidate["width"],
+                    height=candidate["height"],
+                    confidence=max(candidate["confidence"], score * 100.0),
+                )
+                scored_matches.append((score, match))
+
+        matches = _dedupe_scored_matches(scored_matches)
+        logger.info(f"OCR multi-pass: Found {len(matches)} occurrences of '{search_text}'")
         return matches
-        
+
     except Exception as e:
         logger.error(f"OCR failed: {e}", exc_info=True)
         raise
+
+
+def _configure_tesseract(pytesseract: Any) -> None:
+    """Configure the Tesseract executable path on Windows when needed."""
+    if platform.system() != "Windows":
+        return
+
+    try:
+        pytesseract.get_tesseract_version()
+        return
+    except Exception:
+        pass
+
+    tesseract_paths = [
+        r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+        r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+        os.path.expandvars(r"%LOCALAPPDATA%\Programs\Tesseract-OCR\tesseract.exe"),
+    ]
+    for path in tesseract_paths:
+        if os.path.exists(path):
+            pytesseract.pytesseract.tesseract_cmd = path
+            return
+
+
+def _build_ocr_passes(image: Image.Image) -> List[tuple[Image.Image, int, str]]:
+    """Create a small set of OCR-friendly image variants for button and screen text."""
+    grayscale = ImageOps.grayscale(image)
+    upscale_factor = 2
+    base = grayscale.resize(
+        (grayscale.width * upscale_factor, grayscale.height * upscale_factor),
+        resample=Image.LANCZOS,
+    )
+    sharpened = base.filter(ImageFilter.SHARPEN)
+    high_contrast = ImageOps.autocontrast(sharpened)
+    thresholded = high_contrast.point(lambda px: 255 if px > 165 else 0)
+    inverted = ImageOps.invert(thresholded)
+
+    return [
+        (base, upscale_factor, "--oem 3 --psm 11"),
+        (high_contrast, upscale_factor, "--oem 3 --psm 6"),
+        (thresholded, upscale_factor, "--oem 3 --psm 11"),
+        (inverted, upscale_factor, "--oem 3 --psm 11"),
+    ]
+
+
+def _extract_ocr_words(ocr_data: dict[str, list[Any]], upscale_factor: int) -> List[dict[str, Any]]:
+    """Normalize raw Tesseract word boxes into a simpler structure."""
+    words: List[dict[str, Any]] = []
+    for index, raw_text in enumerate(ocr_data.get("text", [])):
+        text = str(raw_text).strip()
+        normalized = _normalize_ocr_text(text)
+        compact = _compact_ocr_text(text)
+        if not compact:
+            continue
+
+        width = max(1, int(ocr_data["width"][index]) // upscale_factor)
+        height = max(1, int(ocr_data["height"][index]) // upscale_factor)
+        left = int(ocr_data["left"][index]) // upscale_factor
+        top = int(ocr_data["top"][index]) // upscale_factor
+
+        words.append(
+            {
+                "text": text,
+                "normalized": normalized,
+                "compact": compact,
+                "left": left,
+                "top": top,
+                "width": width,
+                "height": height,
+                "x": left + width // 2,
+                "y": top + height // 2,
+                "confidence": _safe_float(ocr_data.get("conf", []), index),
+                "line_key": (
+                    ocr_data.get("block_num", [0])[index] if len(ocr_data.get("block_num", [])) > index else 0,
+                    ocr_data.get("par_num", [0])[index] if len(ocr_data.get("par_num", [])) > index else 0,
+                    ocr_data.get("line_num", [0])[index] if len(ocr_data.get("line_num", [])) > index else 0,
+                ),
+            }
+        )
+
+    return words
+
+
+def _build_phrase_candidates(words: List[dict[str, Any]], max_window: int) -> List[dict[str, Any]]:
+    """Build single-word and multi-word OCR candidates from nearby line text."""
+    candidates: List[dict[str, Any]] = []
+    for word in words:
+        candidates.append(word)
+
+    grouped_lines: dict[tuple[int, int, int], list[dict[str, Any]]] = {}
+    for word in words:
+        grouped_lines.setdefault(word["line_key"], []).append(word)
+
+    for line_words in grouped_lines.values():
+        ordered_words = sorted(line_words, key=lambda item: (item["left"], item["top"]))
+        if len(ordered_words) < 2:
+            continue
+
+        for start in range(len(ordered_words)):
+            for end in range(start + 2, min(len(ordered_words), start + max_window) + 1):
+                chunk = ordered_words[start:end]
+                left = min(item["left"] for item in chunk)
+                top = min(item["top"] for item in chunk)
+                right = max(item["left"] + item["width"] for item in chunk)
+                bottom = max(item["top"] + item["height"] for item in chunk)
+                phrase_text = " ".join(item["text"] for item in chunk)
+                candidates.append(
+                    {
+                        "text": phrase_text,
+                        "normalized": _normalize_ocr_text(phrase_text),
+                        "compact": _compact_ocr_text(phrase_text),
+                        "left": left,
+                        "top": top,
+                        "width": right - left,
+                        "height": bottom - top,
+                        "x": left + ((right - left) // 2),
+                        "y": top + ((bottom - top) // 2),
+                        "confidence": sum(item["confidence"] for item in chunk) / len(chunk),
+                        "line_key": chunk[0]["line_key"],
+                    }
+                )
+
+    return candidates
+
+
+def _score_ocr_candidate(
+    candidate_text: str,
+    normalized_search: str,
+    compact_search: str,
+) -> Optional[float]:
+    """Return a match score between 0 and 1, or None when not similar enough."""
+    normalized_candidate = _normalize_ocr_text(candidate_text)
+    compact_candidate = _compact_ocr_text(candidate_text)
+    if not compact_candidate:
+        return None
+
+    if compact_candidate == compact_search:
+        return 1.0
+    if normalized_candidate == normalized_search:
+        return 0.99
+    if compact_search and compact_search in compact_candidate:
+        return 0.97
+    if normalized_search and normalized_search in normalized_candidate:
+        return 0.94
+
+    compact_ratio = SequenceMatcher(None, compact_search, compact_candidate).ratio()
+    normalized_ratio = SequenceMatcher(None, normalized_search, normalized_candidate).ratio()
+    ratio = max(compact_ratio, normalized_ratio)
+
+    if len(compact_search) <= 2:
+        if compact_candidate == compact_search:
+            return 1.0
+        return None
+
+    if ratio >= 0.88:
+        return ratio
+    if ratio >= 0.76 and _token_overlap(normalized_search, normalized_candidate) >= 0.75:
+        return ratio
+    return None
+
+
+def _token_overlap(left: str, right: str) -> float:
+    """Measure how many search tokens appear in the OCR candidate."""
+    left_tokens = left.split()
+    right_tokens = set(right.split())
+    if not left_tokens:
+        return 0.0
+    hits = sum(1 for token in left_tokens if token in right_tokens)
+    return hits / len(left_tokens)
+
+
+def _dedupe_scored_matches(scored_matches: List[tuple[float, OCRMatch]]) -> List[OCRMatch]:
+    """Drop duplicate detections from multiple OCR passes while keeping the strongest hit."""
+    ordered = sorted(
+        scored_matches,
+        key=lambda item: (
+            -item[0],
+            -item[1].confidence,
+            item[1].top,
+            item[1].left,
+            item[1].width * item[1].height,
+        ),
+    )
+    deduped: list[OCRMatch] = []
+    for _, match in ordered:
+        candidate_rect = (match.left, match.top, match.width, match.height, match.confidence)
+        if any(_candidate_overlap(candidate_rect, (existing.left, existing.top, existing.width, existing.height, existing.confidence)) > 0.6 for existing in deduped):
+            continue
+        deduped.append(match)
+    return deduped
+
+
+def _normalize_ocr_text(value: str) -> str:
+    """Normalize OCR text while preserving word boundaries for phrase matching."""
+    cleaned = re.sub(r"[^a-z0-9]+", " ", value.lower())
+    return " ".join(cleaned.split())
+
+
+def _compact_ocr_text(value: str) -> str:
+    """Normalize OCR text and strip separators for button-label matching."""
+    return re.sub(r"[^a-z0-9]+", "", value.lower())
+
+
+def _split_normalized_words(value: str) -> List[str]:
+    """Split normalized OCR text into comparable words."""
+    normalized = _normalize_ocr_text(value)
+    if not normalized:
+        return []
+    return normalized.split()
+
+
+def _safe_float(values: List[Any], index: int, default: float = -1.0) -> float:
+    """Best-effort conversion for Tesseract confidence values."""
+    if len(values) <= index:
+        return default
+    try:
+        return float(values[index])
+    except Exception:
+        return default
 
 
 def find_ui_elements(image: Image.Image) -> List[OCRMatch]:
@@ -147,61 +334,45 @@ def find_ui_elements(image: Image.Image) -> List[OCRMatch]:
             "Try reinstalling: pip install --upgrade pocket-desk-agent"
         )
 
-    cv_image = np.array(image.convert('RGB'))
+    cv_image = np.array(image.convert("RGB"))
     gray = cv2.cvtColor(cv_image, cv2.COLOR_RGB2GRAY)
-    
-    # Use Canny edge detection
-    edges = cv2.Canny(gray, 50, 150)
-    
-    # Use a specifically stretched horizontal dilation kernel.
-    # This physically merges adjacent text characters into wide horizontal blocks,
-    # severely skewing their aspect ratio so they get completely dropped, 
-    # while standalone icons and symbols (which are isolated) remain intact!
-    morph_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (14, 5))
-    dilated = cv2.dilate(edges, morph_kernel, iterations=1)
-    
-    # Find contours
-    contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    enhanced = clahe.apply(gray)
+
+    masks = _build_ui_masks(cv2, enhanced)
+    text_boxes = _find_ocr_text_boxes(image)
+
+    raw_candidates: list[tuple[int, int, int, int, float]] = []
+    for mask in masks:
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        for contour in contours:
+            rect = cv2.boundingRect(contour)
+            score = _score_ui_candidate(cv2, contour, rect)
+            if score is not None:
+                raw_candidates.append((*rect, score))
+
+    deduped_candidates = _dedupe_ui_candidates(raw_candidates)
+    filtered_candidates = [
+        rect for rect in deduped_candidates
+        if not _overlaps_text(rect, text_boxes)
+    ]
+
     matches = []
-    
-    for c in contours:
-        x, y, w, h = cv2.boundingRect(c)
-        
-        # Filter purely based on size: UI elements are usually between 12x12 and 150x150
-        if 12 < w < 150 and 12 < h < 150:
-            aspect_ratio = float(w) / h
-            
-            # Icons and single symbols are roughly square or slightly rectangular.
-            # Three vertical dots ~0.2, three horizontal dots ~3.0
-            if 0.2 < aspect_ratio < 3.2:
-                # Calculate fill ratio to eliminate sparse, empty layout boxes
-                contour_area = cv2.contourArea(c)
-                fill_ratio = contour_area / (w * h)
-                
-                if fill_ratio > 0.3:
-                    center_x = x + w // 2
-                    center_y = y + h // 2
-                    
-                    # Simple overlap check to avoid cluster duplicates
-                    overlap = False
-                    for match in matches:
-                        if abs(match.x - center_x) < max(20, w//2) and abs(match.y - center_y) < max(20, h//2):
-                            overlap = True
-                            break
-                    
-                    if not overlap:
-                        match = OCRMatch(
-                            text="UI Element",
-                            x=center_x,
-                            y=center_y,
-                            left=x,
-                            top=y,
-                            width=w,
-                            height=h,
-                            confidence=1.0
-                        )
-                        matches.append(match)
+    for x, y, w, h, score in filtered_candidates:
+        center_x = x + w // 2
+        center_y = y + h // 2
+        matches.append(
+            OCRMatch(
+                text="UI Element",
+                x=center_x,
+                y=center_y,
+                left=x,
+                top=y,
+                width=w,
+                height=h,
+                confidence=score,
+            )
+        )
 
     logger.info(f"UI Element Detection: Found {len(matches)} elements")
     
@@ -209,6 +380,174 @@ def find_ui_elements(image: Image.Image) -> List[OCRMatch]:
     matches.sort(key=lambda m: (m.y // 20, m.x))
     
     return matches
+
+
+def _build_ui_masks(cv2, gray_image):
+    """Create multiple masks to capture both small icons and thin controls."""
+    blurred = cv2.GaussianBlur(gray_image, (3, 3), 0)
+    edges = cv2.Canny(blurred, 40, 120)
+
+    adaptive = cv2.adaptiveThreshold(
+        gray_image,
+        255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY_INV,
+        15,
+        4,
+    )
+
+    edge_mask = cv2.dilate(
+        edges,
+        cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)),
+        iterations=1,
+    )
+    compact_mask = cv2.morphologyEx(
+        adaptive,
+        cv2.MORPH_CLOSE,
+        cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2)),
+        iterations=1,
+    )
+    line_mask = cv2.morphologyEx(
+        adaptive,
+        cv2.MORPH_CLOSE,
+        cv2.getStructuringElement(cv2.MORPH_RECT, (5, 1)),
+        iterations=1,
+    )
+
+    return [edge_mask, compact_mask, line_mask]
+
+
+def _score_ui_candidate(cv2, contour, rect) -> Optional[float]:
+    """Return a score for plausible UI candidates, or None when rejected."""
+    x, y, w, h = rect
+    box_area = w * h
+    if box_area < 20 or box_area > 40000:
+        return None
+
+    max_side = max(w, h)
+    min_side = min(w, h)
+    if max_side < 6 or max_side > 220:
+        return None
+
+    aspect_ratio = max_side / max(min_side, 1)
+    contour_area = cv2.contourArea(contour)
+    fill_ratio = contour_area / max(box_area, 1)
+
+    # Thin window controls such as minimize bars should be kept.
+    is_thin_control = (
+        (w >= 10 and h <= 8) or (h >= 10 and w <= 8)
+    ) and aspect_ratio <= 12
+
+    # Standard icons/buttons are compact and moderately filled.
+    is_icon_like = (
+        min_side >= 8
+        and aspect_ratio <= 4.5
+        and 0.08 <= fill_ratio <= 0.98
+    )
+
+    if not is_thin_control and not is_icon_like:
+        return None
+
+    # Reject common text-like shapes: small glyphs tend to be narrow, lightly filled,
+    # and cluster horizontally; here we aggressively drop low-area letter-like boxes.
+    if min_side < 12 and not is_thin_control and fill_ratio < 0.55:
+        return None
+
+    score = min(1.0, 0.4 + fill_ratio + (0.2 if is_thin_control else 0.0))
+    return score
+
+
+def _dedupe_ui_candidates(candidates: List[tuple[int, int, int, int, float]]) -> List[tuple[int, int, int, int, float]]:
+    """Merge overlapping candidates from multiple detection passes."""
+    ordered = sorted(candidates, key=lambda item: (-item[4], item[2] * item[3]))
+    deduped: list[tuple[int, int, int, int, float]] = []
+
+    for candidate in ordered:
+        if any(_candidate_overlap(candidate, existing) > 0.45 for existing in deduped):
+            continue
+        deduped.append(candidate)
+
+    return deduped
+
+
+def _candidate_overlap(
+    left: tuple[int, int, int, int, float],
+    right: tuple[int, int, int, int, float],
+) -> float:
+    """Compute overlap ratio using the smaller box as denominator."""
+    lx, ly, lw, lh, _ = left
+    rx, ry, rw, rh, _ = right
+
+    inter_left = max(lx, rx)
+    inter_top = max(ly, ry)
+    inter_right = min(lx + lw, rx + rw)
+    inter_bottom = min(ly + lh, ry + rh)
+    if inter_right <= inter_left or inter_bottom <= inter_top:
+        return 0.0
+
+    intersection = (inter_right - inter_left) * (inter_bottom - inter_top)
+    smaller_area = min(lw * lh, rw * rh)
+    return intersection / max(smaller_area, 1)
+
+
+def _find_ocr_text_boxes(image: Image.Image) -> List[tuple[int, int, int, int]]:
+    """Best-effort OCR to suppress text regions from UI element detection."""
+    try:
+        import pytesseract
+    except ImportError:
+        return []
+
+    _configure_tesseract(pytesseract)
+
+    try:
+        data = pytesseract.image_to_data(
+            image,
+            output_type=pytesseract.Output.DICT,
+            config="--oem 3 --psm 11",
+        )
+    except Exception:
+        return []
+
+    text_boxes = []
+    for i, text in enumerate(data.get("text", [])):
+        cleaned = text.strip()
+        if len(cleaned) < 2:
+            continue
+        try:
+            confidence = float(data["conf"][i])
+        except Exception:
+            confidence = -1.0
+        if confidence < 35:
+            continue
+        text_boxes.append(
+            (
+                data["left"][i],
+                data["top"][i],
+                data["width"][i],
+                data["height"][i],
+            )
+        )
+    return text_boxes
+
+
+def _overlaps_text(
+    candidate: tuple[int, int, int, int, float],
+    text_boxes: List[tuple[int, int, int, int]],
+) -> bool:
+    """Return True when a candidate substantially overlaps OCR-detected text."""
+    x, y, w, h, _ = candidate
+    candidate_area = w * h
+    for tx, ty, tw, th in text_boxes:
+        inter_left = max(x, tx)
+        inter_top = max(y, ty)
+        inter_right = min(x + w, tx + tw)
+        inter_bottom = min(y + h, ty + th)
+        if inter_right <= inter_left or inter_bottom <= inter_top:
+            continue
+        intersection = (inter_right - inter_left) * (inter_bottom - inter_top)
+        if intersection / max(candidate_area, 1) >= 0.4:
+            return True
+    return False
 
 
 def annotate_screenshot_with_markers(

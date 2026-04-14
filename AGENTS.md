@@ -1,6 +1,6 @@
-# CLAUDE.md — Pocket Desk Agent
+# AGENTS.md — Pocket Desk Agent
 
-This file provides guidance for AI assistants (Claude Code and similar tools) working on this repository.
+This file provides guidance for AI assistants (Codex and similar tools) working on this repository.
 
 ---
 
@@ -21,7 +21,7 @@ Do not claim a task is complete after a single pass. Do not self-certify without
 
 **Pocket Desk Agent** is a Python Telegram bot that provides secure remote control of a Windows PC, powered by Google Gemini 2.0 Flash AI. It is distributed as a PyPI package (`pocket-desk-agent`) and runs as a local CLI daemon (`pdagent`).
 
-Key capabilities: AI chat (Gemini), file system browsing, desktop screenshots, keyboard/clipboard control, OCR-based UI automation, macro recording, Claude Desktop/VS Code integration, build automation (React Native APKs), and task scheduling.
+Key capabilities: AI chat & agentic computer use (Gemini), file system browsing, desktop screenshots, keyboard/clipboard control, OCR-based UI automation, macro recording, Claude Desktop/VS Code integration, build automation (React Native APKs), and task scheduling.
 
 **Platform target:** Windows (UI automation features). File system and AI features are cross-platform.
 
@@ -40,7 +40,7 @@ pocket-desk-agent/
 │   │   ├── system.py           # /screenshot, /hotkey, /clipboard, /battery, /shutdown, etc.
 │   │   ├── automation.py       # /clicktext, /findtext, /smartclick, /findelements, etc.
 │   │   ├── custom_commands.py  # /savecommand, /done, /listcommands, /deletecommand
-│   │   ├── claude.py           # /claudeask, /clauderepo, /claudechat, /clauderemote, etc.
+│   │   ├── claude.py          # /claudeask, /clauderepo, /claudechat, /clauderemote, etc.
 │   │   ├── antigravity.py      # /openantigravity, /antigravitychat, /claudecli, etc.
 │   │   ├── build.py            # /build, /getapk
 │   │   ├── scheduling.py       # /schedule, /claudeschedule, /listschedules, /cancelschedule
@@ -168,7 +168,7 @@ All values live in `pocket_desk_agent/config.py` → `Config` class.
 | `GOOGLE_API_KEY` | API key mode | — | Gemini API key (used when `GOOGLE_OAUTH_ENABLED=false`) |
 | `GEMINI_MODEL` | No | `gemini-2.0-flash` | Gemini model selection |
 | `APPROVED_DIRECTORIES` | No | `.` | Comma-separated allowed paths for file ops |
-| `CLAUDE_DEFAULT_REPO_PATH` | No | `~/Documents` | Default repo root for Claude integration |
+| `CLAUDE_DEFAULT_REPO_PATH` | No | `~/Documents` | Default repo root for Codex integration |
 | `UPLOAD_EXPIRY_TIME` | No | `1h` | Dropbox link expiry (`1h`/`12h`/`24h`/`72h`) |
 | `AUTO_UPDATE_ENABLED` | No | `true` | Enable periodic git-pull auto-update |
 | `AUTO_UPDATE_INTERVAL_MINUTES` | No | `60` | Update check interval |
@@ -218,11 +218,12 @@ file_manager  # FileManager — sandboxed file I/O
 
 `FileManager._is_safe_path()` uses `Path.relative_to()` (not string prefix matching) to validate that requested paths stay inside `APPROVED_DIRECTORIES`. **Always use this method for any new file operation** — never roll your own path check.
 
-### 6. Gemini AI safety
+### 6. Gemini AI safety & Tool Calling
 
-- `_ALLOWED_TOOLS` frozenset in `gemini_client.py` restricts which tool names the AI can invoke
-- History is trimmed to 40 turns (`_trim_history`) to bound memory usage
-- Never expose `execute_command` or raw shell access to the AI — this is a prompt-injection-to-RCE vector
+- Gemini action tools (like clicks, hotkeys, scheduling) are defined in `gemini_actions.py`.
+- Any side-effecting interaction (file modification, keyboard input, mouse clicks, opening apps) is routed through `_queue_confirmation()`, which sends an inline keyboard to Telegram requiring human-in-the-loop approval before the action is executed.
+- History is trimmed to 40 turns (`_trim_history`) to bound memory usage.
+- Never expose `execute_command` or raw shell access to the AI — this is a prompt-injection-to-RCE vector.
 
 ### 7. Scheduler loop
 
@@ -260,10 +261,9 @@ async def mycommand_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 ## Adding a New Gemini AI Tool
 
-1. Implement the function in `file_manager.py` or a new module.
-2. Add the JSON tool definition to `gemini_client.py` → `_get_api_tools()`.
-3. Handle the tool call in `gemini_client.py` → `send_message()`.
-4. Add the tool name to `_ALLOWED_TOOLS` frozenset.
+1. Implement the tool definition in `gemini_actions.py` → `get_gemini_action_tools()`.
+2. Add the execution logic in `gemini_actions.py` → `dispatch_gemini_tool()`. If it has side effects, use `await _queue_confirmation()` to require user approval.
+3. If adding a new tool with side-effects, add its name to `_RATE_LIMITED_TOOLS` and define a rate limit in `gemini_actions.py`.
 
 ---
 
@@ -308,7 +308,7 @@ Heavy dependencies are loaded **on-demand**, not at startup:
 - **dropbox** (~10 MB) — loaded only when `/getapk` uploads to Dropbox
 - **pytesseract** (~1 MB) — loaded only when `/findtext` or `/smartclick` is used
 - **pyautogui** (~3 MB) — loaded only when `/screenshot`, `/hotkey`, etc. are used
-- **pywinauto + pygetwindow** (~8 MB) — loaded only when Claude/Antigravity UI automation commands are used
+- **pywinauto + pygetwindow** (~8 MB) — loaded only when Codex/Antigravity UI automation commands are used
 
 When adding new features, follow this pattern: if a dependency is only needed for a specific command, import it inside the handler function, not at module level.
 

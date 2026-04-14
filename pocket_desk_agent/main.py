@@ -20,7 +20,7 @@ from pocket_desk_agent.handlers import (
     safe_command,
 )
 from pocket_desk_agent.scheduler_registry import get_scheduler_registry
-from pocket_desk_agent.updater import get_version_string
+from pocket_desk_agent.updater import get_version_string, startup_update_check, format_update_notification
 import asyncio
 
 # Ensure user config directory exists
@@ -41,17 +41,47 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _process_is_running(pid: int) -> bool:
+    """Return True when the target PID is alive."""
+    try:
+        if sys.platform == "win32":
+            import psutil
+
+            return psutil.pid_exists(pid)
+        os.kill(pid, 0)
+        return True
+    except Exception:
+        return False
+
+
+def _should_enable_reloader(project_root: Path) -> bool:
+    """Enable live reload only for interactive dev sessions."""
+    if not (project_root / ".git").exists():
+        return False
+
+    override = os.getenv("PDAGENT_ENABLE_RELOADER", "").strip().lower()
+    if override in {"1", "true", "yes", "on"}:
+        return True
+    if override in {"0", "false", "no", "off"}:
+        return False
+
+    try:
+        return sys.stdin is not None and sys.stdin.isatty()
+    except Exception:
+        return False
+
+
 def acquire_lock():
     """Ensure only one bot instance runs at a time."""
     if PID_FILE.exists():
         old_pid = PID_FILE.read_text().strip()
         try:
             pid = int(old_pid)
-            # Check if that process is still alive
-            os.kill(pid, 0)
-            logger.error(f"Another bot instance is already running (PID {pid}). Exiting.")
-            sys.exit(1)
-        except (OSError, ValueError):
+            if _process_is_running(pid):
+                logger.error(f"Another bot instance is already running (PID {pid}). Exiting.")
+                sys.exit(1)
+            raise ValueError("stale pid")
+        except ValueError:
             # Process is dead, remove stale lock
             PID_FILE.unlink(missing_ok=True)
 
@@ -108,6 +138,24 @@ async def post_init(application: Application):
             )
         except Exception:
             pass
+
+    # ── Update check (run in thread so the event loop is never blocked) ─────
+    try:
+        loop = asyncio.get_event_loop()
+        update_info = await loop.run_in_executor(None, startup_update_check)
+        if not update_info.up_to_date and not update_info.error:
+            msg = format_update_notification(update_info)
+            for user_id in Config.AUTHORIZED_USER_IDS:
+                try:
+                    await application.bot.send_message(
+                        chat_id=user_id,
+                        text=msg,
+                        parse_mode="Markdown",
+                    )
+                except Exception:
+                    pass
+    except Exception as exc:
+        logger.warning(f"[updater] Startup update check failed: {exc}")
 
     # ── Background tasks (running inside the Application's event loop) ────
     asyncio.create_task(scheduler_loop(application))
@@ -266,7 +314,16 @@ def main():
     logger.info("Bot is running. Press Ctrl+C to stop.")
     logger.info("Keep-awake mode enabled - system will not sleep while bot is running")
     
-    start_reloader()
+    # Only start the live-reloader during development (running from a git
+    # checkout).  When installed via pip the package lives in site-packages
+    # and there is no .git directory — the reloader would just waste CPU
+    # scanning files that never change.
+    _project_root = Path(__file__).parent.parent.resolve()
+    if _should_enable_reloader(_project_root):
+        start_reloader()
+        logger.info("Dev mode detected — live reloader enabled.")
+    else:
+        logger.debug("Production/background mode — live reloader disabled.")
 
     with keep.running():
         application.run_polling(

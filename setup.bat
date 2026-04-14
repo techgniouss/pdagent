@@ -60,13 +60,21 @@ if errorlevel 1 (
 echo.
 
 REM Check authentication
-if exist "%USERPROFILE%\.pdagent\tokens.json" (
+if exist "%USERPROFILE%\.config\antigravity-chatbot\tokens.json" (
     echo OK Already authenticated
 ) else (
-    echo ! Authentication required
-    echo.
-    echo Run: pdagent auth
-    echo Select option 1 to authenticate with Google
+    if exist "%USERPROFILE%\.config\pdagent-gemini\tokens.json" (
+        echo OK Already authenticated
+    ) else (
+        if exist "%USERPROFILE%\.gemini\oauth_creds.json" (
+            echo OK Already authenticated
+        ) else (
+            echo ! Authentication required
+            echo.
+            echo Run: pdagent auth
+            echo Choose an OAuth mode to authenticate with Gemini
+        )
+    )
 )
 
 echo.

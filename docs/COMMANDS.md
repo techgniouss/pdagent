@@ -29,23 +29,24 @@ Manage the fundamental runtime state, session lifecycle, and system capabilities
 | `/start` | Initialize the bot and check authentication status. | `/start` |
 | `/help` | Show the interactive help menu. | `/help` |
 | `/status` | Verify Gemini API and session status. | `/status` |
-| `/login` | Generate a Google OAuth link for Gemini authentication. | `/login` |
+| `/login` | Choose an authentication method and generate an OAuth link for Gemini access. | `/login` |
 | `/authcode <code>` | Complete OAuth login with the authorization code from your browser. | `/authcode 4/1ABCDEF...` |
 | `/checkauth` | Verify current authentication status and token health. | `/checkauth` |
 | `/logout` | Sign out, revoke credentials, and clear the session. | `/logout` |
 | `/new` | Purge current Gemini chat history and start a fresh session. | `/new` |
 | `/enhance <text>` | Ask Gemini to rewrite or improve a prompt. | `/enhance write an email to my boss` |
 | `/sync` | Force-sync the command list with Telegram's menu. | `/sync` |
-| `/stopbot` | Shut down the bot service gracefully. | `/stopbot` |
+| `/stopbot` | Shut down the bot process gracefully (requires confirmation). | `/stopbot` |
 
 ---
 
-## Native AI Chat (No Command Needed)
+## Native AI Chat & Agentic Automation
 
 You do not need a slash command to talk to the AI.
 
 - **Text**: Send any message directly to chat with Gemini 2.0 Flash.
 - **Vision**: Attach a photo and ask a question — Gemini will analyze the image.
+- **Agentic Automation**: Gemini is equipped with tool-calling capabilities to actively browse files, capture screenshots, and automate UI tasks (clicking, typing, opening apps, scheduling actions) on your host PC via natural language. All destructive or system-altering actions require explicit human-in-the-loop approval via inline confirmation buttons.
 
 ---
 
@@ -72,6 +73,8 @@ Direct Windows system management.
 | :--- | :--- | :--- |
 | `/screenshot` | Capture and return the host's primary display. | `/screenshot` |
 | `/hotkey <keys>` | Send a keyboard shortcut to the host. | `/hotkey ctrl+shift+esc` |
+| `/windows` | List open application windows and present numbered switch targets. | `/windows` |
+| `/focuswindow <number>` | Activate a window from the most recent `/windows` list. | `/focuswindow 3` |
 | `/clipboard <text>` | Overwrite the host clipboard with the given text. | `/clipboard https://example.com` |
 | `/viewclipboard` | Read and return whatever is currently in the clipboard. | `/viewclipboard` |
 | `/battery` | Check battery percentage and charging status. | `/battery` |
@@ -88,8 +91,8 @@ Robotic Process Automation using OCR and computer vision.
 | Command | Description | Example |
 | :--- | :--- | :--- |
 | `/clicktext <x> <y>` | Click at specific screen coordinates. | `/clicktext 500 800` |
-| `/findtext <text>` | Locate text on screen using OCR and show its coordinates. | `/findtext Submit` |
-| `/smartclick <text>` | Find all matches of text on screen and let you pick which to click. | `/smartclick Cancel` |
+| `/findtext <text>` | Locate visible on-screen text with OCR and return click coordinates. | `/findtext Submit` |
+| `/smartclick <text>` | Find visible on-screen text with OCR and let you choose which match to click. | `/smartclick Cancel` |
 | `/findelements` | Scan the screen with computer vision and number all interactive icons/UI elements. | `/findelements` |
 | `/clickelement <id>` | Click a numbered element from the last `/findelements` scan. | `/clickelement 4` |
 | `/typeenter <text>` | Type text character-by-character and press Enter. | `/typeenter admin123` |
@@ -99,6 +102,7 @@ Robotic Process Automation using OCR and computer vision.
 
 > **Note:** OCR commands (`/findtext`, `/smartclick`) require Tesseract OCR installed on the host.
 > `/findelements` uses computer vision (included in the standard installation).
+> `/windows` and `/focuswindow` switch top-level application windows, not browser tabs within a single app.
 
 ---
 
@@ -186,7 +190,7 @@ Schedule automation sequences or Claude prompts to run at a future time. Tasks p
 
 | Command | Description | Example |
 | :--- | :--- | :--- |
-| `/schedule <HH:MM>` | Schedule a recorded macro to run at a specific time. | `/schedule 14:00` |
+| `/schedule <HH:MM>` | Start recording an automation sequence to run at a specific time. | `/schedule 14:00` |
 | `/claudeschedule <HH:MM> <text>` | Schedule a prompt to be sent to Claude at a specific time. | `/claudeschedule 02:00 run tests and summarize` |
 | `/listschedules` | View all pending scheduled tasks with countdown timers. | `/listschedules` |
 | `/cancelschedule <id>` | Cancel a pending scheduled task by its ID. | `/cancelschedule claude_123` |
@@ -204,9 +208,9 @@ CI/CD commands for React Native Android build pipelines.
 | Command | Description | Example |
 | :--- | :--- | :--- |
 | `/build` | Start the React Native / Android build workflow. | `/build` |
-| `/getapk` | Retrieve the latest built APK and deliver it via Telegram. | `/getapk` |
+| `/getapk` | Retrieve the latest built APK and deliver it through Telegram or a large-file upload option. | `/getapk` |
 
-See [docs/BUILD_WORKFLOW.md](BUILD_WORKFLOW.md) for the full build guide.
+See [BUILD_WORKFLOW.md](BUILD_WORKFLOW.md) for the full build guide.
 
 ---
 

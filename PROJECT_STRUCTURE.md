@@ -9,7 +9,7 @@ The system is built on a modular architecture: Telegram as the interface, Google
 ```
 pocket-desk-agent/
 ├── pocket_desk_agent/              # Main application package
-│   ├── handlers/                   # Command handlers split into 13 domain modules
+│   ├── handlers/                   # Command handlers split into 13 focused modules
 │   │   ├── __init__.py             # Re-exports all public handler names
 │   │   ├── _shared.py              # Singleton clients, safe_command decorator, global state
 │   │   ├── auth.py                 # /login, /authcode, /checkauth, /logout
@@ -30,23 +30,28 @@ pocket-desk-agent/
 │   ├── command_map.py              # Centralized registry: maps command names → handlers
 │   ├── command_registry.py         # Persistent storage for user-defined macros
 │   ├── file_manager.py             # Sandboxed file I/O (path traversal prevention)
+│   ├── gemini_actions.py           # Gemini UI automation tools and confirmation flows
 │   ├── gemini_client.py            # Gemini API client with tool-calling
 │   ├── antigravity_auth.py         # OAuth 2.0 PKCE implementation
-│   ├── auth.py                     # User allowlist + AntigravityAuth wrapper
+│   ├── auth.py                     # User allowlist + multi-mode auth wrapper
+│   ├── gemini_cli_auth.py          # Gemini CLI OAuth PKCE implementation
+│   ├── window_utils.py             # Window inventory + activation helpers for /windows
 │   ├── scheduler_registry.py       # Persistent scheduled task storage
+│   ├── startup_manager.py          # Windows logon-task startup management
 │   ├── rate_limiter.py             # Token-bucket rate limiter (per-user, per-command)
 │   ├── updater.py                  # Auto-update manager (git pull)
 │   ├── automation_utils.py         # OCR and UI automation helpers
 │   └── constants.py                # API endpoints and header constants
 ├── scripts/
-│   ├── manage_auth.py              # OAuth credential management (pdagent auth)
+│   ├── manage_auth.py              # Gemini authentication management (pdagent auth)
 │   └── manage_service.py           # Daemon lifecycle (stop/restart/status)
 ├── docs/                           # Feature-specific documentation
-│   ├── COMMANDS.md                 # Complete command reference (all 70+ commands)
+│   ├── COMMANDS.md                 # Complete command reference
 │   ├── BUILD_WORKFLOW.md           # React Native APK build automation guide
 │   ├── AUTHENTICATION_REQUIREMENTS.md  # Which commands need auth vs. not
 │   ├── MOBILE_AUTHENTICATION.md    # OAuth flow step-by-step guide
 │   ├── ANTIGRAVITY_LOGIN_IMPLEMENTATION.md  # OAuth architecture reference
+│   ├── LOCAL_DEVELOPMENT.md        # Local development workflow and tooling
 │   └── dropbox-setup.md            # Dropbox integration setup guide
 ├── .github/workflows/
 │   └── publish.yml                 # Automated PyPI publishing on release
@@ -71,6 +76,8 @@ The `_shared.py` module holds three module-level singletons used across all hand
 - `gemini_client` — `GeminiClient` for Gemini API + conversation history
 - `file_manager` — `FileManager` for sandboxed file I/O
 
+Despite the legacy class name, `auth_client` now acts as the multi-provider auth manager for Antigravity OAuth and Gemini CLI OAuth.
+
 ### 2. `command_map.py`
 Centralized registry of `(command_name, handler_func, description)` tuples. `main.py` reads this at startup to register all `CommandHandler`s and sync Telegram's command menu. Adding a new command here is the only wiring step needed.
 
@@ -79,15 +86,15 @@ Centralized registry of `(command_name, handler_func, description)` tuples. `mai
 
 Config precedence (highest to lowest):
 1. Shell environment variables
-2. `~/.pdagent/config.ini`
+2. `~/.pdagent/config`
 3. `~/.pdagent/.env`
 4. `.env` in cwd
 
 ### 4. `file_manager.py`
 Secure file system abstraction. All paths are validated against `APPROVED_DIRECTORIES` using `Path.relative_to()` (not string prefix matching). Always route new file operations through `FileManager._is_safe_path()`.
 
-### 5. `gemini_client.py`
-Hand-rolled HTTPS client for the Gemini API. Implements tool-calling with an `_ALLOWED_TOOLS` frozenset that restricts which tools the AI can invoke (prevents prompt-injection-to-RCE). History is trimmed to 40 turns to bound memory usage.
+### 5. `gemini_client.py` & `gemini_actions.py`
+Hand-rolled HTTPS client for the Gemini API (`gemini_client.py`). Implements extensive tool-calling capabilities (`gemini_actions.py`) allowing Gemini to browse files and automate the desktop. All side-effecting tools require human-in-the-loop inline confirmations to prevent prompt-injection attacks. History is trimmed to 40 turns to bound memory usage.
 
 ### 6. `rate_limiter.py`
 Token-bucket rate limiter keyed by `(user_id, command)`. The global `rate_limiter` instance in `_shared.py` has per-command overrides for expensive or dangerous operations (e.g., `/shutdown` is capped at 1 per 5 minutes).
@@ -95,8 +102,30 @@ Token-bucket rate limiter keyed by `(user_id, command)`. The global `rate_limite
 ### 7. `scheduler_registry.py`
 Manages `~/.pdagent/scheduled_tasks.json`. The scheduler loop in `main.py` polls every 60 seconds. Tasks older than 7 days are automatically cleaned up.
 
-### 8. `antigravity_auth.py`
-OAuth 2.0 PKCE implementation for Google authentication. Tokens are stored in `~/.pdagent/tokens.json` with restricted file permissions (chmod 600 on Unix, icacls on Windows).
+### 8. `auth.py`, `antigravity_auth.py`, `gemini_cli_auth.py`
+Multi-provider authentication stack. `auth.py` selects the active provider per user, while `antigravity_auth.py` and `gemini_cli_auth.py` implement the provider-specific OAuth PKCE flows. Tokens are stored in provider-specific config directories with restricted file permissions.
+
+---
+
+## Performance Conventions
+
+### Lazy Imports
+
+Heavy dependencies are imported **inside handler functions**, not at module level, so they don't add to idle RAM:
+
+- `opencv-python`, `numpy` — inside `automation_utils.py` functions
+- `dropbox` — inside `handlers/build.py` upload functions
+- `pytesseract` — inside `automation_utils.py` OCR functions
+- `pywinauto`, `pygetwindow`, `PIL.ImageGrab` — loaded on first use via `_load_win_deps()` in `handlers/claude.py` and `handlers/antigravity.py`
+
+When adding new features that require heavy dependencies, follow this pattern.
+
+### Dev-Mode Reloader
+
+`main.py` starts a file-watching reloader thread (`start_reloader()`) only when a `.git` directory exists in the project root. This means:
+
+- **Git checkout** (developer): reloader runs, auto-restarts on `.py` changes
+- **pip install** (end-user): reloader is disabled, no CPU overhead
 
 ---
 
@@ -129,10 +158,9 @@ OAuth 2.0 PKCE implementation for Google authentication. Tokens are stored in `~
 
 ### Adding a New Gemini AI Tool
 
-1. Implement the function in `file_manager.py` or a new utility module.
-2. Add the JSON tool definition to `gemini_client.py` → `_get_api_tools()`.
-3. Handle the tool call in `gemini_client.py` → `send_message()`.
-4. Add the tool name to `_ALLOWED_TOOLS` frozenset.
+1. Implement the tool definition in `gemini_actions.py` → `get_gemini_action_tools()`.
+2. Add the execution logic in `gemini_actions.py` → `dispatch_gemini_tool()`. If it has side effects, use `await _queue_confirmation()` to require user approval.
+3. If adding a new tool with side-effects, add its name to `_RATE_LIMITED_TOOLS` and define a rate limit in `gemini_actions.py`.
 
 ### Modifying AI Behavior
 

@@ -5,19 +5,33 @@ values that were previously duplicated across antigravity_auth.py and
 gemini_client.py.
 """
 
-# ── Default OAuth Credentials ───────────────────────────────────────────────
-# Gemini CLI public OAuth client (installed app — not treated as secret).
-# Source: https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/code_assist/oauth2.ts
-# Google's own comment: "It's ok to save this in git because this is an
-# installed application" — the client secret is not treated as a secret
-# for desktop/CLI apps (RFC 8252).  PKCE is the real security boundary.
+# ── Auth Mode Constants ─────────────────────────────────────────────────────
+AUTH_MODE_ANTIGRAVITY = "antigravity"
+AUTH_MODE_GEMINI_CLI = "gemini-cli"
+AUTH_MODE_APIKEY = "apikey"
+
+# ── Default OAuth Credentials (Antigravity) ─────────────────────────────────
+# Antigravity plugin OAuth client (installed app — not treated as secret).
+# This client has http://localhost:51121/oauth-callback registered as a
+# redirect URI.  The client secret is not treated as a secret for
+# desktop/CLI apps (RFC 8252).  PKCE is the real security boundary.
 #
 # Users can override these by setting GOOGLE_OAUTH_CLIENT_ID and
 # GOOGLE_OAUTH_CLIENT_SECRET environment variables (or in ~/.pdagent/credentials).
 DEFAULT_OAUTH_CLIENT_ID = (
+    "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
+)
+DEFAULT_OAUTH_CLIENT_SECRET = "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"
+
+# ── Gemini CLI OAuth Credentials ────────────────────────────────────────────
+# Public OAuth client from the official Gemini CLI (google-gemini/gemini-cli).
+# Source: packages/core/src/code_assist/oauth2.ts
+# These are installed-app credentials — the secret is NOT treated as secret
+# per RFC 8252 and Google's own documentation.
+GEMINI_CLI_OAUTH_CLIENT_ID = (
     "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"
 )
-DEFAULT_OAUTH_CLIENT_SECRET = "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"
+GEMINI_CLI_OAUTH_CLIENT_SECRET = "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"
 
 # ── OAuth Configuration ──────────────────────────────────────────────────────
 OAUTH_REDIRECT_URI = "http://localhost:51121/oauth-callback"
@@ -28,6 +42,12 @@ ANTIGRAVITY_SCOPES = [
     "https://www.googleapis.com/auth/userinfo.profile",
     "https://www.googleapis.com/auth/cclog",
     "https://www.googleapis.com/auth/experimentsandconfigs",
+]
+
+GEMINI_CLI_SCOPES = [
+    "https://www.googleapis.com/auth/cloud-platform",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile",
 ]
 
 # ── API Endpoints ────────────────────────────────────────────────────────────

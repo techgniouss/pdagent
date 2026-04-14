@@ -17,13 +17,6 @@ from pocket_desk_agent.handlers._shared import (
 )
 from pocket_desk_agent.scheduler_registry import get_scheduler_registry, ScheduledTask
 
-if platform.system() == "Windows":
-    try:
-        from pywinauto import Application
-        import pygetwindow as gw
-    except ImportError:
-        pass
-
 logger = logging.getLogger(__name__)
 
 def parse_schedule_time(time_str: str) -> Optional[datetime.datetime]:
@@ -292,7 +285,7 @@ async def execute_scheduled_task(task: ScheduledTask, bot):
                 raise Exception("Could not open or find Claude desktop app")
             
             window.activate()
-            time.sleep(1.5)
+            await asyncio.sleep(1.5)
             
             import pyautogui
             import pyperclip
@@ -328,7 +321,7 @@ async def execute_scheduled_task(task: ScheduledTask, bot):
                         y = (text_data['top'][i] + (text_data['height'][i] // 2)
                              + window.top + window.height - bottom_height)
                         pyautogui.click(x, y)
-                        time.sleep(0.5)
+                        await asyncio.sleep(0.5)
                         input_clicked = True
                         break
             except Exception as e:
@@ -337,11 +330,12 @@ async def execute_scheduled_task(task: ScheduledTask, bot):
             # Method 2: pywinauto Edit control
             if not input_clicked:
                 try:
+                    from pywinauto import Application
                     app = Application(backend="uia").connect(title_re=".*Claude.*")
                     claude_win = app.window(title_re=".*Claude.*")
                     input_box = claude_win.child_window(control_type="Edit", found_index=0)
                     input_box.click_input()
-                    time.sleep(0.5)
+                    await asyncio.sleep(0.5)
                     input_clicked = True
                 except Exception as e:
                     logger.warning(f"[Scheduler] pywinauto method failed: {e}")
@@ -351,13 +345,13 @@ async def execute_scheduled_task(task: ScheduledTask, bot):
                 click_x = window.left + (window.width // 2)
                 click_y = window.top + window.height - 35
                 pyautogui.click(click_x, click_y)
-                time.sleep(0.5)
+                await asyncio.sleep(0.5)
 
             # Paste the prompt and submit
             pyperclip.copy(prompt)
-            time.sleep(0.3)
+            await asyncio.sleep(0.3)
             pyautogui.hotkey('ctrl', 'v')
-            time.sleep(0.5)
+            await asyncio.sleep(0.5)
             pyautogui.press('enter')
             
             await bot.send_message(chat_id=task.user_id, text="✅ Scheduled Claude prompt sent successfully.")
@@ -389,7 +383,7 @@ async def run_custom_actions(actions):
     """Helper to run a sequence of actions without an update object."""
     import pyautogui
     import pyperclip
-    from pocket_desk_agent.automation_utils import map_keys_to_pyautogui
+    from pocket_desk_agent.automation_utils import find_text_in_image, map_keys_to_pyautogui
     
     for action in actions:
         if action.type == "hotkey":
@@ -397,7 +391,7 @@ async def run_custom_actions(actions):
                 keys = map_keys_to_pyautogui(action.args[0])
                 pyautogui.hotkey(*keys)
                 if len(action.args) >= 2: # text to type
-                    time.sleep(0.5)
+                    await asyncio.sleep(0.5)
                     pyautogui.typewrite(action.args[1], interval=0.02)
         elif action.type == "clipboard":
             if action.args:
@@ -406,10 +400,8 @@ async def run_custom_actions(actions):
             # OCR scan — informational only in scheduled context, log the result
             if action.args:
                 try:
-                    import pytesseract
                     screenshot = pyautogui.screenshot()
-                    text_data = pytesseract.image_to_data(screenshot, output_type=pytesseract.Output.DICT)
-                    found = any(action.args[0].lower() in w.lower() for w in text_data['text'] if w)
+                    found = bool(find_text_in_image(screenshot, action.args[0]))
                     logger.info(f"[scheduler] findtext '{action.args[0]}': {'found' if found else 'not found'}")
                 except Exception as e:
                     logger.warning(f"[scheduler] findtext failed: {e}")
@@ -417,26 +409,26 @@ async def run_custom_actions(actions):
             # OCR click — find text on screen and click the first match
             if action.args:
                 try:
-                    import pytesseract
                     screenshot = pyautogui.screenshot()
-                    text_data = pytesseract.image_to_data(screenshot, output_type=pytesseract.Output.DICT)
-                    for i, word in enumerate(text_data['text']):
-                        if word and action.args[0].lower() in word.lower():
-                            x = text_data['left'][i] + text_data['width'][i] // 2
-                            y = text_data['top'][i] + text_data['height'][i] // 2
-                            pyautogui.click(x, y)
-                            logger.info(f"[scheduler] smartclick '{action.args[0]}' at ({x},{y})")
-                            break
+                    matches = find_text_in_image(screenshot, action.args[0])
+                    if matches:
+                        best_match = matches[0]  # find_text_in_image returns strongest matches first.
+                        pyautogui.click(best_match.x, best_match.y)
+                        logger.info(
+                            f"[scheduler] smartclick '{action.args[0]}' at ({best_match.x},{best_match.y})"
+                        )
+                    else:
+                        logger.info(f"[scheduler] smartclick '{action.args[0]}': not found")
                 except Exception as e:
                     logger.warning(f"[scheduler] smartclick failed: {e}")
         elif action.type == "pasteenter":
             pyautogui.hotkey('ctrl', 'v')
-            time.sleep(0.5)
+            await asyncio.sleep(0.5)
             pyautogui.press('enter')
         elif action.type == "typeenter":
             if action.args:
                 pyautogui.typewrite(action.args[0], interval=0.02)
                 pyautogui.press('enter')
         
-        time.sleep(0.5) # Gap between actions
+        await asyncio.sleep(0.5)  # Gap between actions
 

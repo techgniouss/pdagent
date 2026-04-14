@@ -14,16 +14,29 @@ Usage:
     pdagent restart           # restart the bot
     pdagent configure         # interactive configuration wizard
     pdagent setup             # check and install system dependencies (e.g. Tesseract)
-    pdagent auth              # manage Google OAuth authentication
+    pdagent startup status    # show automatic startup status
+    pdagent startup enable    # enable automatic startup after Windows login
+    pdagent startup disable   # disable automatic startup after Windows login
+    pdagent startup configure # interactive autorun setup
+    pdagent auth              # manage Gemini authentication
     pdagent version           # print the installed version
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
+
+
+def _safe_print(message: str) -> None:
+    """Print text without crashing on narrow Windows console encodings."""
+    try:
+        print(message)
+    except UnicodeEncodeError:
+        print(message.encode("ascii", errors="replace").decode("ascii"))
 
 
 def _tesseract_available() -> bool:
@@ -84,6 +97,8 @@ def _run_background() -> int:
     """Spawn the bot in the background and return immediately."""
     log_file = Path.cwd() / "bot.log"
     creationflags = 0
+    child_env = dict(os.environ)
+    child_env["PDAGENT_ENABLE_RELOADER"] = "0"
     if sys.platform == "win32":
         creationflags = (
             getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
@@ -97,10 +112,11 @@ def _run_background() -> int:
             stdout=log,
             stderr=log,
             stdin=subprocess.DEVNULL,
+            env=child_env,
             creationflags=creationflags,
             close_fds=True,
         )
-    print(f"🚀 Pocket Desk Agent started in background. Logs: {log_file}")
+    _safe_print(f"Pocket Desk Agent started in background. Logs: {log_file}")
     return 0
 
 
@@ -194,10 +210,24 @@ def _auth() -> int:
         pass
 
     # Fallback for PyPI installs — run the OAuth flow directly
-    from pocket_desk_agent.antigravity_auth import AntigravityOAuth
+    from pocket_desk_agent.config import Config
+    from pocket_desk_agent.constants import AUTH_MODE_GEMINI_CLI, AUTH_MODE_APIKEY
+
+    if Config.GEMINI_AUTH_MODE == AUTH_MODE_APIKEY:
+        print("Bot is configured to use API Key. Authentication via OAuth is not needed.")
+        return 0
+
+    if Config.GEMINI_AUTH_MODE == AUTH_MODE_GEMINI_CLI:
+        from pocket_desk_agent.gemini_cli_auth import GeminiCLIOAuth
+        oauth = GeminiCLIOAuth()
+        mode_name = "Gemini CLI OAuth"
+    else:
+        from pocket_desk_agent.antigravity_auth import AntigravityOAuth
+        oauth = AntigravityOAuth()
+        mode_name = "Antigravity OAuth"
 
     print("=" * 50)
-    print("POCKET DESK AGENT — AUTHENTICATION")
+    print(f"POCKET DESK AGENT — AUTHENTICATION ({mode_name})")
     print("=" * 50)
     print("\n1. Login (Authenticate)")
     print("2. Check Status")
@@ -205,19 +235,22 @@ def _auth() -> int:
     print("4. Exit")
 
     choice = input("\nEnter choice (1-4): ").strip()
-    oauth = AntigravityOAuth()
 
     if choice == "1":
-        print("\nThis will open your browser for Google authentication.")
+        print(f"\nThis will open your browser for {mode_name} authentication.")
         input("Press Enter to continue...")
         success = oauth.start_login_flow()
         if success and oauth.is_authenticated():
             print(f"\n✅ LOGIN SUCCESSFUL — {oauth.email}")
+            if getattr(oauth, 'project_id', None):
+                print(f"Project: {oauth.project_id}")
         else:
             print("\n❌ LOGIN FAILED — please try again.")
     elif choice == "2":
         if oauth.load_saved_tokens():
             print(f"\n✅ Authenticated as {oauth.email}")
+            if getattr(oauth, 'project_id', None):
+                print(f"Project: {oauth.project_id}")
         else:
             print("\n❌ Not authenticated. Run option 1 to login.")
     elif choice == "3":
@@ -228,6 +261,61 @@ def _auth() -> int:
     return 0
 
 
+def _startup_status() -> int:
+    """Print automatic startup status."""
+    from pocket_desk_agent.startup_manager import StartupManager
+
+    manager = StartupManager()
+    status = manager.get_status()
+    print(status.message)
+    if status.details:
+        print()
+        for detail in status.details:
+            print(f"- {detail}")
+    if status.supported:
+        print()
+        print(
+            "Windows Service mode is not currently offered. Pocket Desk Agent's "
+            "screenshot, OCR, Claude Desktop, and VS Code automation features "
+            "require the logged-in desktop session."
+        )
+    return 1 if status.state == "broken" else 0
+
+
+def _startup_enable() -> int:
+    """Enable automatic startup after Windows login."""
+    from pocket_desk_agent.startup_manager import StartupManager
+
+    manager = StartupManager()
+    success, message = manager.enable_startup()
+    print(message)
+    if success:
+        print()
+        print(
+            "Pocket Desk Agent will start automatically in the background after "
+            "you sign in to Windows. This is not a Windows Service."
+        )
+    return 0 if success else 1
+
+
+def _startup_disable() -> int:
+    """Disable automatic startup after Windows login."""
+    from pocket_desk_agent.startup_manager import StartupManager
+
+    manager = StartupManager()
+    success, message = manager.disable_startup()
+    print(message)
+    return 0 if success else 1
+
+
+def _startup_configure() -> int:
+    """Interactively configure automatic startup."""
+    from pocket_desk_agent.startup_manager import StartupManager
+
+    manager = StartupManager()
+    return manager.configure_interactive()
+
+
 def _setup() -> int:
     """Check and install system dependencies (e.g. Tesseract OCR)."""
     _ensure_tesseract()
@@ -235,9 +323,24 @@ def _setup() -> int:
 
 
 def _version() -> int:
-    """Print the installed version."""
+    """Print the installed version and check PyPI for a newer release."""
     from pocket_desk_agent import __version__
     print(f"pdagent {__version__}")
+    try:
+        from pocket_desk_agent.updater import check_for_updates
+        info = check_for_updates()
+        if not info.up_to_date and not info.error:
+            if info.local_sha == "pypi-install":
+                # PyPI install — remote_sha is a version string
+                print(f"\nA newer version is available: v{info.remote_sha}")
+                print("Upgrade with:  pip install --upgrade pocket-desk-agent")
+                print("Then restart:  pdagent restart")
+            else:
+                # Git checkout — remote_sha is a commit hash
+                print(f"\nA newer commit is available ({info.commits_behind} commit(s) behind).")
+                print("Update with:   /update in Telegram, or git pull && pip install -e .")
+    except Exception:
+        pass
     return 0
 
 
@@ -256,10 +359,29 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("restart", help="Restart the bot in the background")
     sub.add_parser("configure", help="Run the interactive configuration wizard")
     sub.add_parser("setup", help="Check and install system dependencies (e.g. Tesseract OCR)")
-    sub.add_parser("auth", help="Manage Google OAuth authentication tokens")
+    startup = sub.add_parser(
+        "startup",
+        help="Manage automatic startup after Windows login",
+    )
+    startup_sub = startup.add_subparsers(dest="startup_command")
+    startup_sub.add_parser("enable", help="Enable automatic startup after Windows login")
+    startup_sub.add_parser("disable", help="Disable automatic startup after Windows login")
+    startup_sub.add_parser("status", help="Show automatic startup status")
+    startup_sub.add_parser("configure", help="Interactively configure automatic startup")
+    sub.add_parser("auth", help="Manage Gemini authentication tokens")
     sub.add_parser("version", help="Print the installed version")
 
     args = parser.parse_args(argv)
+
+    if args.command == "startup":
+        startup_dispatch = {
+            "enable": _startup_enable,
+            "disable": _startup_disable,
+            "status": _startup_status,
+            "configure": _startup_configure,
+            None: lambda: startup.print_help() or 0,
+        }
+        return startup_dispatch[args.startup_command]()
 
     dispatch = {
         None: _run_foreground,

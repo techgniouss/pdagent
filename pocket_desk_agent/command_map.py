@@ -31,6 +31,8 @@ COMMAND_REGISTRY = [
     ("battery", handlers.battery_command, "Check battery levels"),
     ("screenshot", handlers.screenshot_command, "Take a screenshot"),
     ("hotkey", handlers.hotkey_command, "Send keyboard hotkeys"),
+    ("windows", handlers.windows_command, "List open application windows"),
+    ("focuswindow", handlers.focuswindow_command, "Activate a listed window"),
     ("clipboard", handlers.clipboard_command, "Set PC clipboard"),
     ("viewclipboard", handlers.viewclipboard_command, "View PC clipboard"),
     

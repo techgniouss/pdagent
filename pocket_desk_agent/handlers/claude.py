@@ -17,20 +17,32 @@ from pocket_desk_agent.handlers._shared import (
     search_results,
     repo_lists,
     repo_selection_state,
-    DEFAULT_REPO_PATH,
+    repo_selection_state,
     record_action_if_active,
+    file_manager,
 )
 from pocket_desk_agent.config import Config
 
-# Re-import pywinauto names used directly in this module
-if platform.system() == "Windows":
-    try:
-        from pywinauto import Application
-        from pywinauto.keyboard import send_keys
-        import pygetwindow as gw
-        from PIL import ImageGrab
-    except ImportError:
-        pass
+# Lazy-loaded on first call to _load_win_deps() to avoid ~15-20 MB at startup.
+Application = None
+send_keys = None
+gw = None
+ImageGrab = None
+
+
+def _load_win_deps():
+    """Load Windows UI automation modules on first use (cached after that)."""
+    global Application, send_keys, gw, ImageGrab
+    if gw is not None:
+        return
+    from pywinauto import Application as _App
+    from pywinauto.keyboard import send_keys as _sk
+    import pygetwindow as _gw
+    from PIL import ImageGrab as _ig
+    Application = _App
+    send_keys = _sk
+    gw = _gw
+    ImageGrab = _ig
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +136,7 @@ async def clauderemote_command(update: Update, context: ContextTypes.DEFAULT_TYP
         )
         return
 
-    repo_path = str(Config.CLAUDE_DEFAULT_REPO_PATH)
+    repo_path = str(file_manager.get_current_dir(update.effective_user.id))
     await update.message.reply_text(
         f"🚀 Starting claude remote-control...\n📁 Repo: `{repo_path}`",
         parse_mode="Markdown",
@@ -318,7 +330,8 @@ def find_claude_window():
     """Find Claude desktop window and restore if minimized."""
     if not PYWINAUTO_AVAILABLE:
         return None
-    
+    _load_win_deps()
+
     try:
         # Try to find Claude window - try multiple title variations
         window = None
@@ -429,6 +442,7 @@ def ensure_claude_open():
 
 def capture_claude_screenshot():
     """Capture screenshot of Claude window."""
+    _load_win_deps()
     try:
         window = find_claude_window()
         if not window:
@@ -1924,9 +1938,10 @@ async def clauderepo_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         
         # Get local repos
         local_repos = []
-        if os.path.exists(DEFAULT_REPO_PATH):
-            for item in os.listdir(DEFAULT_REPO_PATH):
-                item_path = os.path.join(DEFAULT_REPO_PATH, item)
+        current_dir_str = str(file_manager.get_current_dir(user_id))
+        if os.path.exists(current_dir_str):
+            for item in os.listdir(current_dir_str):
+                item_path = os.path.join(current_dir_str, item)
                 if os.path.isdir(item_path):
                     local_repos.append(item_path)
         
@@ -1965,25 +1980,26 @@ async def clauderepo_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """List all repositories in the default folder."""
     try:
         user_id = update.effective_user.id
+        current_dir_str = str(file_manager.get_current_dir(user_id))
         
-        # Check if default path exists
-        if not os.path.exists(DEFAULT_REPO_PATH):
+        # Check if current path exists
+        if not os.path.exists(current_dir_str):
             await update.message.reply_text(
-                f"❌ Default repo folder not found:\n{DEFAULT_REPO_PATH}\n\n"
-                f"Please check the path or use /clauderepo <path> with a custom path."
+                f"❌ Current directory not found:\n{current_dir_str}\n\n"
+                f"Please use /cd to update your path."
             )
             return
         
-        # Get all directories in the default path
+        # Get all directories in the current path
         repos = []
-        for item in os.listdir(DEFAULT_REPO_PATH):
-            item_path = os.path.join(DEFAULT_REPO_PATH, item)
+        for item in os.listdir(current_dir_str):
+            item_path = os.path.join(current_dir_str, item)
             if os.path.isdir(item_path):
                 repos.append(item_path)
         
         if not repos:
             await update.message.reply_text(
-                f"❌ No repositories found in:\n{DEFAULT_REPO_PATH}"
+                f"❌ No repositories found in:\n{current_dir_str}"
             )
             return
         
@@ -1991,7 +2007,7 @@ async def clauderepo_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
         repo_lists[user_id] = repos
         
         # Build message with numbered list
-        message = f"📁 Available repositories in:\n{DEFAULT_REPO_PATH}\n\n"
+        message = f"📁 Available repositories in:\n{current_dir_str}\n\n"
         
         for i, repo_path in enumerate(repos, 1):
             repo_name = os.path.basename(repo_path)

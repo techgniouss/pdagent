@@ -58,6 +58,7 @@ _INI_ENV_MAP: dict[tuple[str, str, str], str] = {
     ("config", "bot", "telegram_bot_username"): "TELEGRAM_BOT_USERNAME",
     ("config", "bot", "approved_directories"):  "APPROVED_DIRECTORIES",
     ("config", "bot", "google_oauth_enabled"):  "GOOGLE_OAUTH_ENABLED",
+    ("config", "bot", "gemini_auth_mode"):       "GEMINI_AUTH_MODE",
     ("config", "bot", "gemini_model"):          "GEMINI_MODEL",
     ("config", "bot", "max_tokens_per_request"): "MAX_TOKENS_PER_REQUEST",
     ("config", "bot", "system_prompt"):         "SYSTEM_PROMPT",
@@ -171,6 +172,7 @@ def _show_current_config() -> None:
     print("\nCurrent configuration:")
     print(f"  Telegram Bot Token   : {cred('telegram_bot_token')}")
     print(f"  Authorized User IDs  : {cfg('bot', 'authorized_user_ids')}")
+    print(f"  Gemini Auth Mode     : {cfg('bot', 'gemini_auth_mode')}")
     print(f"  Google OAuth Enabled : {cfg('bot', 'google_oauth_enabled')}")
     print(f"  Google API Key       : {cred('google_api_key')}")
     print(f"  Gemini Model         : {cfg('bot', 'gemini_model')}")
@@ -183,12 +185,15 @@ def _show_current_config() -> None:
 # Auto OAuth login (triggered at end of wizard)
 # ---------------------------------------------------------------------------
 
-def _auto_oauth_login() -> None:
+def _auto_oauth_login(auth_mode: str = "antigravity") -> None:
     """Trigger browser-based OAuth login after configuration."""
-    # Lazy import to avoid pulling in antigravity_auth during simple config reads
-    from pocket_desk_agent.antigravity_auth import AntigravityOAuth
+    if auth_mode == "gemini-cli":
+        from pocket_desk_agent.gemini_cli_auth import GeminiCLIOAuth
+        oauth = GeminiCLIOAuth()
+    else:
+        from pocket_desk_agent.antigravity_auth import AntigravityOAuth
+        oauth = AntigravityOAuth()
 
-    oauth = AntigravityOAuth()
     if oauth.load_saved_tokens():
         print(f"\n  Already authenticated as {oauth.email}")
         return
@@ -199,12 +204,68 @@ def _auto_oauth_login() -> None:
     success = oauth.start_login_flow()
     if success and oauth.is_authenticated():
         print(f"\n  ✅ Authenticated as {oauth.email}")
-        if oauth.project_id:
+        if hasattr(oauth, 'project_id') and oauth.project_id:
             print(f"     Project: {oauth.project_id}")
     else:
         print("\n  ⚠️  Browser login didn't complete.")
         print("  You can authenticate later with: pdagent auth")
         print("  Or use /login in Telegram after starting the bot.")
+
+
+def _configure_windows_startup(manager=None, input_func=input) -> None:
+    """Offer interactive startup-at-logon setup on Windows."""
+    if os.name != "nt":
+        return
+
+    if manager is None:
+        from pocket_desk_agent.startup_manager import StartupManager
+
+        manager = StartupManager()
+
+    status = manager.get_status()
+    if not status.supported:
+        print("\nAutomatic background startup:")
+        print(f"  {status.message}")
+        return
+
+    print("\n[Optional] Automatic Background Startup")
+    print("-" * 40)
+    print("Pocket Desk Agent can start automatically after you sign in to Windows.")
+    print("This starts the bot in the background so you do not need to run `pdagent start` after reboot.")
+    print("This is not a Windows Service.")
+    print(
+        "Startup-at-logon keeps screenshots, OCR, Claude Desktop control, and "
+        "VS Code automation working because the bot runs in your logged-in desktop session."
+    )
+
+    if status.enabled:
+        print("\n  Automatic startup is currently enabled.")
+        answer = input_func("  Keep automatic startup enabled? [Y/n]: ").strip().lower()
+        if answer in ("", "y", "yes"):
+            print("  Automatic startup remains enabled.")
+            return
+
+        success, message = manager.disable_startup()
+        print(f"  {message}")
+        if not success:
+            print("  You can try again later with: pdagent startup configure")
+        return
+
+    if status.details:
+        print("\n  Existing startup task needs attention:")
+        for detail in status.details:
+            print(f"  - {detail}")
+
+    answer = input_func("  Enable automatic startup after Windows login? [y/N]: ").strip().lower()
+    if answer in ("y", "yes"):
+        success, message = manager.enable_startup()
+        print(f"  {message}")
+        if not success:
+            print("  You can try again later with: pdagent startup configure")
+        return
+
+    print("  Automatic startup left disabled.")
+    print("  You can enable it later with: pdagent startup configure")
 
 
 # ---------------------------------------------------------------------------
@@ -266,24 +327,37 @@ def run_configure_wizard(reconfigure: bool = False) -> None:
     print("\n[2/3] Gemini AI Authentication")
     print("-" * 40)
     print("  How do you want to authenticate with Gemini AI?")
-    print("    1) Google OAuth  (recommended — browser-based, tokens auto-refresh)")
-    print("    2) Google API Key (paste a key directly)")
+    print("    1) Antigravity OAuth  (recommended — browser-based, internal Google API)")
+    print("    2) Gemini CLI OAuth   (browser-based, public Gemini API — no GCP project needed)")
+    print("    3) Google API Key     (paste a key directly)")
+    print("    4) Setup Later        (skip — authenticate later via /login in Telegram)")
 
+    gemini_auth_mode = "antigravity"
     google_oauth_enabled = "true"
     google_api_key = ""
     google_oauth_client_id = ""
     google_oauth_client_secret = ""
+    setup_later = False
     while True:
         choice = input("  Choice [1]: ").strip() or "1"
         if choice == "1":
+            gemini_auth_mode = "antigravity"
             google_oauth_enabled = "true"
             google_api_key = ""
             google_oauth_client_id = ""
             google_oauth_client_secret = ""
-            print("  OAuth selected — uses built-in credentials (zero config).")
-            print("  Start the bot and use /login in Telegram to authenticate.")
+            print("  Antigravity OAuth selected — uses built-in credentials (zero config).")
             break
         elif choice == "2":
+            gemini_auth_mode = "gemini-cli"
+            google_oauth_enabled = "true"
+            google_api_key = ""
+            google_oauth_client_id = ""
+            google_oauth_client_secret = ""
+            print("  Gemini CLI OAuth selected — uses public Gemini API, no GCP project needed.")
+            break
+        elif choice == "3":
+            gemini_auth_mode = "apikey"
             google_oauth_enabled = "false"
             google_api_key = _prompt_required(
                 "Google API Key",
@@ -291,8 +365,18 @@ def run_configure_wizard(reconfigure: bool = False) -> None:
                 secret=True,
             )
             break
+        elif choice == "4":
+            setup_later = True
+            gemini_auth_mode = "antigravity"
+            google_oauth_enabled = "true"
+            google_api_key = ""
+            google_oauth_client_id = ""
+            google_oauth_client_secret = ""
+            print("  Skipping authentication setup.")
+            print("  You can authenticate later using /login in Telegram after starting the bot.")
+            break
         else:
-            print("  Please enter 1 or 2.")
+            print("  Please enter 1, 2, 3, or 4.")
 
     # ------------------------------------------------------------------
     # [3/3] Optional Settings
@@ -308,6 +392,11 @@ def run_configure_wizard(reconfigure: bool = False) -> None:
         "Approved Directories",
         hint="Comma-separated directories this bot may access",
         default=".",
+    )
+    claude_default_repo_path = _prompt_optional(
+        "Default Projects Directory",
+        hint="Folder where your code repositories are located",
+        default=str(Path.home() / "Documents"),
     )
     dropbox_access_token = _prompt_optional(
         "Dropbox Access Token",
@@ -343,6 +432,7 @@ def run_configure_wizard(reconfigure: bool = False) -> None:
         "authorized_user_ids": authorized_user_ids,
         "telegram_bot_username": telegram_bot_username,
         "approved_directories": approved_directories,
+        "gemini_auth_mode": gemini_auth_mode,
         "google_oauth_enabled": google_oauth_enabled,
         "gemini_model": "gemini-2.0-flash",
         "max_tokens_per_request": "8000",
@@ -351,7 +441,7 @@ def run_configure_wizard(reconfigure: bool = False) -> None:
     }
     cfg_parser["features"] = {
         "upload_expiry_time": "1h",
-        "claude_default_repo_path": "",
+        "claude_default_repo_path": claude_default_repo_path,
         "auto_update_enabled": "true",
         "auto_update_interval_minutes": "60",
         "log_level": "INFO",
@@ -369,7 +459,9 @@ def run_configure_wizard(reconfigure: bool = False) -> None:
     cred_perm = "permissions: 600" if os.name != "nt" else "created"
     print(f"  {credentials_path()}  ({cred_perm})")
 
-    if google_oauth_enabled == "true":
-        _auto_oauth_login()
+    if google_oauth_enabled == "true" and not setup_later:
+        _auto_oauth_login(auth_mode=gemini_auth_mode)
+
+    _configure_windows_startup()
 
     print("  Start the bot with: pdagent start\n")

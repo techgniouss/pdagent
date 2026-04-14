@@ -90,7 +90,10 @@ async def findtext_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     try:
         import pyautogui
-        from PIL import Image, ImageDraw, ImageFont
+        from pocket_desk_agent.automation_utils import (
+            annotate_screenshot_with_markers,
+            find_text_in_image,
+        )
         
         # Check if pytesseract is available
         try:
@@ -140,49 +143,31 @@ async def findtext_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Take screenshot
         screenshot = pyautogui.screenshot()
         
-        # Use OCR
-        text_data = pytesseract.image_to_data(screenshot, output_type=pytesseract.Output.DICT)
-        
-        # Search (case-insensitive)
-        search_lower = search_text.lower()
-        matches = []
-        
-        for i, word in enumerate(text_data['text']):
-            if word and search_lower in word.lower():
-                x = text_data['left'][i] + (text_data['width'][i] // 2)
-                y = text_data['top'][i] + (text_data['height'][i] // 2)
-                matches.append((word, x, y, i))
+        # Use the shared multi-pass OCR matcher used by /smartclick.
+        matches = find_text_in_image(screenshot, search_text)
         
         if matches:
-            # Draw boxes
-            draw = ImageDraw.Draw(screenshot)
-            
-            try:
-                font = ImageFont.truetype("arial.ttf", 20)
-            except Exception:
-                font = ImageFont.load_default()
-            
-            for idx, (word, x, y, i) in enumerate(matches[:10]):
-                left = text_data['left'][i]
-                top = text_data['top'][i]
-                width = text_data['width'][i]
-                height = text_data['height'][i]
-                
-                draw.rectangle([left, top, left + width, top + height], outline="red", width=3)
-                draw.text((left, top - 25), f"{idx+1}: ({x},{y})", fill="red", font=font)
-            
-            # Save
+            annotated_screenshot = annotate_screenshot_with_markers(screenshot, matches)
+
             img_byte_arr = io.BytesIO()
-            screenshot.save(img_byte_arr, format='PNG')
+            annotated_screenshot.save(img_byte_arr, format='PNG')
             img_byte_arr.seek(0)
             
-            # Build message
-            match_list = "\n".join([f"{idx+1}. '{m[0]}' at ({m[1]}, {m[2]})" for idx, m in enumerate(matches[:10])])
+            match_list = "\n".join(
+                [
+                    f"{idx}. '{match.text}' at ({match.x}, {match.y})"
+                    for idx, match in enumerate(matches[:20], start=1)
+                ]
+            )
             
             await context.bot.send_photo(
                 chat_id=update.effective_chat.id,
                 photo=img_byte_arr,
-                caption=f"\u2705 Found {len(matches)} match(es):\n\n{match_list}\n\nUse: /clicktext X Y"
+                caption=(
+                    f"\u2705 Found {len(matches)} match(es):\n\n"
+                    f"{match_list}\n\n"
+                    "Use: /clicktext X Y"
+                ),
             )
             logger.info(f"Found {len(matches)} matches")
 
