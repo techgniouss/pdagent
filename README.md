@@ -20,7 +20,7 @@ Pocket Desk Agent is a Telegram bot that runs locally on your Windows PC and giv
 - [Before You Start](#before-you-start)
 - [Quick Start & Installation](#quick-start--installation)
 - [Configuration](#configuration)
-- [Running the Service](#running-the-service)
+- [Running the Bot](#running-the-bot)
 - [Commands Quick Reference](#commands-quick-reference)
 - [Security](#security)
 - [Troubleshooting](#troubleshooting)
@@ -33,18 +33,19 @@ Pocket Desk Agent is a Telegram bot that runs locally on your Windows PC and giv
 Everything below works with no AI configuration required:
 
 - **File System Explorer**: Browse, read, and search local PC directories from your phone, sandboxed to approved paths.
-- **Desktop Control**: Take screenshots, send keyboard shortcuts, manage the clipboard, check battery, and trigger sleep/shutdown.
+- **Desktop Control**: Take screenshots, send keyboard shortcuts, manage the clipboard, switch open windows, check battery, and trigger sleep/shutdown.
 - **Vision & UI Automation**: OCR-based clicking via Tesseract — find and click any visible text on screen. Computer vision (OpenCV) for icon and UI element detection.
 - **Macro Recording**: Record multi-step UI sequences and replay them with a single command.
 - **Claude Desktop Integration**: Remote control of Claude Desktop App — send prompts, switch models, manage workspaces, and automate chat flows without touching your PC.
 - **VS Code / Antigravity Integration**: Open folders, switch AI models, and drive the Antigravity VS Code extension remotely.
 - **Task Scheduler**: Schedule automation flows or Claude prompts to run at a specified time, even while you sleep. Tasks survive restarts.
-- **Build Automation**: Trigger React Native Android builds and retrieve APKs directly in Telegram.
+- **Build Automation**: Trigger React Native Android builds and retrieve APKs through Telegram or large-file upload links when needed.
 - **Auto-Update**: The bot can check for and apply updates on demand.
+- **Lightweight**: ~55-70 MB idle RAM, <0.5% idle CPU. Heavy dependencies (OpenCV, NumPy, Dropbox) load on-demand only when their commands are used.
 
 **Optional — requires Google Gemini credentials:**
 
-- **AI Chat**: Google Gemini 2.0 Flash with multi-turn conversation, image analysis, and tool-calling. Send any text or photo directly to the bot to chat with Gemini.
+- **AI Chat & Computer Use**: Google Gemini 2.0 Flash with multi-turn conversation, image analysis, and full agentic tool-calling. Send any text or photo directly to chat. Gemini acts as an autonomous agent that can natively browse your files, analyze screenshots, and use UI automation (click, type, navigate) to perform tasks on your PC in response to natural language requests. All destructive or system-altering actions require explicit human-in-the-loop confirmation via Telegram buttons.
 - **Prompt Enhancement**: Use `/enhance` to let Gemini rewrite and improve a prompt before sending it anywhere.
 
 ---
@@ -72,15 +73,15 @@ Only needed if you want AI chat, image analysis, or the `/enhance` command. All 
 
 Choose one option:
 
-**Option A — OAuth (Recommended):** Gives you a proper login flow via `/login` in the bot.
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a project → enable the **Generative Language API**
-3. Create an **OAuth 2.0 Client ID** (Desktop app type)
-4. Download the credentials to get your `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`
+Provider note: **Gemini CLI OAuth** needs no project setup. **Antigravity OAuth** uses Google's internal code-assist API, usually auto-fetches a project, and supports `GOOGLE_PROJECT_ID` override if needed.
 
-**Option B — API Key:** Simpler, no login flow required.
+**Option A — OAuth (Recommended, zero config):** The bot includes built-in OAuth support — no separate GCP project or API key required for the recommended browser-login flow. During setup, choose **Antigravity OAuth** or **Gemini CLI OAuth**, or choose **Setup Later** and authenticate anytime via `/login` in Telegram.
+
+**Option B — API Key:** No login flow, just paste a key.
 1. Go to [Google AI Studio](https://aistudio.google.com/app/apikey)
 2. Create an API key — this is your `GOOGLE_API_KEY`
+
+> **Custom OAuth app:** If you want to use your own GCP OAuth credentials instead of the built-in ones, set `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` in your config. The redirect URI to register is `http://localhost:51121/oauth-callback`.
 
 ---
 
@@ -105,6 +106,8 @@ On the first run, `pdagent` launches an interactive setup wizard that walks you 
 pdagent start        # run as a background daemon instead
 pdagent configure    # re-run the setup wizard at any time
 pdagent setup        # re-check and install system dependencies (e.g. Tesseract)
+pdagent startup status
+pdagent startup configure
 ```
 
 ### Option B: Local Developer Mode
@@ -116,6 +119,8 @@ pip install -e ".[dev]"
 pdagent
 ```
 
+For the full local development guide (virtual environment setup, live reloader, make targets, resource profile), see **[docs/LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md)**.
+
 ---
 
 ## Configuration
@@ -126,7 +131,18 @@ pdagent
 pdagent configure
 ```
 
-This walks you through setting all required values and saves them to `~/.pdagent/config.ini`.
+This walks you through setting all required values and saves them to `~/.pdagent/config`.
+
+On Windows, the wizard also offers optional **automatic background startup after login**. This is disabled by default. If you enable it, Pocket Desk Agent starts automatically in the background after you sign in, so you do not need to run `pdagent start` after every reboot. This is **not** a Windows Service and is designed to preserve screenshot, OCR, Claude Desktop, and VS Code automation features.
+
+The Gemini authentication step offers four choices:
+
+| Choice | Description |
+| :--- | :--- |
+| `1) Antigravity OAuth` | Opens browser immediately for sign-in using built-in credentials. Recommended. |
+| `2) Gemini CLI OAuth` | Uses browser login with the public Gemini API and no GCP project requirement. |
+| `3) API Key` | Paste a Google AI Studio API key. No login flow needed. |
+| `4) Setup Later` | Skips Gemini setup. Start the bot and authenticate via `/login` in Telegram whenever you're ready. |
 
 ### Manual Configuration
 
@@ -148,14 +164,23 @@ APPROVED_DIRECTORIES="C:\Users\YourName\Documents"
 **Google/Gemini authentication — optional, required only for AI chat and `/enhance`:**
 
 ```ini
-# Option 1: OAuth (recommended — use /login in the bot to authenticate)
+# Option 1: OAuth (recommended — built-in credentials, no GCP setup needed)
+# Use /login in Telegram to authenticate after starting the bot
 GOOGLE_OAUTH_ENABLED=true
-GOOGLE_OAUTH_CLIENT_ID="your_client_id"
-GOOGLE_OAUTH_CLIENT_SECRET="your_client_secret"
+
+# Set GEMINI_AUTH_MODE=antigravity for the internal code-assist API
+# or GEMINI_AUTH_MODE=gemini-cli for the public Gemini API.
+# If Antigravity project auto-detection fails, set GOOGLE_PROJECT_ID.
 
 # Option 2: Direct API key
+# GEMINI_AUTH_MODE=apikey
 GOOGLE_OAUTH_ENABLED=false
 GOOGLE_API_KEY="your_google_ai_studio_key"
+
+# Optional override: bring your own GCP OAuth client
+# Register redirect URI: http://localhost:51121/oauth-callback
+GOOGLE_OAUTH_CLIENT_ID="your_client_id"
+GOOGLE_OAUTH_CLIENT_SECRET="your_client_secret"
 ```
 
 **Optional variables:**
@@ -163,23 +188,24 @@ GOOGLE_API_KEY="your_google_ai_studio_key"
 | Variable | Default | Purpose |
 | :--- | :--- | :--- |
 | `GEMINI_MODEL` | `gemini-2.0-flash` | Gemini model to use |
-| `UPLOAD_EXPIRY_TIME` | `1h` | Dropbox link expiry (`1h`/`12h`/`24h`/`72h`) |
+| `GOOGLE_PROJECT_ID` | `(unset)` | Optional Antigravity project override if auto-detection fails |
+| `UPLOAD_EXPIRY_TIME` | `1h` | TempFile upload expiry for large-file links (`1h`/`12h`/`24h`/`72h`) |
 | `LOG_LEVEL` | `INFO` | Logging verbosity |
 | `MAX_TOKENS_PER_REQUEST` | `8000` | Gemini token limit per request |
 | `CLAUDE_DEFAULT_REPO_PATH` | `~/Documents` | Default repo root for Claude CLI integration |
 | `SYSTEM_PROMPT` | — | Custom Gemini system prompt |
-| `DROPBOX_ACCESS_TOKEN` | — | Dropbox token for large file uploads (see [docs/dropbox-setup.md](docs/dropbox-setup.md)) |
+| `DROPBOX_ACCESS_TOKEN` | — | Dropbox token for optional large-file uploads (see [docs/dropbox-setup.md](docs/dropbox-setup.md)) |
 
 ### Config File Locations (precedence order)
 
 1. Shell environment variables
-2. `~/.pdagent/config.ini`
+2. `~/.pdagent/config`
 3. `~/.pdagent/.env`
 4. `.env` in current directory
 
 ---
 
-## Running the Service
+## Running the Bot
 
 | Command | Description |
 | :--- | :--- |
@@ -190,14 +216,18 @@ GOOGLE_API_KEY="your_google_ai_studio_key"
 | `pdagent status` | Check if the daemon is running |
 | `pdagent configure` | Run the interactive setup wizard |
 | `pdagent setup` | Check and install system dependencies (e.g. Tesseract OCR) |
-| `pdagent auth` | Manage Google OAuth credentials |
+| `pdagent startup enable` | Enable automatic startup after Windows login |
+| `pdagent startup disable` | Disable automatic startup after Windows login |
+| `pdagent startup status` | Show automatic startup status |
+| `pdagent startup configure` | Interactively configure automatic startup |
+| `pdagent auth` | Manage Gemini authentication credentials |
 | `pdagent version` | Print the installed version |
 
 ---
 
 ## Commands Quick Reference
 
-> For the complete reference with all 65+ commands, see **[docs/COMMANDS.md](docs/COMMANDS.md)**.
+> For the complete reference with all 70 built-in commands, see **[docs/COMMANDS.md](docs/COMMANDS.md)**.
 
 <details>
 <summary><strong>Expand cheat sheet</strong></summary>
@@ -209,7 +239,7 @@ GOOGLE_API_KEY="your_google_ai_studio_key"
 | `/start` | Initialize the bot |
 | `/help` | Show the help menu |
 | `/status` | Check Gemini API and session status |
-| `/login` | Start Google OAuth login flow |
+| `/login` | Choose an authentication method and start the OAuth login flow |
 | `/authcode <code>` | Enter an OAuth verification code |
 | `/checkauth` | Check current authentication status |
 | `/logout` | Sign out of Google |
@@ -234,6 +264,8 @@ GOOGLE_API_KEY="your_google_ai_studio_key"
 | :--- | :--- |
 | `/screenshot` | Capture the current display |
 | `/hotkey <keys>` | Send a keyboard shortcut (e.g. `ctrl+c`) |
+| `/windows` | List open application windows and let you switch by number |
+| `/focuswindow <number>` | Activate a window from the most recent `/windows` list |
 | `/clipboard <text>` | Set the clipboard |
 | `/viewclipboard` | Read the clipboard |
 | `/battery` | Battery status |
@@ -254,8 +286,10 @@ GOOGLE_API_KEY="your_google_ai_studio_key"
 | `/findelements` | Detect and number all visible UI icons |
 | `/clickelement <id>` | Click a detected element by number |
 | `/typeenter <text>` | Type text and press Enter |
-| `/pasteenter <text>` | Paste text and press Enter |
+| `/pasteenter` | Paste the current clipboard contents and press Enter |
 | `/scrollup` / `/scrolldown` | Scroll the active window |
+
+`/windows` and `/focuswindow` switch top-level application windows. They do not switch browser tabs inside a single app.
 
 ### Macro Recording
 
@@ -305,7 +339,7 @@ GOOGLE_API_KEY="your_google_ai_studio_key"
 
 | Command | Description |
 | :--- | :--- |
-| `/schedule <HH:MM> <command>` | Schedule a macro to run later |
+| `/schedule <HH:MM>` | Start recording a scheduled automation sequence |
 | `/claudeschedule <HH:MM> <text>` | Schedule a Claude prompt |
 | `/listschedules` | View all pending scheduled tasks |
 | `/cancelschedule <id>` | Cancel a scheduled task |
@@ -327,9 +361,9 @@ Pocket Desk Agent runs **entirely on your local machine** — no data is sent to
 
 1. **User allowlist**: Every request is checked against `AUTHORIZED_USER_IDS`. Unrecognized Telegram accounts are silently rejected — no error is returned to the sender.
 2. **Directory sandboxing**: File operations are restricted to `APPROVED_DIRECTORIES` using `Path.relative_to()` validation. Path traversal attacks (`../`) are blocked at the framework level.
-3. **Rate limiting**: All commands are rate-limited per user. Dangerous operations (shutdown, restart, update) have strict per-minute caps.
-4. **Secret isolation**: Credentials live in `~/.pdagent/` with restricted file permissions. Never commit `.env` files or `tokens.json`.
-5. **AI safety**: Gemini AI cannot execute shell commands directly. Tool access is restricted to an explicit allowlist to prevent prompt-injection-to-RCE attacks.
+3. **Rate limiting**: All commands are rate-limited per user. Sensitive or expensive operations have stricter limits than routine commands.
+4. **Secret isolation**: Config and client credentials live in `~/.pdagent/`, while OAuth tokens are stored in provider-specific config directories such as `~/.config/antigravity-chatbot/` and `~/.config/pdagent-gemini/`, all with restricted file permissions. Never commit `.env` files, OAuth token files, or credential files.
+5. **AI safety**: Gemini AI cannot execute shell commands directly. System automation tool access is tightly controlled, and any side-effecting UI interaction (keyboard, mouse, file modification, scheduling) triggers an inline confirmation prompt requiring explicit human-in-the-loop approval before execution.
 
 ---
 
@@ -345,9 +379,9 @@ Pocket Desk Agent runs **entirely on your local machine** — no data is sent to
 - Run `pdagent setup` to install it automatically, or manually: `winget install UB-Mannheim.TesseractOCR`
 - After installing, restart your terminal before running the bot again
 
-**Google authentication fails**
-- Run `pdagent auth` and choose "Login" to re-authenticate
-- For OAuth: verify your Client ID/Secret in `~/.pdagent/config.ini` match what's in Google Cloud Console
+**Gemini authentication fails**
+- Run `pdagent auth` and choose "Login" to re-authenticate, or use `/login` in Telegram
+- For OAuth: make sure port 51121 is not blocked by a firewall; the bot starts a local server on that port to receive the OAuth callback
 - For API key mode: check your key is valid at [Google AI Studio](https://aistudio.google.com/app/apikey)
 
 **Bot crashes on startup with `ImportError`**

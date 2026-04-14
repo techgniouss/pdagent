@@ -24,6 +24,7 @@ from pocket_desk_agent.constants import (
     ANTIGRAVITY_HEADERS,
     DEFAULT_OAUTH_CLIENT_ID,
     DEFAULT_OAUTH_CLIENT_SECRET,
+    AUTH_MODE_ANTIGRAVITY,
 )
 
 logger = logging.getLogger(__name__)
@@ -204,7 +205,11 @@ class AntigravityOAuth:
     
     def _encode_state(self, verifier: str, project_id: str = "") -> str:
         """Encode state parameter with verifier and project ID"""
-        payload = {"verifier": verifier, "projectId": project_id}
+        payload = {
+            "verifier": verifier,
+            "projectId": project_id,
+            "authMode": AUTH_MODE_ANTIGRAVITY,
+        }
         return base64.urlsafe_b64encode(
             json.dumps(payload).encode('utf-8')
         ).decode('utf-8').rstrip('=')

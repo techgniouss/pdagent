@@ -40,6 +40,7 @@ class Config:
     GOOGLE_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-2.0-flash"
     GOOGLE_OAUTH_ENABLED: bool = True
+    GEMINI_AUTH_MODE: str = "antigravity"
     MAX_TOKENS_PER_REQUEST: int = 8000
     SYSTEM_PROMPT: str = ""
     GOOGLE_PROJECT_ID: str | None = None
@@ -79,6 +80,19 @@ class Config:
                 os.getenv("ANTIGRAVITY_ENABLED", "true"),
             )
         ).lower() == "true"
+
+        # Resolve auth mode: explicit GEMINI_AUTH_MODE takes priority,
+        # otherwise derive from legacy GOOGLE_OAUTH_ENABLED / GOOGLE_API_KEY.
+        explicit_mode = os.getenv("GEMINI_AUTH_MODE", "").strip().lower()
+        if explicit_mode in ("antigravity", "gemini-cli", "apikey"):
+            cls.GEMINI_AUTH_MODE = explicit_mode
+        elif not cls.GOOGLE_OAUTH_ENABLED and cls.GOOGLE_API_KEY:
+            cls.GEMINI_AUTH_MODE = "apikey"
+        else:
+            cls.GEMINI_AUTH_MODE = "antigravity"
+
+        # Keep GOOGLE_OAUTH_ENABLED in sync for backward compat
+        cls.GOOGLE_OAUTH_ENABLED = cls.GEMINI_AUTH_MODE != "apikey"
 
         cls.MAX_TOKENS_PER_REQUEST = int(
             os.getenv("MAX_TOKENS_PER_REQUEST", "8000")

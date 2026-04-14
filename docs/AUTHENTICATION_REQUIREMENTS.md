@@ -12,7 +12,6 @@ The vast majority of commands work immediately after installation with **no auth
 
 - **Free-text messages** — sending any text to the bot to chat with Gemini
 - **Photo messages** — sending images for Gemini Vision analysis
-- `/new` — start a new Gemini conversation
 - `/enhance <text>` — rewrite a prompt using Gemini
 
 **To authenticate:** Use `/login` in Telegram and follow the instructions. See [MOBILE_AUTHENTICATION.md](MOBILE_AUTHENTICATION.md).
@@ -23,7 +22,7 @@ The vast majority of commands work immediately after installation with **no auth
 
 ### Core
 
-- `/start`, `/help`, `/status`, `/sync`, `/stopbot`
+- `/start`, `/help`, `/status`, `/sync`, `/stopbot`, `/new`
 
 ### Authentication Management
 
@@ -36,6 +35,7 @@ The vast majority of commands work immediately after installation with **no auth
 ### System Control
 
 - `/screenshot`, `/hotkey`, `/clipboard`, `/viewclipboard`
+- `/windows`, `/focuswindow`
 - `/battery`, `/sleep`, `/wakeup`, `/shutdown`
 
 ### UI Automation
@@ -75,10 +75,13 @@ The vast majority of commands work immediately after installation with **no auth
 
 ## Why Does Only Gemini Need Auth?
 
-**Gemini AI** calls Google's cloud API, which requires:
-- A Google account with OAuth consent
-- An access token scoped to the Gemini/Cloud Platform APIs
-- A project ID returned during authentication
+**Gemini AI** calls Google's cloud API, which requires one of:
+- OAuth login via `/login` using **Antigravity OAuth** or **Gemini CLI OAuth**
+- Or an API key when the bot is configured in API-key mode
+
+Provider notes:
+- **Gemini CLI OAuth** uses the public Gemini API and does not need a project ID.
+- **Antigravity OAuth** uses Google's internal code-assist API and may fetch a project automatically. If auto-detection fails, set `GOOGLE_PROJECT_ID`.
 
 **All other commands** run locally on the host machine:
 - Windows system APIs (`pyautogui`, `psutil`, `pyperclip`)
@@ -113,4 +116,4 @@ Hello, summarize my project status.
 
 ---
 
-**Summary:** 90%+ of commands work without authentication. Only Gemini chat requires `/login`.
+**Summary:** Most commands work without authentication. Only Gemini AI features require `/login` or API-key mode.

@@ -46,9 +46,21 @@ GITHUB_COMPARE_URL = f"https://api.github.com/repos/{GITHUB_REPO}/compare"
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 REQUIREMENTS_FILE = PROJECT_ROOT / "requirements.txt"
 
+PYPI_JSON_URL = "https://pypi.org/pypi/pocket-desk-agent/json"
+
+
 def _is_git_repo() -> bool:
     """Return True if the project root is a git repository (source checkout)."""
     return (PROJECT_ROOT / ".git").is_dir()
+
+
+def _parse_version(v: str) -> tuple:
+    """Parse a semver string into a comparable tuple (major, minor, patch)."""
+    try:
+        return tuple(int(x) for x in v.split(".")[:3])
+    except Exception:
+        return (0, 0, 0)
+
 
 # ── Cached state (module-level, survives across calls) ────────────────────────
 _last_check_result: Optional["UpdateInfo"] = None
@@ -99,7 +111,9 @@ def get_local_short_sha() -> str:
 
 
 def get_version_string() -> str:
-    """Human-readable version string: v1.0.0 (abc1234)."""
+    """Human-readable version string: v1.0.0 (abc1234) for git, v1.0.0 for PyPI."""
+    if not _is_git_repo():
+        return f"v{VERSION}"
     short_sha = get_local_short_sha()
     return f"v{VERSION} ({short_sha})"
 
@@ -115,19 +129,36 @@ def get_local_commit_date() -> str:
 
 # ── Update check ──────────────────────────────────────────────────────────────
 
-def check_for_updates() -> UpdateInfo:
+def check_pypi_version() -> UpdateInfo:
     """
-    Query the GitHub API and compare with the local HEAD.
+    Query PyPI for the latest published version of pocket-desk-agent.
 
-    Returns an UpdateInfo.  On network / git errors the UpdateInfo will have
-    up_to_date=True (safe default) and a non-None .error field.
-
-    For PyPI installs (no .git directory), returns up_to_date=True with a
-    descriptive error — the git-based updater cannot operate on site-packages.
+    Returns an UpdateInfo where:
+      - local_sha = "pypi-install"
+      - remote_sha = latest version string on PyPI
+      - up_to_date = True if installed version >= PyPI latest
     """
     global _last_check_result, _last_check_time
 
-    if not _is_git_repo():
+    try:
+        response = requests.get(PYPI_JSON_URL, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        latest = data["info"]["version"]
+        current = VERSION
+
+        up_to_date = _parse_version(current) >= _parse_version(latest)
+
+        result = UpdateInfo(
+            up_to_date=up_to_date,
+            local_sha="pypi-install",
+            remote_sha=latest,
+            remote_message=f"v{latest} available on PyPI",
+            remote_author="",
+            remote_date="",
+            commits_behind=0 if up_to_date else 1,
+        )
+    except requests.exceptions.ConnectionError:
         result = UpdateInfo(
             up_to_date=True,
             local_sha="pypi-install",
@@ -136,14 +167,37 @@ def check_for_updates() -> UpdateInfo:
             remote_author="",
             remote_date="",
             commits_behind=0,
-            error=(
-                "Update check unavailable — installed from PyPI (no git repo). "
-                "Use `pip install --upgrade pocket-desk-agent` to update."
-            ),
+            error="No network connection — PyPI version check skipped.",
         )
-        _last_check_result = result
-        _last_check_time = datetime.now(timezone.utc)
-        return result
+    except Exception as exc:
+        result = UpdateInfo(
+            up_to_date=True,
+            local_sha="pypi-install",
+            remote_sha="unknown",
+            remote_message="",
+            remote_author="",
+            remote_date="",
+            commits_behind=0,
+            error=str(exc),
+        )
+
+    _last_check_result = result
+    _last_check_time = datetime.now(timezone.utc)
+    return result
+
+
+def check_for_updates() -> UpdateInfo:
+    """
+    Check for updates. For PyPI installs, queries PyPI for the latest version.
+    For git checkouts, queries the GitHub API and compares with the local HEAD.
+
+    Returns an UpdateInfo. On network / git errors the UpdateInfo will have
+    up_to_date=True (safe default) and a non-None .error field.
+    """
+    global _last_check_result, _last_check_time
+
+    if not _is_git_repo():
+        return check_pypi_version()
 
     local_sha = get_local_sha()
 
@@ -355,10 +409,10 @@ def startup_update_check() -> UpdateInfo:
     elif info.up_to_date:
         logger.info("[updater] ✅ Bot is up to date.")
     else:
+        by = f" by {info.remote_author}" if info.remote_author else ""
         logger.info(
             f"[updater] ⚠️  Update available! "
-            f"{info.commits_behind} commit(s) behind. "
-            f"Latest: {info.remote_message} by {info.remote_author}"
+            f"Latest: {info.remote_message}{by}"
         )
 
     return info
@@ -413,22 +467,36 @@ async def update_checker_loop(
 
 def format_update_notification(info: UpdateInfo) -> str:
     """Format an UpdateInfo into a user-friendly Telegram message."""
-    msg = (
-        f"🔔 *Update Available!*\n\n"
-        f"📦 Current: `{info.local_sha[:7]}`\n"
-        f"🆕 Latest: `{info.remote_sha[:7]}`\n"
-        f"📊 {info.commits_behind} commit(s) behind\n\n"
-    )
+    is_pypi = info.local_sha == "pypi-install"
 
-    if info.remote_message:
-        msg += f"💬 Latest change: _{info.remote_message}_\n"
-    if info.remote_author:
-        msg += f"👤 By: {info.remote_author}\n"
+    if is_pypi:
+        msg = (
+            f"🔔 *Update Available!*\n\n"
+            f"📦 Installed: `v{VERSION}`\n"
+            f"🆕 Latest: `v{info.remote_sha}`\n\n"
+        )
+        if info.remote_message:
+            msg += f"💬 _{info.remote_message}_\n\n"
+        msg += (
+            "⬆️ *Upgrade with:*\n"
+            "`pip install --upgrade pocket-desk-agent`\n\n"
+            "Then restart the bot: `pdagent restart`"
+        )
+    else:
+        msg = (
+            f"🔔 *Update Available!*\n\n"
+            f"📦 Current: `{info.local_sha[:7]}`\n"
+            f"🆕 Latest: `{info.remote_sha[:7]}`\n"
+            f"📊 {info.commits_behind} commit(s) behind\n\n"
+        )
+        if info.remote_message:
+            msg += f"💬 Latest change: _{info.remote_message}_\n"
+        if info.remote_author:
+            msg += f"👤 By: {info.remote_author}\n"
+        if info.changelog:
+            msg += "\n📋 *Recent changes:*\n"
+            for entry in info.changelog[:5]:
+                msg += f"  • `{entry}`\n"
+        msg += "\n🔧 Use /update to install the latest version."
 
-    if info.changelog:
-        msg += "\n📋 *Recent changes:*\n"
-        for entry in info.changelog[:5]:
-            msg += f"  • `{entry}`\n"
-
-    msg += "\n🔧 Use /update to install the latest version."
     return msg

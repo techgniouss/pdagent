@@ -10,19 +10,15 @@ import time
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
+from pocket_desk_agent.gemini_actions import handle_gemini_confirmation_callback
 from pocket_desk_agent.handlers._shared import (
     auth_client,
     recording_sessions,
     openfolder_options,
     claudecli_options,
     large_file_upload_state,
+    window_switch_options,
 )
-
-if platform.system() == "Windows":
-    try:
-        import pygetwindow as gw
-    except ImportError:
-        pass
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +29,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     await query.answer()
+
+    if await handle_gemini_confirmation_callback(update, context):
+        return
     
     if query.data == "confirm_stopbot":
         await query.edit_message_text("🛑 Stopping bot... Goodbye!")
@@ -114,7 +113,41 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception as e:
                 await query.answer(f"Click failed: {str(e)}", show_alert=True)
                 logger.error(f"Error in smartclick callback: {e}", exc_info=True)
-    
+
+    elif query.data.startswith("windowfocus_"):
+        user_id = update.effective_user.id
+        try:
+            selection = int(query.data.replace("windowfocus_", ""))
+        except ValueError:
+            await query.edit_message_text("Invalid window selection. Run /windows again.")
+            return
+
+        selected = window_switch_options.get(user_id, {}).get(selection)
+        if not selected:
+            await query.edit_message_text("Selection expired. Run /windows again.")
+            return
+
+        try:
+            from pocket_desk_agent.window_utils import activate_window
+
+            if activate_window(selected["handle"]):
+                await query.edit_message_text(
+                    f"Activated window {selection}: {selected['title']}"
+                )
+                logger.info(
+                    "Activated window %s for user %s from callback: %s",
+                    selection,
+                    user_id,
+                    selected["title"],
+                )
+            else:
+                await query.edit_message_text(
+                    "That window could not be activated. It may have been closed. Run /windows again."
+                )
+        except Exception as e:
+            await query.edit_message_text(f"Window activation failed: {str(e)}")
+            logger.error(f"Error in windowfocus callback: {e}", exc_info=True)
+
     # Handle large file upload choices
     elif query.data.startswith("upload_tempfile_") or query.data.startswith("upload_dropbox_"):
         await handle_upload_choice(update, context, query)
@@ -178,20 +211,11 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "cancel_delete":
         await query.edit_message_text("✅ Cancelled. Command was not deleted.")
     
-    # Handle logout confirmation
-    elif query.data == "confirm_logout":
-        user_id = update.effective_user.id
-        auth_client.logout_user(user_id)
-        
-        await query.edit_message_text(
-            "✅ Logged out successfully!\n\n"
-            "Your authentication has been cleared.\n"
-            "Use /login to authenticate again."
-        )
-        logger.info(f"User {user_id} logged out")
-    
-    elif query.data == "cancel_logout":
-        await query.edit_message_text("✅ Logout cancelled. You're still authenticated.")
+    # Handle logout confirmation and new login selections
+    elif query.data in ("confirm_logout", "cancel_logout") or query.data.startswith("login:"):
+        # Delegate to the newly consolidated auth callback handler
+        from pocket_desk_agent.handlers.auth import login_button_callback
+        await login_button_callback(update, context)
 
     # Handle Claude CLI selection
     elif query.data.startswith("claudecli_"):

@@ -2,242 +2,183 @@
 
 ## Overview
 
-The build workflow feature allows you to remotely build React Native Android apps from your Telegram bot. The bot will:
+Pocket Desk Agent can start a React Native Android build from Telegram, monitor the build, locate the generated APK, and help deliver it back to you.
 
-1. List all local repositories with `package.json`
-2. Show available npm scripts from the selected repository
-3. Execute the build command in a command prompt
-4. Monitor the build progress and send updates
-5. Find the generated APK file
-6. Send the APK file back to you via Telegram
+Typical flow:
 
-## Prerequisites
+1. Scan your configured repository root for projects with a `package.json`
+2. Let you choose a repository
+3. Show available npm scripts, prioritizing Android build scripts
+4. Run the selected build command
+5. Report progress and completion status
+6. Deliver the APK through Telegram or a large-file upload option
 
-- Node.js and npm installed on your laptop
-- React Native projects set up with Android build configuration
-- Repositories located in the path specified by `DEFAULT_REPO_PATH` in your `.env` file
+---
 
-## Usage
+## Requirements
 
-### Step 1: Start the Build Workflow
+- Node.js and npm installed on the host machine
+- Android build tools configured for the target project
+- React Native repositories stored under `CLAUDE_DEFAULT_REPO_PATH`
+- Optional: `DROPBOX_ACCESS_TOKEN` if you want Dropbox uploads for large APKs
 
-Send the command:
-```
-/build
-```
+> `DEFAULT_REPO_PATH` is still accepted as a legacy alias, but `CLAUDE_DEFAULT_REPO_PATH` is the documented setting going forward.
 
-The bot will scan your `DEFAULT_REPO_PATH` directory and list all repositories that contain a `package.json` file.
-
-### Step 2: Select a Repository
-
-Reply with either:
-- **Number**: `1`, `2`, `3`, etc.
-- **Name**: `MyApp`, `HomePay`, etc. (partial match works)
-
-Example:
-```
-1
-```
-or
-```
-MyApp
-```
-
-The bot will read the `package.json` and show you all available npm scripts, with priority given to build-related scripts (containing keywords like `android`, `build`, `release`, `debug`).
-
-### Step 3: Select a Build Script
-
-Reply with either:
-- **Number**: `1`, `2`, `3`, etc.
-- **Script name**: `android`, `build:android`, etc. (partial match works)
-
-Example:
-```
-2
-```
-or
-```
-android
-```
-
-### Step 4: Monitor Build Progress
-
-The bot will:
-- Start the build process in a command prompt window
-- Send you periodic updates every 30 seconds with recent output
-- Notify you when the build completes (success or failure)
-
-### Step 5: Receive the APK
-
-If the build is successful, the bot will:
-- Search for the APK file in standard locations:
-  - `android/app/build/outputs/apk/debug/`
-  - `android/app/build/outputs/apk/release/`
-- Show you the file name and size
-- Upload and send the APK file to you via Telegram
-
-**Note**: Telegram has a 50 MB file size limit for bots. If your APK is larger, the bot will provide the file path for manual retrieval.
-
-## APK File Handling
-
-The bot automatically handles APK files based on their size:
-
-### Small APKs (< 50 MB)
-- Uploaded directly to Telegram
-- Sent as a document attachment
-- Can be downloaded immediately
-
-### Large APKs (≥ 50 MB)
-- Automatically uploaded to **file.io** (temporary file sharing)
-- You receive a download link
-- **Important**: Link expires after first download or 14 days
-- Download immediately to avoid expiration
-
-**Note**: Telegram has a 50 MB file size limit for bots. For larger files, we use file.io for temporary hosting.
+---
 
 ## Configuration
 
-Update your `.env` file with the path to your repositories:
+Set your repository root in `.env` or `~/.pdagent/config`:
 
-```env
-DEFAULT_REPO_PATH=C:\Users\YourName\Projects
+```ini
+CLAUDE_DEFAULT_REPO_PATH=C:\Users\YourName\Projects
 ```
 
-## Example Workflow
+Optional Dropbox configuration for large-file delivery:
 
+```ini
+DROPBOX_ACCESS_TOKEN=sl.your_access_token_here
+UPLOAD_EXPIRY_TIME=1h
 ```
+
+See [dropbox-setup.md](dropbox-setup.md) for the full Dropbox setup process.
+
+---
+
+## Workflow
+
+### 1. Start the build flow
+
+```text
+/build
+```
+
+The bot scans the configured repository root and lists projects that contain a `package.json`.
+
+### 2. Select a repository
+
+Reply with either:
+
+- A number such as `1` or `2`
+- A repository name or partial name such as `MyApp`
+
+### 3. Select a build script
+
+The bot reads the selected `package.json` and shows available npm scripts. Build-related scripts are ranked first.
+
+Reply with either:
+
+- A number such as `1` or `2`
+- A script name such as `android` or `android:release`
+
+### 4. Monitor progress
+
+The bot starts the build command and sends periodic progress updates with recent output. When the command finishes, it reports success or failure.
+
+### 5. Receive the APK
+
+After a successful build, the bot searches common React Native APK output locations, including:
+
+- `android/app/build/outputs/apk/debug/`
+- `android/app/build/outputs/apk/release/`
+
+It then reports the file name, size, and local path before sending or uploading the APK.
+
+---
+
+## APK Delivery Options
+
+### Up to 50 MB
+
+The bot sends the APK directly through Telegram as a document attachment.
+
+### Over 50 MB
+
+The bot presents upload choices:
+
+- `TempFile.org`
+  - No setup required
+  - Maximum file size: 100 MB
+  - Temporary hosted download link
+  - Link expiry is controlled by `UPLOAD_EXPIRY_TIME`
+- `Dropbox`
+  - Requires `DROPBOX_ACCESS_TOKEN`
+  - Suitable for larger files and permanent storage
+
+### Over 100 MB
+
+`TempFile.org` is not available. Use Dropbox instead.
+
+---
+
+## Example
+
+```text
 You: /build
 
-Bot: 🔨 Starting build workflow...
-     
-     📱 Found 3 React Native repositories:
-     
-     1. MyDigitalStudio
-     2. HomePay
-     3. GigsJobsSwipe
-     
-     💡 Reply with the number or name to select a repository.
+Bot: Found 3 repositories.
+     Reply with the number or name to select one.
 
 You: 2
 
-Bot: ✅ Selected: HomePay
-     
-     📋 Available npm scripts:
-     
-     1. npm run android
-        → react-native run-android
-     
-     2. npm run android:release
-        → cd android && ./gradlew assembleRelease
-     
-     3. npm run build:android
-        → cd android && ./gradlew clean && ./gradlew assembleDebug
-     
-     💡 Reply with the number or script name to execute.
+Bot: Selected: HomePay
+     Available npm scripts:
+     1. android
+     2. android:release
+     3. build:android
 
 You: 2
 
-Bot: 🚀 Starting build...
-     
+Bot: Starting build...
      Repository: HomePay
      Command: npm run android:release
-     
-     This may take several minutes. I'll send you updates...
 
-Bot: ⏳ Build in progress...
-     
+Bot: Build in progress...
      Recent output:
-     ```
      > Task :app:bundleReleaseJsAndAssets
      > Task :app:compileReleaseJavaWithJavac
-     ```
 
-Bot: ✅ Build completed successfully!
-     
-     Searching for APK file...
-
-Bot: 📦 Found APK file!
-     
-     File: app-release.apk
-     Size: 28.5 MB
-     Path: C:\Users\...\android\app\build\outputs\apk\release\app-release.apk
-     
-     Uploading to Telegram...
-
-Bot: [Sends APK file as document]
-     
-     ✅ Build workflow completed!
-     
-     APK file sent successfully.
-```
-
-### Example: Large APK (>50 MB)
-
-```
-You: /build
-You: 2
-You: android:release
-
-Bot: 🚀 Starting build...
-     [Build completes]
-
-Bot: 📦 Found APK file!
-     
+Bot: Build completed successfully.
+     Found APK file:
      File: app-release.apk
      Size: 65.8 MB
-     
-     ⚠️ APK file is too large (65.8 MB) for Telegram (max 50 MB).
-     
-     ☁️ Uploading to file.io for temporary download...
 
-Bot: ✅ Upload successful!
-     
-     📥 Download your APK:
-     https://file.io/abc123xyz
-     
-     ⚠️ Important:
-     • Link expires after first download
-     • Or after 14 days if not downloaded
-     • Download it now to your phone/computer
-     
-     💡 Tip: Open the link on your Android device to install directly!
-     
-     📂 Local path (if needed):
-     C:\Users\...\app-release.apk
+Bot: Choose upload method:
+     [TempFile (Auto-delete)]
+     [Dropbox (Permanent)]
 ```
+
+---
 
 ## Troubleshooting
 
 ### No repositories found
-- Check that `DEFAULT_REPO_PATH` is set correctly in `.env`
-- Ensure your repositories have a `package.json` file
-- Verify the path exists and is accessible
+
+- Confirm `CLAUDE_DEFAULT_REPO_PATH` points to the correct root directory
+- Verify the directory exists and is readable
+- Make sure each target repository contains a `package.json`
 
 ### Build fails
-- Check the error output provided by the bot
-- Ensure all dependencies are installed (`npm install`)
-- Verify Android SDK and build tools are properly configured
-- Check that the build script works when run manually
+
+- Review the error output sent by the bot
+- Confirm project dependencies are installed
+- Verify Android SDK, Java, Gradle, and signing configuration as required by the project
+- Run the same npm script locally to confirm the failure is not project-specific
 
 ### APK not found
-- The bot searches in standard React Native output locations
-- If your project has a custom output path, you may need to retrieve the APK manually
-- Check the build output for the actual APK location
 
-### File too large
-- Telegram bots can only send files up to 50 MB
-- For larger APKs, the bot automatically uploads to **file.io**
-- You'll receive a download link (expires after first download or 14 days)
-- Download immediately to avoid expiration
-- Consider enabling ProGuard/R8 to reduce APK size for future builds
+- Check the build output for the actual output directory
+- Confirm the build script produces an APK rather than only an AAB
+- Retrieve the artifact manually if your project uses a custom output path
 
-## Tips
+### Large-file upload issues
 
-- Use debug builds for faster compilation during development
-- Release builds take longer but produce optimized APKs
-- The build process runs in the background - you can continue using your laptop
-- Build state expires after 10 minutes of inactivity
+- Files above 100 MB require Dropbox
+- If Dropbox is selected, confirm `DROPBOX_ACCESS_TOKEN` is configured
+- If TempFile.org fails, retry or use Dropbox instead
 
-## Security Note
+---
 
-The build workflow executes npm scripts from your repositories. Only use this feature with repositories you trust, as malicious scripts could be executed on your laptop.
+## Security
+
+The build workflow executes npm scripts from repositories on your machine. Only use it with repositories and build commands you trust.

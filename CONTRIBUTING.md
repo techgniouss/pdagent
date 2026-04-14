@@ -1,6 +1,6 @@
 # Contributing to Pocket Desk Agent
 
-Thank you for your interest in contributing! Pocket Desk Agent is designed to be a powerful, secure, and extensible tool for AI-driven desktop automation.
+Thank you for your interest in contributing. Pocket Desk Agent is designed to be a powerful, secure, and extensible tool for local desktop automation, with optional Gemini-powered AI features.
 
 ## Development Setup
 
@@ -23,6 +23,8 @@ Thank you for your interest in contributing! Pocket Desk Agent is designed to be
    python -m pocket_desk_agent.main
    ```
 
+For the full local development guide (virtual environments, live reloader, make targets, resource profile), see **[docs/LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md)**.
+
 ## Coding Standards
 
 - **Formatter**: `black` — run `make format` before committing.
@@ -31,6 +33,7 @@ Thank you for your interest in contributing! Pocket Desk Agent is designed to be
 - **Logging**: Use `logger = logging.getLogger(__name__)` at module level. Never use `print()`.
 - **Path handling**: Always use `pathlib.Path`, never raw strings.
 - **Windows-only imports**: Wrap with `if platform.system() == "Windows":`.
+- **Heavy dependencies**: Import inside handler functions, not at module level. This keeps idle RAM low (~55-70 MB). See `CLAUDE.md` for the full lazy-import convention.
 
 ## Adding a New Command
 
@@ -81,7 +84,7 @@ UI automation features require Windows with Tesseract OCR installed, as `pywinau
 
 ## Security Policy
 
-- **Never commit** `.env`, `tokens.json`, or `~/.pdagent/credentials`.
+- **Never commit** `.env`, OAuth token files, or `~/.pdagent/credentials`.
 - **Always use** `FileManager._is_safe_path()` for any new file operations. It uses `Path.relative_to()` — never roll your own path validation.
 - **Never expose** `subprocess` or shell access to the Gemini AI — this is a prompt-injection-to-RCE vector.
 - `@safe_command` handles authorization on every handler. Do not add duplicate `is_user_allowed()` calls.

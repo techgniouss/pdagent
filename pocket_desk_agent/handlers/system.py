@@ -15,6 +15,7 @@ from telegram.ext import ContextTypes
 from pocket_desk_agent.handlers._shared import (
     PYWINAUTO_AVAILABLE,
     record_action_if_active,
+    window_switch_options,
 )
 
 logger = logging.getLogger(__name__)
@@ -318,6 +319,125 @@ async def hotkey_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Error in hotkey_command: {e}", exc_info=True)
 
 
+
+
+async def windows_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /windows command - list switchable desktop windows."""
+    if not update.message:
+        return
+
+    if platform.system() != "Windows":
+        await update.message.reply_text(
+            "Window switching is currently only supported on Windows."
+        )
+        return
+
+    try:
+        from pocket_desk_agent.window_utils import (
+            format_window_inventory,
+            list_open_windows,
+        )
+
+        windows = list_open_windows()
+        if not windows:
+            await update.message.reply_text("No open application windows were found.")
+            return
+
+        user_id = update.effective_user.id
+        window_switch_options[user_id] = {
+            index: {"handle": window.handle, "title": window.title}
+            for index, window in enumerate(windows, start=1)
+        }
+
+        keyboard = []
+        row = []
+        for index in range(1, len(windows) + 1):
+            row.append(
+                InlineKeyboardButton(
+                    str(index),
+                    callback_data=f"windowfocus_{index}",
+                )
+            )
+            if len(row) == 4:
+                keyboard.append(row)
+                row = []
+        if row:
+            keyboard.append(row)
+
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        listing = format_window_inventory(windows)
+        await update.message.reply_text(
+            "Open windows:\n\n"
+            f"{listing}\n\n"
+            "Use /focuswindow <number> or tap a number below to activate a window.",
+            reply_markup=reply_markup,
+        )
+        logger.info("Listed %s switchable windows for user %s", len(windows), user_id)
+
+    except ImportError as exc:
+        await update.message.reply_text(
+            "Window switching requires pygetwindow. Your installation may be incomplete.\n\n"
+            "Try reinstalling:\n"
+            "pip install --upgrade pocket-desk-agent"
+        )
+        logger.warning("windows_command dependency error: %s", exc)
+    except Exception as e:
+        await update.message.reply_text(f"Error listing windows: {str(e)}")
+        logger.error(f"Error in windows_command: {e}", exc_info=True)
+
+
+async def focuswindow_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /focuswindow command - activate a previously listed window."""
+    if not update.message:
+        return
+
+    if platform.system() != "Windows":
+        await update.message.reply_text(
+            "Window switching is currently only supported on Windows."
+        )
+        return
+
+    user_id = update.effective_user.id
+    if not context.args:
+        await update.message.reply_text(
+            "Usage: /focuswindow <number>\nExample: /focuswindow 3"
+        )
+        return
+
+    try:
+        selection = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("Please provide a valid window number.")
+        return
+
+    options = window_switch_options.get(user_id, {})
+    selected = options.get(selection)
+    if not selected:
+        await update.message.reply_text(
+            "No saved window list was found for that selection. Run /windows first."
+        )
+        return
+
+    try:
+        from pocket_desk_agent.window_utils import activate_window
+
+        if activate_window(selected["handle"]):
+            await update.message.reply_text(
+                f"Activated window {selection}: {selected['title']}"
+            )
+            logger.info(
+                "Activated window %s for user %s: %s",
+                selection,
+                user_id,
+                selected["title"],
+            )
+        else:
+            await update.message.reply_text(
+                "That window could not be activated. It may have been closed. Run /windows to refresh."
+            )
+    except Exception as e:
+        await update.message.reply_text(f"Error focusing window: {str(e)}")
+        logger.error(f"Error in focuswindow_command: {e}", exc_info=True)
 
 
 async def clipboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE):

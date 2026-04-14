@@ -1,42 +1,23 @@
 """Shared state, clients, and utilities for all handler modules."""
 
 import logging
-import os
-import sys
 import platform
-import subprocess
-import asyncio
-import psutil
 import time
-import io
-import json
-import requests
-import datetime
 import functools
-from typing import Optional
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
+from telegram import Update
 from telegram.ext import ContextTypes
 
 from pocket_desk_agent.auth import is_user_allowed, AntigravityAuth
 from pocket_desk_agent.gemini_client import GeminiClient
 from pocket_desk_agent.file_manager import FileManager
-from pocket_desk_agent.scheduler_registry import get_scheduler_registry, ScheduledTask
-from pocket_desk_agent.updater import (
-    check_for_updates, apply_update, get_version_string,
-    get_last_check, format_update_notification,
-    get_local_short_sha, VERSION,
-)
 
-# Import pywinauto only on Windows
+# Check pywinauto availability without loading the heavy modules.
+# Actual imports happen lazily inside handler functions that need them,
+# so the ~15-20 MB cost is deferred until a UI automation command is used.
 if platform.system() == "Windows":
-    try:
-        from pywinauto import Application as PywinautoApp
-        from pywinauto.keyboard import send_keys
-        import pygetwindow as gw
-        from PIL import ImageGrab
-        PYWINAUTO_AVAILABLE = True
-    except ImportError:
-        PYWINAUTO_AVAILABLE = False
+    from importlib.util import find_spec as _find_spec
+    PYWINAUTO_AVAILABLE = _find_spec("pywinauto") is not None
+    del _find_spec
 else:
     PYWINAUTO_AVAILABLE = False
 
@@ -56,6 +37,7 @@ RECORDING_TIMEOUT_SECS = 600  # 10 minutes
 openfolder_options = {}          # {user_id: {index: path}}
 claudecli_options = {}           # {user_id: {"paths": {index: path}, "prompt": str}}
 findui_options = {}              # {user_id: {num: (x, y)}}
+window_switch_options = {}       # {user_id: {num: {"handle": int, "title": str}}}
 search_results = {}              # Claude search results
 repo_lists = {}                  # Claude repo listings
 repo_selection_state = {}        # Claude repo selection flow
