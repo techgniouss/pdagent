@@ -293,6 +293,12 @@ async def execute_custom_command(update: Update, context: ContextTypes.DEFAULT_T
     from pocket_desk_agent.command_registry import get_registry
     import pyautogui
     import pyperclip
+    from pocket_desk_agent.automation_utils import (
+        map_keys_to_pyautogui,
+        press_key,
+        send_hotkey,
+        write_text,
+    )
     
     registry = get_registry()
     actions = registry.get_command(command_name)
@@ -315,14 +321,13 @@ async def execute_custom_command(update: Update, context: ContextTypes.DEFAULT_T
             # Execute based on action type
             if action_type == "hotkey":
                 if args:
-                    from pocket_desk_agent.automation_utils import map_keys_to_pyautogui
                     mapped_keys = map_keys_to_pyautogui(args[0])
                     
                     if mapped_keys:
                         if len(mapped_keys) == 1:
-                            pyautogui.press(mapped_keys[0])
+                            press_key(pyautogui, mapped_keys[0])
                         else:
-                            pyautogui.hotkey(*mapped_keys)
+                            send_hotkey(pyautogui, *mapped_keys)
                             
                         # If there's clipboard text after the hotkey
                         if len(args) > 1:
@@ -368,9 +373,9 @@ async def execute_custom_command(update: Update, context: ContextTypes.DEFAULT_T
                         await update.message.reply_text(f"❌ Step {idx}/{len(actions)}: '{search_text}' not found for click")
                     
             elif action_type == "pasteenter":
-                pyautogui.hotkey('ctrl', 'v')
+                send_hotkey(pyautogui, "ctrl", "v")
                 await asyncio.sleep(0.2)
-                pyautogui.press('enter')
+                press_key(pyautogui, "enter")
                 await update.message.reply_text(f"✅ Step {idx}/{len(actions)}: pasteenter")
             
             elif action_type == "typeenter":
@@ -383,9 +388,9 @@ async def execute_custom_command(update: Update, context: ContextTypes.DEFAULT_T
                         # Keep spaces between words
                         text_to_type = " ".join(args)
                     
-                    pyautogui.write(text_to_type, interval=0.05)
+                    write_text(pyautogui, text_to_type, interval=0.05)
                     await asyncio.sleep(0.2)
-                    pyautogui.press('enter')
+                    press_key(pyautogui, "enter")
                     await update.message.reply_text(f"✅ Step {idx}/{len(actions)}: typeenter {text_to_type}")
             
             elif action_type == "scrollup":

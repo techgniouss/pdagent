@@ -5,7 +5,7 @@ import platform
 import re
 import logging
 from difflib import SequenceMatcher
-from typing import Any, List, Optional
+from typing import Any, Callable, List, Optional
 from dataclasses import dataclass
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
 
@@ -674,3 +674,76 @@ def map_keys_to_pyautogui(hotkey_str: str) -> List[str]:
             mapped_keys.append(key)
             
     return mapped_keys
+
+
+def _run_keyboard_only_action(
+    pyautogui: Any,
+    action: Callable[[], None],
+    *,
+    description: str,
+) -> bool:
+    """
+    Run a keyboard-only PyAutoGUI action with a lock-screen-friendly fallback.
+
+    PyAutoGUI raises FailSafeException whenever the mouse cursor is in a screen
+    corner, even if the requested action only uses the keyboard. For scenarios
+    like entering a Windows lock-screen PIN, retry once with FAILSAFE
+    temporarily disabled while keeping the global default safety behavior for
+    mouse actions.
+    """
+    try:
+        action()
+        return False
+    except pyautogui.FailSafeException:
+        previous_failsafe = getattr(pyautogui, "FAILSAFE", True)
+        if not previous_failsafe:
+            raise
+
+        logger.warning(
+            "PyAutoGUI fail-safe triggered during keyboard-only action '%s'; "
+            "retrying once with FAILSAFE disabled.",
+            description,
+        )
+        pyautogui.FAILSAFE = False
+        try:
+            action()
+            return True
+        finally:
+            pyautogui.FAILSAFE = previous_failsafe
+
+
+def write_text(pyautogui: Any, text: str, *, interval: float = 0.0) -> bool:
+    """Type text via PyAutoGUI with a safe fail-safe retry for lock screens."""
+    return _run_keyboard_only_action(
+        pyautogui,
+        lambda: pyautogui.write(text, interval=interval),
+        description=f"write {len(text)} characters",
+    )
+
+
+def typewrite_text(pyautogui: Any, text: str, *, interval: float = 0.0) -> bool:
+    """Type text via typewrite() with a safe fail-safe retry for lock screens."""
+    return _run_keyboard_only_action(
+        pyautogui,
+        lambda: pyautogui.typewrite(text, interval=interval),
+        description=f"typewrite {len(text)} characters",
+    )
+
+
+def press_key(pyautogui: Any, key: str) -> bool:
+    """Press a key via PyAutoGUI with a safe fail-safe retry for lock screens."""
+    return _run_keyboard_only_action(
+        pyautogui,
+        lambda: pyautogui.press(key),
+        description=f"press '{key}'",
+    )
+
+
+def send_hotkey(pyautogui: Any, *keys: str) -> bool:
+    """Send a hotkey via PyAutoGUI with a safe fail-safe retry for lock screens."""
+    joined_keys = "+".join(keys)
+    return _run_keyboard_only_action(
+        pyautogui,
+        lambda: pyautogui.hotkey(*keys),
+        description=f"hotkey '{joined_keys}'",
+    )
