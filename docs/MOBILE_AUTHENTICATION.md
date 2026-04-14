@@ -96,6 +96,17 @@ Antigravity tokens live in the first path. Gemini CLI tokens live in the second.
 - **Shared redirect URI**: `http://localhost:51121/oauth-callback`
 - **Gemini CLI OAuth**: Uses the public Gemini API and does not require a project ID.
 - **Antigravity OAuth**: Uses Google's internal code-assist API and may auto-fetch a project ID. If it cannot, set `GOOGLE_PROJECT_ID`.
+- **Port 51121**: The bot starts a local HTTP server on this port only during the OAuth code-exchange step (a few seconds at most). If port 51121 is in use by another process, the token exchange will fail. You can find and stop the conflicting process with `netstat -ano | findstr 51121` on Windows, then either stop that process or restart it after the auth flow completes.
+
+## Switching Providers
+
+You can switch between Antigravity OAuth and Gemini CLI OAuth at any time:
+
+1. Send `/logout` in Telegram and confirm
+2. Send `/login` and choose the new provider
+3. Complete the OAuth flow with `/authcode`
+
+Your old tokens are deleted on logout. The new provider's tokens are saved independently, so switching back later is also supported.
 
 ---
 
@@ -151,3 +162,7 @@ Bot:   Processing authorization code...
 - Check that the bot has network connectivity.
 - Review `bot.log` for detailed error messages.
 - Try restarting the bot with `pdagent restart`.
+
+**OAuth callback times out / nothing happens after sign-in**
+- Port 51121 may be in use by another process. On Windows, run `netstat -ano | findstr 51121` to identify the process, stop it, then retry `/login`.
+- The local callback server only starts during the `/authcode` exchange step, so the port must be free when you submit your code, not necessarily when you open the auth link.

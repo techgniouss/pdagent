@@ -91,10 +91,10 @@ Use foreground mode during development so logs and reload behavior stay visible.
 
 When the project is run from a git checkout, `main.py` enables a file-watching reloader that monitors Python source files and restarts the process automatically on change.
 
-- Git checkout: reloader enabled
-- Installed package: reloader disabled
+- Git checkout: reloader enabled — polls all `.py` files under `pocket_desk_agent/` every 1.5 seconds
+- Installed package (pip): reloader disabled — no file-watching overhead
 
-This keeps the development experience responsive without adding unnecessary overhead in normal installed usage.
+This keeps the development experience responsive without adding unnecessary overhead in normal installed usage. The restart is clean — the Telegram polling loop reconnects automatically.
 
 ### Logging
 
@@ -115,6 +115,10 @@ make test
 make lint
 make format
 ```
+
+> **Tesseract-dependent tests**: Tests that invoke OCR commands (`/findtext`, `/smartclick`) require Tesseract to be installed and on PATH. If Tesseract is not present, those tests are skipped automatically. Run `pdagent setup` or `winget install UB-Mannheim.TesseractOCR` to install it before running the full suite.
+
+> **Debugging authentication locally**: To test auth flows, set `LOG_LEVEL=DEBUG` in your config and watch `bot.log`. The DEBUG level logs each step of the OAuth token exchange, including the redirect URI, state parameter, and token storage path. This is the fastest way to diagnose why an auth flow fails silently.
 
 ### Make Targets
 

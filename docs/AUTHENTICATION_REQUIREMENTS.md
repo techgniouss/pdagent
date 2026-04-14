@@ -14,6 +14,8 @@ The vast majority of commands work immediately after installation with **no auth
 - **Photo messages** — sending images for Gemini Vision analysis
 - `/enhance <text>` — rewrite a prompt using Gemini
 
+If you use any of these without authenticating first, the bot will reply with a prompt to run `/login`. No action is taken and no error is logged — it is a clean, user-facing redirect.
+
 **To authenticate:** Use `/login` in Telegram and follow the instructions. See [MOBILE_AUTHENTICATION.md](MOBILE_AUTHENTICATION.md).
 
 ---
@@ -22,7 +24,8 @@ The vast majority of commands work immediately after installation with **no auth
 
 ### Core
 
-- `/start`, `/help`, `/status`, `/sync`, `/stopbot`, `/new`
+- `/start`, `/help`, `/sync`, `/stopbot`, `/new`
+- `/status` — works without auth but shows richer output (email, provider, token health) when authenticated
 
 ### Authentication Management
 
@@ -113,6 +116,12 @@ Provider notes:
 [Now you can chat with Gemini:]
 Hello, summarize my project status.
 ```
+
+---
+
+## Rate Limiting
+
+Rate limiting applies to **all** commands regardless of authentication status. Each user has a per-command token bucket. Commands that are sensitive or resource-intensive (e.g., `/shutdown`, `/build`) have stricter per-user limits than routine commands (e.g., `/ls`, `/screenshot`). If you hit a rate limit, the bot will tell you how long to wait before retrying.
 
 ---
 

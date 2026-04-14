@@ -8,15 +8,38 @@
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge" alt="License" />
 </p>
 
-<p align="center"><strong>Your PC in your pocket — remote control, developer tools, and optional AI — all via Telegram.</strong></p>
+<p align="center"><strong>Your PC in your pocket — remote control, AI automation, and developer tools — all through Telegram.</strong></p>
 
-Pocket Desk Agent is a Telegram bot that runs locally on your Windows PC and gives you full remote control from your phone. Manage files, automate UI interactions, control Claude Desktop and VS Code, schedule tasks, and build Android APKs — all via Telegram messages. **No AI required.** Optionally connect **Google Gemini 2.0 Flash** to add conversational AI, image analysis, and prompt enhancement on top.
+<p align="center">
+  <a href="docs/COMMANDS.md">Commands</a> •
+  <a href="docs/LOCAL_DEVELOPMENT.md">Development</a> •
+  <a href="CONTRIBUTING.md">Contributing</a> •
+  <a href="SECURITY.md">Security</a>
+</p>
+
+**Pocket Desk Agent** is a self-hosted Telegram bot that gives you full remote control of your Windows PC from any device. It runs entirely on your machine — no cloud relay, no subscription, no data leaving your network beyond Telegram's message relay and the optional Gemini API.
+
+Out of the box, with zero AI setup:
+- **Browse and read files** sandboxed to your approved directories
+- **Control your desktop** — screenshots, keyboard shortcuts, clipboard, window switching, sleep, shutdown
+- **Automate UI** with OCR-based text clicking (Tesseract) and element detection (OpenCV)
+- **Drive Claude Desktop and VS Code** remotely without touching your keyboard
+- **Record macros** and replay multi-step workflows with a single command
+- **Schedule tasks** to run while you sleep — survives restarts
+- **Build and deliver Android APKs** from React Native projects via Telegram
+
+Add **Google Gemini 2.0 Flash** credentials to unlock:
+- **Conversational AI chat** with multi-turn memory and image analysis
+- **Agentic computer use** — Gemini can browse files, take screenshots, click, type, and automate your PC from natural language, with human-in-the-loop confirmation for any destructive action
+- **Prompt enhancement** via `/enhance`
 
 ---
 
 ## Table of Contents
 
 - [Key Features](#key-features)
+- [How It Works](#how-it-works)
+- [Platform Compatibility](#platform-compatibility)
 - [Before You Start](#before-you-start)
 - [Quick Start & Installation](#quick-start--installation)
 - [Configuration](#configuration)
@@ -25,6 +48,7 @@ Pocket Desk Agent is a Telegram bot that runs locally on your Windows PC and giv
 - [Security](#security)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
+- [License](#license)
 
 ---
 
@@ -47,6 +71,55 @@ Everything below works with no AI configuration required:
 
 - **AI Chat & Computer Use**: Google Gemini 2.0 Flash with multi-turn conversation, image analysis, and full agentic tool-calling. Send any text or photo directly to chat. Gemini acts as an autonomous agent that can natively browse your files, analyze screenshots, and use UI automation (click, type, navigate) to perform tasks on your PC in response to natural language requests. All destructive or system-altering actions require explicit human-in-the-loop confirmation via Telegram buttons.
 - **Prompt Enhancement**: Use `/enhance` to let Gemini rewrite and improve a prompt before sending it anywhere.
+
+---
+
+## How It Works
+
+Pocket Desk Agent runs as a local process on your Windows PC and connects **outbound** to Telegram's servers via long-polling — no inbound port forwarding, router configuration, or dynamic DNS is required.
+
+```
+Your Phone → Telegram servers → (outbound polling) → Pocket Desk Agent (local) → PC action → Reply
+```
+
+When you send a message from your phone, Telegram holds it until the bot's polling loop picks it up (typically under 1 second). The command runs locally on your PC and the result is sent back through the same Telegram relay.
+
+**Key internal components:**
+
+| Component | Role |
+| :--- | :--- |
+| `python-telegram-bot` | Async Telegram client — receives and dispatches all commands |
+| `GeminiClient` | Manages Gemini API sessions, multi-turn history, and tool-calling |
+| `FileManager` | Sandboxed file I/O — all paths are validated against `APPROVED_DIRECTORIES` |
+| `AuthManager` | Multi-provider OAuth wrapper for Antigravity, Gemini CLI, and API key modes |
+| `SchedulerRegistry` | Persists scheduled tasks to disk and checks every 60 s; survives restarts |
+| `RateLimiter` | Per-user token-bucket rate limiter applied automatically to every command |
+
+All 70 command handlers are registered centrally in `command_map.py`. Every handler is wrapped by `@safe_command`, which enforces authorization, rate limiting, and error reporting in a single place — no manual auth checks are needed in individual handlers.
+
+---
+
+## Platform Compatibility
+
+| Feature | Windows | macOS / Linux |
+| :--- | :---: | :---: |
+| File system (browse, read, search) | ✅ | ✅ |
+| AI chat & image analysis (Gemini) | ✅ | ✅ |
+| Task scheduling | ✅ | ✅ |
+| Auto-update | ✅ | ✅ |
+| Screenshots | ✅ | ✅ |
+| Keyboard shortcuts (`/hotkey`) | ✅ | ⚠️ partial |
+| Clipboard read/write | ✅ | ⚠️ partial |
+| Battery status | ✅ | ✅ |
+| UI automation (OCR click, find text) | ✅ | ❌ |
+| Element detection (OpenCV) | ✅ | ❌ |
+| Window management (`/windows`, `/focuswindow`) | ✅ | ❌ |
+| Claude Desktop integration | ✅ | ❌ |
+| VS Code / Antigravity integration | ✅ | ❌ |
+| React Native build automation | ✅ | ❌ |
+| Automatic startup after login | ✅ | ❌ |
+
+> macOS/Linux users can run the bot for file system access, Gemini AI chat, and scheduling. UI automation features require Windows and, for OCR commands, Tesseract.
 
 ---
 
@@ -90,8 +163,9 @@ Provider note: **Gemini CLI OAuth** needs no project setup. **Antigravity OAuth*
 ### System Requirements
 
 - **Python 3.11+**
-- **Windows** — UI automation features (`pywinauto`, `pyautogui`) are Windows-only
+- **Windows 10 or later** — required for UI automation features (`pywinauto`, `pyautogui`, `pygetwindow`). File system access, Gemini AI chat, and task scheduling also work on macOS/Linux (see [Platform Compatibility](#platform-compatibility)).
 - **Tesseract OCR** — needed for `/findtext`, `/smartclick`, and Claude/Antigravity UI automation. `pdagent` detects if it's missing on first run and offers to install it automatically via winget. Run `pdagent setup` at any time to re-check.
+- **Visual C++ Redistributables** — required by `pywinauto` and `pyautogui` on Windows. Usually already present; install the latest from Microsoft if you hit `ImportError` on startup.
 
 ### Option A: Install from PyPI (Recommended)
 
@@ -137,12 +211,16 @@ On Windows, the wizard also offers optional **automatic background startup after
 
 The Gemini authentication step offers four choices:
 
-| Choice | Description |
-| :--- | :--- |
-| `1) Antigravity OAuth` | Opens browser immediately for sign-in using built-in credentials. Recommended. |
-| `2) Gemini CLI OAuth` | Uses browser login with the public Gemini API and no GCP project requirement. |
-| `3) API Key` | Paste a Google AI Studio API key. No login flow needed. |
-| `4) Setup Later` | Skips Gemini setup. Start the bot and authenticate via `/login` in Telegram whenever you're ready. |
+| Choice | Description | Best for |
+| :--- | :--- | :--- |
+| `1) Antigravity OAuth` | Opens browser immediately for sign-in using built-in credentials. Token auto-refreshes. | Most users — zero config, longest session lifetime |
+| `2) Gemini CLI OAuth` | Browser login against the public Gemini API. No GCP project required. Token auto-refreshes. | Users already on the Gemini CLI ecosystem |
+| `3) API Key` | Paste a Google AI Studio key. No login flow or browser needed. | Automation, headless servers, or API key preference |
+| `4) Setup Later` | Skips Gemini setup. Start the bot and authenticate via `/login` in Telegram at any time. | Trying the bot without AI first |
+
+> **Token refresh:** OAuth tokens (options 1 and 2) are stored locally in `~/.config/` and refresh automatically in the background. You will only need to re-authenticate if you explicitly log out or if the refresh token expires (typically after 7 days of inactivity).
+
+> **Switching providers:** You can switch between auth modes at any time. Run `pdagent auth` and choose "Switch Provider", or use `/logout` then `/login` in Telegram to start a fresh auth flow.
 
 ### Manual Configuration
 
@@ -188,6 +266,7 @@ GOOGLE_OAUTH_CLIENT_SECRET="your_client_secret"
 | Variable | Default | Purpose |
 | :--- | :--- | :--- |
 | `GEMINI_MODEL` | `gemini-2.0-flash` | Gemini model to use |
+| `GEMINI_AUTH_MODE` | `antigravity` | Auth provider: `antigravity`, `gemini-cli`, or `apikey` |
 | `GOOGLE_PROJECT_ID` | `(unset)` | Optional Antigravity project override if auto-detection fails |
 | `UPLOAD_EXPIRY_TIME` | `1h` | TempFile upload expiry for large-file links (`1h`/`12h`/`24h`/`72h`) |
 | `LOG_LEVEL` | `INFO` | Logging verbosity |
@@ -196,12 +275,23 @@ GOOGLE_OAUTH_CLIENT_SECRET="your_client_secret"
 | `SYSTEM_PROMPT` | — | Custom Gemini system prompt |
 | `DROPBOX_ACCESS_TOKEN` | — | Dropbox token for optional large-file uploads (see [docs/dropbox-setup.md](docs/dropbox-setup.md)) |
 
+### Legacy Config Aliases
+
+If you are upgrading from an earlier version of Pocket Desk Agent, the following environment variable names still work but are deprecated. Migrate to the current names when convenient.
+
+| Legacy name | Current name |
+| :--- | :--- |
+| `ALLOWED_USERS` | `AUTHORIZED_USER_IDS` |
+| `SYSTEM_INSTRUCTION` | `SYSTEM_PROMPT` |
+| `ANTIGRAVITY_ENABLED` | `GOOGLE_OAUTH_ENABLED` |
+| `DEFAULT_REPO_PATH` | `CLAUDE_DEFAULT_REPO_PATH` |
+
 ### Config File Locations (precedence order)
 
-1. Shell environment variables
-2. `~/.pdagent/config`
-3. `~/.pdagent/.env`
-4. `.env` in current directory
+1. Shell environment variables (highest priority)
+2. `~/.pdagent/config` (INI format — written by `pdagent configure`)
+3. `~/.pdagent/.env` (legacy dotenv)
+4. `.env` in the current working directory (legacy dotenv)
 
 ---
 
@@ -372,6 +462,7 @@ Pocket Desk Agent runs **entirely on your local machine** — no data is sent to
 **Bot starts but doesn't respond to messages**
 - Confirm your Telegram user ID is in `AUTHORIZED_USER_IDS` (get it from [@userinfobot](https://t.me/userinfobot))
 - Check `bot.log` in your working directory for errors
+- Verify the bot token is correct — a wrong token causes silent polling failures
 - Run `/status` in the bot chat to verify the Gemini connection
 
 **`/findtext` or `/smartclick` returns an error**
@@ -381,15 +472,37 @@ Pocket Desk Agent runs **entirely on your local machine** — no data is sent to
 
 **Gemini authentication fails**
 - Run `pdagent auth` and choose "Login" to re-authenticate, or use `/login` in Telegram
-- For OAuth: make sure port 51121 is not blocked by a firewall; the bot starts a local server on that port to receive the OAuth callback
+- For OAuth: make sure port `51121` is not blocked by a firewall or in use by another process; the bot starts a local HTTP server on that port to receive the OAuth callback
 - For API key mode: check your key is valid at [Google AI Studio](https://aistudio.google.com/app/apikey)
+- If you see "invalid_grant", your refresh token has expired — log out and re-authenticate
 
 **Bot crashes on startup with `ImportError`**
 - Run `pip install --upgrade pocket-desk-agent` to ensure all dependencies are current
-- On Windows, some packages (`pywinauto`, `pyautogui`) require Visual C++ Redistributables
+- On Windows, some packages (`pywinauto`, `pyautogui`) require Visual C++ Redistributables — install the latest from Microsoft's website
 
 **"Another bot instance is already running"**
 - Run `pdagent stop` to clear the stale process lock, then `pdagent start`
+- If `pdagent stop` does not resolve it, find and kill the process manually: `taskkill /F /IM python.exe` (Windows) or check for a leftover `.pid` file in `~/.pdagent/`
+
+**File operation fails with "Access denied" or "Path not allowed"**
+- The requested path is outside `APPROVED_DIRECTORIES`
+- Add the path to your config: `APPROVED_DIRECTORIES="C:\Users\YourName\Documents,C:\projects"`
+- Separate multiple directories with commas; use absolute paths
+
+**Scheduled tasks don't fire**
+- The bot must be running when the scheduled time arrives — tasks do not fire if the bot is stopped
+- Run `/listschedules` to confirm the task is still pending and the time format is correct (`HH:MM` in 24-hour time)
+- Check `LOG_LEVEL=DEBUG` output for scheduler errors
+
+**Bot is running but commands respond very slowly**
+- Gemini API latency can vary; non-AI commands should respond in under 2 seconds
+- For UI automation, large screenshots slow OCR — try `/screenshot` first to confirm the display is being captured correctly
+- Run `pdagent status` to check if a background command is still executing
+
+**`/build` or `/getapk` reports "no APK found"**
+- Ensure `CLAUDE_DEFAULT_REPO_PATH` points to a React Native project root containing `android/`
+- Use `/clauderepo <path>` to set a different project directory for the session
+- Check build logs in the Telegram chat for the exact Gradle error
 
 ---
 
