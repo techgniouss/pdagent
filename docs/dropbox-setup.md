@@ -35,9 +35,11 @@ For large APK delivery, Pocket Desk Agent offers:
 
 Enable these scopes in the **Permissions** tab before generating a token:
 
-- `files.content.write`
-- `files.content.read`
-- `sharing.write`
+| Scope | Purpose |
+| :--- | :--- |
+| `files.content.write` | Upload APK files to your Dropbox |
+| `files.content.read` | Verify uploads and read file metadata |
+| `sharing.write` | Create shareable download links sent back to you via Telegram |
 
 After selecting the scopes, click **Submit**.
 
@@ -51,6 +53,8 @@ After selecting the scopes, click **Submit**.
 2. Find **OAuth 2**
 3. Generate an access token
 4. Copy the token value
+
+> **Token lifetime**: Tokens generated from the App Console are long-lived by default (they do not expire unless revoked). If you use a short-lived token via a custom OAuth flow, you will need to refresh it periodically. The long-lived token from the App Console is recommended for this integration.
 
 ---
 
@@ -110,5 +114,6 @@ You can access them from the Dropbox web app, desktop client, or mobile app.
 ## Security Notes
 
 - Never commit `DROPBOX_ACCESS_TOKEN` to version control
-- Revoke the token immediately if it is exposed
-- Use an app-specific Dropbox token rather than reusing unrelated credentials
+- Use an app-specific Dropbox token rather than reusing credentials from another integration
+- **To revoke a token**: open the Dropbox App Console → your app → **Settings** → **OAuth 2** → click **Revoke** next to the generated token. Generate a fresh one afterward if needed.
+- Revoke the token immediately if it is accidentally exposed (e.g., committed to a public repo)

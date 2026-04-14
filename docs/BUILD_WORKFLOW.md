@@ -64,7 +64,7 @@ Reply with either:
 
 ### 3. Select a build script
 
-The bot reads the selected `package.json` and shows available npm scripts. Build-related scripts are ranked first.
+The bot reads the selected `package.json` and shows available npm scripts. Scripts are ranked with Android-related ones first (those containing `android`, `build`, or `release` in their name), followed by all others alphabetically.
 
 Reply with either:
 
@@ -73,7 +73,7 @@ Reply with either:
 
 ### 4. Monitor progress
 
-The bot starts the build command and sends periodic progress updates with recent output. When the command finishes, it reports success or failure.
+The bot starts the build command and sends progress updates with recent output approximately every 30 seconds. When the command finishes, it reports success or failure along with the final build output.
 
 ### 5. Receive the APK
 
@@ -81,6 +81,10 @@ After a successful build, the bot searches common React Native APK output locati
 
 - `android/app/build/outputs/apk/debug/`
 - `android/app/build/outputs/apk/release/`
+
+> **APK vs AAB:** The bot looks for `.apk` files specifically. If your build script produces an Android App Bundle (`.aab`) instead of an APK, the bot will report "APK not found". To get an APK, use a build variant that produces one (e.g., `assembleRelease` rather than `bundleRelease`).
+
+> **Custom output paths:** If your project writes APKs to a non-standard location, retrieve the file manually using `/find *.apk` or `/cat` after the build completes.
 
 It then reports the file name, size, and local path before sending or uploading the APK.
 
@@ -157,6 +161,7 @@ Bot: Choose upload method:
 - Confirm `CLAUDE_DEFAULT_REPO_PATH` points to the correct root directory
 - Verify the directory exists and is readable
 - Make sure each target repository contains a `package.json`
+- For **monorepos or nested workspaces**: the bot scans one level deep from `CLAUDE_DEFAULT_REPO_PATH`. If your projects are nested further, set `CLAUDE_DEFAULT_REPO_PATH` to the subdirectory that directly contains them, or use `/clauderepo <path>` to set the project for the current session
 
 ### Build fails
 

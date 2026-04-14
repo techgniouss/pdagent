@@ -35,7 +35,7 @@ Manage the fundamental runtime state, session lifecycle, and system capabilities
 | `/logout` | Sign out, revoke credentials, and clear the session. | `/logout` |
 | `/new` | Purge current Gemini chat history and start a fresh session. | `/new` |
 | `/enhance <text>` | Ask Gemini to rewrite or improve a prompt. | `/enhance write an email to my boss` |
-| `/sync` | Force-sync the command list with Telegram's menu. | `/sync` |
+| `/sync` | Force-sync the command list with Telegram's bot menu. Use this after saving a new macro or if the `/help` menu looks stale. | `/sync` |
 | `/stopbot` | Shut down the bot process gracefully (requires confirmation). | `/stopbot` |
 
 ---
@@ -112,6 +112,8 @@ Record, save, and replay multi-step automation workflows.
 
 **Recordable actions:** `/hotkey`, `/clipboard`, `/findtext`, `/smartclick`, `/clickelement`, `/pasteenter`, `/typeenter`, `/scrollup`, `/scrolldown`, `/openclaude`, and more.
 
+> **Non-recordable commands** (such as `/screenshot`, `/ls`, or Gemini chat messages) sent during recording are executed immediately as normal — they are not added to the macro sequence.
+
 | Command | Description | Example |
 | :--- | :--- | :--- |
 | `/savecommand <name>` | Start recording a new macro. Subsequent supported commands are recorded rather than executed. | `/savecommand deploy` |
@@ -120,7 +122,7 @@ Record, save, and replay multi-step automation workflows.
 | `/listcommands` | Show all saved macros. | `/listcommands` |
 | `/deletecommand <name>` | Delete a saved macro. | `/deletecommand deploy` |
 
-To run a saved macro, send `/<name>` — e.g., `/deploy`.
+To run a saved macro, send `/<name>` — e.g., `/deploy`. Macros replay each recorded command in sequence with no delay between steps. After saving, run `/sync` to make the macro appear in Telegram's command menu.
 
 ---
 
@@ -188,6 +190,8 @@ Bridge the bot to VS Code via the Antigravity desktop extension.
 
 Schedule automation sequences or Claude prompts to run at a future time. Tasks persist across restarts.
 
+> The scheduler checks for due tasks every **60 seconds**, so a task may fire up to 60 seconds after its scheduled time. The bot must be running when the scheduled time arrives.
+
 | Command | Description | Example |
 | :--- | :--- | :--- |
 | `/schedule <HH:MM>` | Start recording an automation sequence to run at a specific time. | `/schedule 14:00` |
@@ -196,7 +200,7 @@ Schedule automation sequences or Claude prompts to run at a future time. Tasks p
 | `/cancelschedule <id>` | Cancel a pending scheduled task by its ID. | `/cancelschedule claude_123` |
 
 **Time formats:**
-- `HH:MM` — queues for later today, or tomorrow if the time has already passed
+- `HH:MM` — queues for later today, or tomorrow if the time has already passed (24-hour format)
 - `YYYY-MM-DD HH:MM` — explicit future date and time
 
 ---
