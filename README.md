@@ -17,6 +17,20 @@
   <a href="SECURITY.md">Security</a>
 </p>
 
+<p align="center">
+  <a href="README.md"><strong>English</strong></a> •
+  <a href="README.zh-CN.md">中文</a> •
+  <a href="README.ru.md">Русский</a> •
+  <a href="README.es.md">Español</a> •
+  <a href="README.de.md">Deutsch</a> •
+  <a href="README.fr.md">Français</a> •
+  <a href="README.ja.md">日本語</a> •
+  <a href="README.pt-BR.md">Português</a> •
+  <a href="README.ko.md">한국어</a> •
+  <a href="README.tr.md">Türkçe</a> •
+  <a href="README.uk.md">Українська</a>
+</p>
+
 **Pocket Desk Agent** is a self-hosted Telegram bot that gives you full remote control of your Windows PC from any device. It runs entirely on your machine — no cloud relay, no subscription, no data leaving your network beyond Telegram's message relay and the optional Gemini API.
 
 Out of the box, with zero AI setup:
@@ -32,23 +46,6 @@ Add **Google Gemini 2.0 Flash** credentials to unlock:
 - **Conversational AI chat** with multi-turn memory and image analysis
 - **Agentic computer use** — Gemini can browse files, take screenshots, click, type, and automate your PC from natural language, with human-in-the-loop confirmation for any destructive action
 - **Prompt enhancement** via `/enhance`
-
----
-
-## Table of Contents
-
-- [Key Features](#key-features)
-- [How It Works](#how-it-works)
-- [Platform Compatibility](#platform-compatibility)
-- [Before You Start](#before-you-start)
-- [Quick Start & Installation](#quick-start--installation)
-- [Configuration](#configuration)
-- [Running the Bot](#running-the-bot)
-- [Commands Quick Reference](#commands-quick-reference)
-- [Security](#security)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
-- [License](#license)
 
 ---
 
