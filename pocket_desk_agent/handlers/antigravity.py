@@ -465,7 +465,6 @@ async def claudecli_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🔍 Scanning folders for Claude CLI...")
 
     try:
-        from pocket_desk_agent.config import Config
         import pathlib
 
         # Build list of candidate root directories
@@ -522,7 +521,6 @@ async def claudecli_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         }
 
         # Build inline keyboard — one button per row
-        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
         keyboard = []
         for i, path in enumerate(folders):
             label = f"📁 {os.path.basename(path) or path}"
@@ -568,7 +566,6 @@ async def claudeclisend_command(update: Update, context: ContextTypes.DEFAULT_TY
     try:
         import pygetwindow as gw
         import pyautogui
-        import time
         
         window_found = False
         for w in gw.getAllWindows():
@@ -608,7 +605,6 @@ async def antigravityopenfolder_command(update: Update, context: ContextTypes.DE
     await update.message.reply_text("🔍 Scanning folders...")
 
     try:
-        from pocket_desk_agent.config import Config
         import pathlib
 
         # Build list of candidate root directories

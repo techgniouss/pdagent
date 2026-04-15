@@ -151,7 +151,6 @@ def _stop() -> int:
 
 def _stop_via_pidfile() -> int:
     """Fallback stop implementation that doesn't depend on scripts/."""
-    import os
     import signal
 
     pid_file = Path.home() / ".pdagent" / "bot.pid"
@@ -166,7 +165,6 @@ def _stop_via_pidfile() -> int:
 
     try:
         if sys.platform == "win32":
-            import subprocess
             subprocess.run(
                 ["taskkill", "/pid", str(pid), "/f"], check=False,
             )

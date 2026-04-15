@@ -54,12 +54,12 @@ Add **Google Gemini 2.0 Flash** credentials to unlock:
 Everything below works with no AI configuration required:
 
 - **File System Explorer**: Browse, read, and search local PC directories from your phone, sandboxed to approved paths.
-- **Desktop Control**: Take screenshots, send keyboard shortcuts, manage the clipboard, switch open windows, check battery, and trigger sleep/shutdown.
+- **Desktop Control**: Take screenshots, send keyboard shortcuts, manage the clipboard, switch open windows, blank the display with privacy mode, check battery, and trigger sleep/shutdown.
 - **Vision & UI Automation**: OCR-based clicking via Tesseract — find and click any visible text on screen. Computer vision (OpenCV) for icon and UI element detection.
 - **Macro Recording**: Record multi-step UI sequences and replay them with a single command.
 - **Claude Desktop Integration**: Remote control of Claude Desktop App — send prompts, switch models, manage workspaces, and automate chat flows without touching your PC.
 - **VS Code / Antigravity Integration**: Open folders, switch AI models, and drive the Antigravity VS Code extension remotely.
-- **Task Scheduler**: Schedule automation flows or Claude prompts to run at a specified time, even while you sleep. Tasks survive restarts.
+- **Task Scheduler**: Schedule one-shot or repeating automation flows, Claude prompts, and temporary Claude/Antigravity permission watchers. Tasks survive restarts.
 - **Build Automation**: Trigger React Native Android builds and retrieve APKs through Telegram or large-file upload links when needed.
 - **Auto-Update**: The bot can check for and apply updates on demand.
 - **Lightweight**: ~55-70 MB idle RAM, <0.5% idle CPU. Heavy dependencies (OpenCV, NumPy, Dropbox) load on-demand only when their commands are used.
@@ -89,10 +89,10 @@ When you send a message from your phone, Telegram holds it until the bot's polli
 | `GeminiClient` | Manages Gemini API sessions, multi-turn history, and tool-calling |
 | `FileManager` | Sandboxed file I/O — all paths are validated against `APPROVED_DIRECTORIES` |
 | `AuthManager` | Multi-provider OAuth wrapper for Antigravity, Gemini CLI, and API key modes |
-| `SchedulerRegistry` | Persists scheduled tasks to disk and checks every 60 s; survives restarts |
+| `SchedulerRegistry` | Persists scheduled tasks to disk and checks every 5 s; survives restarts |
 | `RateLimiter` | Per-user token-bucket rate limiter applied automatically to every command |
 
-All 70 command handlers are registered centrally in `command_map.py`. Every handler is wrapped by `@safe_command`, which enforces authorization, rate limiting, and error reporting in a single place — no manual auth checks are needed in individual handlers.
+All 73 command handlers are registered centrally in `command_map.py`. Every handler is wrapped by `@safe_command`, which enforces authorization, rate limiting, and error reporting in a single place — no manual auth checks are needed in individual handlers.
 
 ---
 
@@ -314,7 +314,7 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 
 ## Commands Quick Reference
 
-> For the complete reference with all 70 built-in commands, see **[docs/COMMANDS.md](docs/COMMANDS.md)**.
+> For the complete reference with all 73 built-in commands, see **[docs/COMMANDS.md](docs/COMMANDS.md)**.
 
 <details>
 <summary><strong>Expand cheat sheet</strong></summary>
@@ -356,6 +356,7 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 | `/clipboard <text>` | Set the clipboard |
 | `/viewclipboard` | Read the clipboard |
 | `/battery` | Battery status |
+| `/privacy <on|off|status>` | Blank or wake the display without locking Windows |
 | `/sleep` | Put PC to sleep |
 | `/shutdown` | Shut down the PC |
 | `/wakeup` | Wake-on-LAN instructions |
@@ -427,6 +428,8 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 | Command | Description |
 | :--- | :--- |
 | `/schedule <HH:MM>` | Start recording a scheduled automation sequence |
+| `/repeatschedule every <interval> for <duration>` | Record an automation sequence that repeats for a limited time |
+| `/watchperm <claude\|antigravity> every <interval> for <duration>` | Repeatedly scan Claude or Antigravity for approval buttons and click them when safe |
 | `/claudeschedule <HH:MM> <text>` | Schedule a Claude prompt |
 | `/listschedules` | View all pending scheduled tasks |
 | `/cancelschedule <id>` | Cancel a scheduled task |

@@ -29,7 +29,18 @@ gemini_client = GeminiClient()
 file_manager = FileManager()
 
 # ── Recording state for custom command saver AND scheduler ──────────────────
-# Structure: {user_id: {"command_name": str, "actions": [...], "started_at": float, "scheduled_at": str|None}}
+# Structure:
+# {
+#   user_id: {
+#     "command_name": str,
+#     "actions": [...],
+#     "started_at": float,
+#     "scheduled_at": str | None,
+#     "interval_seconds": int | None,
+#     "repeat_until": str | None,
+#     "temporary_command": bool,
+#   }
+# }
 recording_sessions = {}
 RECORDING_TIMEOUT_SECS = 600  # 10 minutes
 
@@ -162,7 +173,7 @@ def record_action_if_active(user_id: int, action_type: str, args: list) -> bool:
         return False  # Session expired — execute normally
 
     from pocket_desk_agent.command_registry import CommandAction
-    action = CommandAction(type=action_type, args=args)
+    action = CommandAction(type=action_type, args=[str(arg) for arg in args])
     session["actions"].append(action)
     logger.info(f"Recorded action for user {user_id}: {action_type} {args}")
     return True

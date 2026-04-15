@@ -78,6 +78,7 @@ Direct Windows system management.
 | `/clipboard <text>` | Overwrite the host clipboard with the given text. | `/clipboard https://example.com` |
 | `/viewclipboard` | Read and return whatever is currently in the clipboard. | `/viewclipboard` |
 | `/battery` | Check battery percentage and charging status. | `/battery` |
+| `/privacy <on\|off\|status>` | Blank the display or wake it without locking the Windows session. | `/privacy on` |
 | `/sleep` | Put the host PC to sleep immediately. | `/sleep` |
 | `/wakeup` | Show wake-up instructions and last wake time. | `/wakeup` |
 | `/shutdown` | Shut down the host PC (requires confirmation). | `/shutdown` |
@@ -110,7 +111,7 @@ Robotic Process Automation using OCR and computer vision.
 
 Record, save, and replay multi-step automation workflows.
 
-**Recordable actions:** `/hotkey`, `/clipboard`, `/findtext`, `/smartclick`, `/clickelement`, `/pasteenter`, `/typeenter`, `/scrollup`, `/scrolldown`, `/openclaude`, and more.
+**Recordable actions:** `/hotkey`, `/clipboard`, `/findtext`, `/smartclick`, `/clicktext`, `/clickelement`, `/pasteenter`, `/typeenter`, `/scrollup`, `/scrolldown`, `/openclaude`, and more.
 
 > **Non-recordable commands** (such as `/screenshot`, `/ls`, or Gemini chat messages) sent during recording are executed immediately as normal — they are not added to the macro sequence.
 
@@ -188,13 +189,15 @@ Bridge the bot to VS Code via the Antigravity desktop extension.
 
 ## Task Scheduling
 
-Schedule automation sequences or Claude prompts to run at a future time. Tasks persist across restarts.
+Schedule one-shot or repeating automations, Claude prompts, and temporary permission watchers. Tasks persist across restarts.
 
-> The scheduler checks for due tasks every **60 seconds**, so a task may fire up to 60 seconds after its scheduled time. The bot must be running when the scheduled time arrives.
+> The scheduler checks for due tasks every **5 seconds**. The bot must be running when the scheduled time arrives.
 
 | Command | Description | Example |
 | :--- | :--- | :--- |
 | `/schedule <HH:MM>` | Start recording an automation sequence to run at a specific time. | `/schedule 14:00` |
+| `/repeatschedule every <interval> for <duration>` | Record an automation sequence that starts immediately after `/done` and repeats for a limited time. | `/repeatschedule every 1m for 15m` |
+| `/watchperm <claude\|antigravity> every <interval> for <duration> [labels=...]` | Repeatedly scan the Claude or Antigravity window for approval buttons like `Allow` or `Run` and click them when there is exactly one strong match. | `/watchperm claude every 1m for 15m` |
 | `/claudeschedule <HH:MM> <text>` | Schedule a prompt to be sent to Claude at a specific time. | `/claudeschedule 02:00 run tests and summarize` |
 | `/listschedules` | View all pending scheduled tasks with countdown timers. | `/listschedules` |
 | `/cancelschedule <id>` | Cancel a pending scheduled task by its ID. | `/cancelschedule claude_123` |
@@ -202,6 +205,13 @@ Schedule automation sequences or Claude prompts to run at a future time. Tasks p
 **Time formats:**
 - `HH:MM` — queues for later today, or tomorrow if the time has already passed (24-hour format)
 - `YYYY-MM-DD HH:MM` — explicit future date and time
+
+**Repeat formats:**
+- `every 1m for 15m`
+- `every 30s for 10m`
+- `every 2h for 6h`
+
+`/watchperm` is Windows-only and requires Tesseract OCR. For safety, it only clicks when the target app window has a single clear OCR match among the configured labels.
 
 ---
 

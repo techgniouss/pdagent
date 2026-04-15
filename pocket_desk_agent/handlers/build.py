@@ -32,8 +32,6 @@ def upload_to_tempfile(file_path: str) -> dict:
         dict with 'success', 'link', 'error' keys
     """
     try:
-        from pocket_desk_agent.config import Config
-        
         logger.info(f"Starting tempfile.org upload: {file_path}")
         
         # Check file size (100MB limit)
@@ -324,7 +322,6 @@ async def build_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             selected_repo = repos[0]
             package_json_path = os.path.join(selected_repo, 'package.json')
             try:
-                import json
                 with open(package_json_path, 'r', encoding='utf-8') as f:
                     package_data = json.load(f)
                 
@@ -429,7 +426,6 @@ async def check_build_selection(update: Update, context: ContextTypes.DEFAULT_TY
         
         try:
             with open(package_json_path, 'r', encoding='utf-8') as f:
-                import json
                 package_data = json.load(f)
             
             scripts = package_data.get('scripts', {})

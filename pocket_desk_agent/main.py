@@ -16,6 +16,8 @@ from pocket_desk_agent.handlers import (
     handle_photo,
     error_handler,
     get_bot_commands,
+    cleanup_scheduled_task_artifacts,
+    describe_task,
     execute_scheduled_task,
     safe_command,
 )
@@ -39,6 +41,7 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+SCHEDULER_POLL_INTERVAL_SECONDS = 5
 
 
 def _process_is_running(pid: int) -> bool:
@@ -239,9 +242,9 @@ async def scheduler_loop(application: Application):
         try:
             registry = get_scheduler_registry()
 
-            # Cleanup old completed/failed tasks once per hour (every 60 iterations)
+            # Cleanup old completed/failed tasks once per hour.
             _cleanup_counter += 1
-            if _cleanup_counter >= 60:
+            if _cleanup_counter >= int(3600 / SCHEDULER_POLL_INTERVAL_SECONDS):
                 _cleanup_counter = 0
                 registry.cleanup_old_tasks(days=7)
 
@@ -253,10 +256,33 @@ async def scheduler_loop(application: Application):
                 # Execute the task
                 success, error = await execute_scheduled_task(task, application.bot)
                 
+                updated_task = registry.finalize_task_run(
+                    task.id,
+                    success=success,
+                    error=error,
+                )
+
+                if updated_task and updated_task.status in {"completed", "failed"}:
+                    cleanup_scheduled_task_artifacts(updated_task)
+
                 if success:
-                    registry.update_task_status(task.id, "completed")
+                    if (
+                        updated_task
+                        and task.interval_seconds
+                        and updated_task.status == "completed"
+                    ):
+                        try:
+                            await application.bot.send_message(
+                                chat_id=task.user_id,
+                                text=(
+                                    f"Repeating task finished: {describe_task(updated_task)}\n"
+                                    f"Completed runs: {updated_task.run_count}"
+                                ),
+                            )
+                        except Exception:
+                            pass
                 else:
-                    registry.update_task_status(task.id, "failed", error=error)
+                    task.command = describe_task(task)
                     try:
                         await application.bot.send_message(
                             chat_id=task.user_id,
@@ -268,7 +294,7 @@ async def scheduler_loop(application: Application):
         except Exception as e:
             logger.error(f"Error in scheduler loop: {e}", exc_info=True)
         
-        await asyncio.sleep(60) # Check every minute
+        await asyncio.sleep(SCHEDULER_POLL_INTERVAL_SECONDS)
 
 
 def main():

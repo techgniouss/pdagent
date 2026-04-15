@@ -27,6 +27,7 @@ COMMAND_REGISTRY = [
     ("stopbot", handlers.stopbot_command, "Stop the bot process"),
     ("shutdown", handlers.shutdown_command, "Shutdown the PC"),
     ("sleep", handlers.sleep_command, "Put PC to sleep"),
+    ("privacy", handlers.privacy_command, "Blank or wake the display without locking"),
     ("wakeup", handlers.wakeup_command, "PC wakeup information"),
     ("battery", handlers.battery_command, "Check battery levels"),
     ("screenshot", handlers.screenshot_command, "Take a screenshot"),
@@ -88,6 +89,8 @@ COMMAND_REGISTRY = [
     
     # Scheduling Commands
     ("schedule", handlers.schedule_command, "Schedule custom command"),
+    ("repeatschedule", handlers.repeatschedule_command, "Repeat a custom command for a duration"),
+    ("watchperm", handlers.watchperm_command, "Watch Claude or Antigravity for approval buttons"),
     ("claudeschedule", handlers.claudeschedule_command, "Schedule prompt to Claude"),
     ("listschedules", handlers.listschedules_command, "View all pending scheduled tasks"),
     ("cancelschedule", handlers.cancelschedule_command, "Cancel a pending scheduled task"),
