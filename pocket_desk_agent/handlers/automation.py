@@ -41,6 +41,14 @@ async def clicktext_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try:
                 x = int(context.args[0])
                 y = int(context.args[1])
+
+                user_id = update.effective_user.id
+                if record_action_if_active(user_id, "clicktext", [x, y]):
+                    await update.message.reply_text(
+                        f"📝 Recorded: `/clicktext {x} {y}`",
+                        parse_mode="Markdown",
+                    )
+                    return
                 
                 await update.message.reply_text(f"🖱️ Clicking at ({x}, {y})...")
                 
@@ -381,7 +389,6 @@ async def findelements_command(update: Update, context: ContextTypes.DEFAULT_TYP
         # Annotate and send image
         annotated = annotate_screenshot_with_markers(screenshot, matches)
         
-        import io
         img_byte_arr = io.BytesIO()
         annotated.save(img_byte_arr, format='JPEG', quality=85)
         img_byte_arr = img_byte_arr.getvalue()

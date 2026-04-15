@@ -969,6 +969,7 @@ async def _execute_confirmed_action(pending: PendingGeminiAction, bot: Any) -> G
             user_id=pending.user_id,
             command=f"claude_msg:{prompt}",
             execute_at=execute_at.isoformat(),
+            task_type="claude_prompt",
         )
         get_scheduler_registry().add_task(task)
         return GeminiToolResult(True, f"Scheduled the Claude prompt for {execute_at.strftime('%Y-%m-%d %H:%M')}.")
@@ -998,6 +999,8 @@ async def _execute_confirmed_action(pending: PendingGeminiAction, bot: Any) -> G
             user_id=pending.user_id,
             command=f"custom_cmd:{name}",
             execute_at=execute_at.isoformat(),
+            task_type="custom_command",
+            temporary_command=True,
         )
         get_scheduler_registry().add_task(task)
         return GeminiToolResult(True, f"Scheduled '{name}' for {execute_at.strftime('%Y-%m-%d %H:%M')} with {len(actions)} action(s).")

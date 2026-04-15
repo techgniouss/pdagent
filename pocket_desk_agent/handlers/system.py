@@ -9,6 +9,7 @@ import asyncio
 import time
 import io
 import psutil
+from typing import Optional
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
@@ -19,6 +20,93 @@ from pocket_desk_agent.handlers._shared import (
 )
 
 logger = logging.getLogger(__name__)
+
+_privacy_mode_requested = False
+_privacy_mode_changed_at: Optional[float] = None
+
+
+def _set_privacy_mode_state(requested: bool) -> None:
+    """Track the last privacy-mode state requested by the bot."""
+    global _privacy_mode_requested, _privacy_mode_changed_at
+    _privacy_mode_requested = requested
+    _privacy_mode_changed_at = time.time()
+
+
+def _format_privacy_mode_timestamp(timestamp: Optional[float]) -> str:
+    """Render a human-readable timestamp for privacy mode status."""
+    if timestamp is None:
+        return "Never"
+    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp))
+
+
+def _build_privacy_mode_status_text() -> str:
+    """Return a status summary for privacy mode."""
+    if _privacy_mode_changed_at is None:
+        requested_state = "UNKNOWN (not requested yet)"
+    else:
+        requested_state = "ON (display-off requested)" if _privacy_mode_requested else "OFF (display wake requested)"
+    changed_at = _format_privacy_mode_timestamp(_privacy_mode_changed_at)
+    return (
+        "Privacy mode status\n\n"
+        f"Requested state: {requested_state}\n"
+        f"Last changed: {changed_at}\n\n"
+        "Privacy mode blanks or wakes the display without locking Windows. "
+        "Manual keyboard/mouse input, monitor power buttons, or OS power settings "
+        "can change the real display state after the command runs."
+    )
+
+
+def _set_privacy_mode_windows(enable: bool) -> tuple[bool, str]:
+    """Turn the display off or wake it without locking the Windows session."""
+    import ctypes
+
+    user32 = ctypes.windll.user32
+    hwnd_broadcast = 0xFFFF
+    wm_syscommand = 0x0112
+    sc_monitorpower = 0xF170
+    if enable:
+        user32.SendMessageW(hwnd_broadcast, wm_syscommand, sc_monitorpower, 2)
+        _set_privacy_mode_state(True)
+        logger.info("Privacy mode enabled: display power-off requested without locking")
+        return (
+            True,
+            "🕶️ Privacy mode enabled.\n\n"
+            "The display power-off was requested without locking the Windows session.\n"
+            "Remote automation should keep working.\n\n"
+            "Use `/privacy off` to wake the display, or touch the keyboard/mouse locally.",
+        )
+
+    # Request a monitor wake without injecting a real keystroke into the active app.
+    user32.SendMessageW(hwnd_broadcast, wm_syscommand, sc_monitorpower, -1)
+    _set_privacy_mode_state(False)
+    logger.info("Privacy mode disabled: display wake requested")
+    return (
+        True,
+        "💡 Privacy mode disabled.\n\n"
+        "A display wake was requested without locking or logging out.\n"
+        "No synthetic keypress was sent to the active app.\n\n"
+        "If the monitor stays dark, wake it locally because some displays ignore software wake requests.",
+    )
+
+
+def _normalize_privacy_mode_action(args: list[str]) -> str:
+    """Normalize privacy-mode command arguments into a supported action."""
+    if not args:
+        return "status"
+
+    action = args[0].strip().lower()
+    aliases = {
+        "on": "on",
+        "enable": "on",
+        "start": "on",
+        "off": "off",
+        "disable": "off",
+        "wake": "off",
+        "stop": "off",
+        "status": "status",
+        "state": "status",
+    }
+    return aliases.get(action, "invalid")
 
 async def stopbot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /stopbot command - stop the bot process with confirmation."""
@@ -210,6 +298,43 @@ async def wakeup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     
     logger.info("Wakeup command called (PC already awake since bot is running)")
+
+
+async def privacy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /privacy command - blank or wake the display without locking."""
+    if not update.message:
+        return
+
+    action = _normalize_privacy_mode_action(context.args)
+    if action == "invalid":
+        await update.message.reply_text(
+            "Usage: /privacy <on|off|status>\n\n"
+            "Examples:\n"
+            "/privacy on - Blank the display without locking Windows\n"
+            "/privacy off - Wake the display\n"
+            "/privacy status - Show the last requested privacy-mode state"
+        )
+        return
+
+    if action == "status":
+        await update.message.reply_text(_build_privacy_mode_status_text())
+        return
+
+    if platform.system() != "Windows":
+        await update.message.reply_text(
+            "Privacy mode is currently only supported on Windows because it uses "
+            "display power control without locking the desktop session."
+        )
+        return
+
+    try:
+        success, message = _set_privacy_mode_windows(action == "on")
+        await update.message.reply_text(message, parse_mode="Markdown")
+        if not success:
+            logger.warning("Privacy mode request reported failure: %s", action)
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error changing privacy mode: {str(e)}")
+        logger.error(f"Error in privacy_command: {e}", exc_info=True)
 
 
 async def hotkey_command(update: Update, context: ContextTypes.DEFAULT_TYPE):

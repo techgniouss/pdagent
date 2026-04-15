@@ -4,12 +4,15 @@ import os
 import platform
 import re
 import logging
+import ctypes
 from difflib import SequenceMatcher
 from typing import Any, Callable, List, Optional
 from dataclasses import dataclass
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
 
 logger = logging.getLogger(__name__)
+
+_UOI_NAME = 2
 
 
 @dataclass
@@ -691,6 +694,8 @@ def _run_keyboard_only_action(
     temporarily disabled while keeping the global default safety behavior for
     mouse actions.
     """
+    _ensure_keyboard_automation_available()
+
     try:
         action()
         return False
@@ -747,3 +752,62 @@ def send_hotkey(pyautogui: Any, *keys: str) -> bool:
         lambda: pyautogui.hotkey(*keys),
         description=f"hotkey '{joined_keys}'",
     )
+
+
+def _ensure_keyboard_automation_available() -> None:
+    """Raise a clear error when Windows is on the secure lock-screen desktop."""
+    if not is_windows_secure_input_desktop():
+        return
+
+    raise RuntimeError(
+        "Windows is showing the secure lock screen, so synthetic keyboard input "
+        "cannot reach the PIN box from this bot. Unlock the PC manually or via "
+        "a remote desktop session first, then retry the command."
+    )
+
+
+def is_windows_secure_input_desktop() -> bool:
+    """Return True when the active Windows input desktop is the secure Winlogon desktop."""
+    desktop_name = get_windows_input_desktop_name()
+    return bool(desktop_name) and desktop_name.lower() != "default"
+
+
+def get_windows_input_desktop_name() -> Optional[str]:
+    """Best-effort read of the active Windows input desktop name."""
+    if platform.system() != "Windows":
+        return None
+
+    user32 = getattr(getattr(ctypes, "windll", None), "user32", None)
+    if user32 is None:
+        return None
+
+    hdesk = None
+    try:
+        hdesk = user32.OpenInputDesktop(0, False, 0x0001)
+        if not hdesk:
+            return None
+
+        needed = ctypes.c_uint(0)
+        user32.GetUserObjectInformationW(hdesk, _UOI_NAME, None, 0, ctypes.byref(needed))
+        if needed.value <= 2:
+            return None
+
+        buffer = ctypes.create_unicode_buffer(needed.value)
+        if not user32.GetUserObjectInformationW(
+            hdesk,
+            _UOI_NAME,
+            buffer,
+            ctypes.sizeof(buffer),
+            ctypes.byref(needed),
+        ):
+            return None
+        return buffer.value or None
+    except Exception:
+        logger.debug("Could not read the current Windows input desktop name", exc_info=True)
+        return None
+    finally:
+        if hdesk:
+            try:
+                user32.CloseDesktop(hdesk)
+            except Exception:
+                logger.debug("Failed to close input desktop handle", exc_info=True)

@@ -233,13 +233,10 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text(f"💻 Opening Claude CLI in `{folder_path}`...", parse_mode="Markdown")
 
             if platform.system() == "Windows":
-                import subprocess
                 import threading
-                import time
 
                 def launch_and_type():
                     try:
-                        import os
                         normalized_path = os.path.normpath(folder_path)
                         # Launch Claude Code via cmd — use list form with cwd to
                         # avoid shell injection via folder names containing quotes

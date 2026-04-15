@@ -87,8 +87,11 @@ async def savecommand_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         "• /clipboard <text>\n"
         "• /findtext <text>\n"
         "• /smartclick <text>\n"
+        "• /clicktext <x> <y>\n"
         "• /pasteenter\n"
-        "• /typeenter <text>\n\n"
+        "• /typeenter <text>\n"
+        "• /scrollup [amount]\n"
+        "• /scrolldown [amount]\n\n"
         "When done: /done\n"
         "To cancel: /cancelrecord"
     )
@@ -114,6 +117,9 @@ async def done_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     command_name = session["command_name"]
     actions = session["actions"]
     scheduled_at = session.get("scheduled_at")  # None = savecommand, ISO str = schedule
+    interval_seconds = session.get("interval_seconds")
+    repeat_until = session.get("repeat_until")
+    temporary_command = bool(session.get("temporary_command"))
     
     # Validate at least one action was recorded
     if len(actions) == 0:
@@ -138,7 +144,12 @@ async def done_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             id=task_id,
             user_id=user_id,
             command=f"custom_cmd:{command_name}",
-            execute_at=scheduled_at
+            execute_at=scheduled_at,
+            task_type="custom_command",
+            interval_seconds=interval_seconds,
+            repeat_until=repeat_until,
+            next_run_at=scheduled_at if interval_seconds else None,
+            temporary_command=temporary_command,
         )
         
         # Also persist the actions under the temp command name so scheduler can run them
@@ -149,7 +160,25 @@ async def done_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         del recording_sessions[user_id]
         
         import datetime as _dt
-        scheduled_str = _dt.datetime.fromisoformat(scheduled_at).strftime('%Y-%m-%d %H:%M')
+        scheduled_str = _dt.datetime.fromisoformat(scheduled_at).strftime('%Y-%m-%d %H:%M:%S')
+        if interval_seconds and repeat_until:
+            repeat_until_str = _dt.datetime.fromisoformat(repeat_until).strftime('%Y-%m-%d %H:%M:%S')
+            await update.message.reply_text(
+                f"*Repeating task saved!*\n\n"
+                f"Starts at: `{scheduled_str}`\n"
+                f"Repeats every: `{interval_seconds}` seconds\n"
+                f"Stops at: `{repeat_until_str}`\n\n"
+                f"Actions ({len(actions)}):\n{action_summary}",
+                parse_mode="Markdown"
+            )
+            logger.info(
+                "Saved repeating task '%s' with %s actions every %ss until %s",
+                command_name,
+                len(actions),
+                interval_seconds,
+                repeat_until,
+            )
+            return
         await update.message.reply_text(
             f"✅ *Scheduled task saved!*\n\n"
             f"Will execute at: `{scheduled_str}`\n\n"
@@ -372,6 +401,15 @@ async def execute_custom_command(update: Update, context: ContextTypes.DEFAULT_T
                     else:
                         await update.message.reply_text(f"❌ Step {idx}/{len(actions)}: '{search_text}' not found for click")
                     
+            elif action_type == "clicktext":
+                if len(args) >= 2:
+                    target_x = int(args[0])
+                    target_y = int(args[1])
+                    pyautogui.click(target_x, target_y)
+                    await update.message.reply_text(
+                        f"Step {idx}/{len(actions)}: clicktext ({target_x}, {target_y})"
+                    )
+
             elif action_type == "pasteenter":
                 send_hotkey(pyautogui, "ctrl", "v")
                 await asyncio.sleep(0.2)

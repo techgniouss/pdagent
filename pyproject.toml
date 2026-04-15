@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pocket-desk-agent"
-version = "1.0.1"
+version = "1.0.2"
 description = "Pocket Desk Agent — a secure Telegram bot that gives you full remote control of your Windows PC, powered by Google Gemini AI."
 readme = "README.md"
 requires-python = ">=3.11"
