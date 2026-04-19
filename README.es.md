@@ -209,6 +209,17 @@ Para información de seguridad detallada, consulta **[SECURITY.md](SECURITY.md)*
 
 ---
 
+**La operación de archivo falla con "Access denied" o "Path not allowed"**
+- La ruta solicitada está fuera de `APPROVED_DIRECTORIES`.
+- Ejecute `pdagent configure` y elija **2) Approved Directories** para agregar una sola ruta usando la opción **A**, sin reemplazar la lista existente.
+- O edite la configuración directamente: `APPROVED_DIRECTORIES="C:\Users\SuNombre\Documents,C:\projects"` (rutas absolutas separadas por comas).
+- Nota: `CLAUDE_DEFAULT_REPO_PATH` **siempre** se agrega al sandbox en tiempo de ejecución, incluso si no figura en `APPROVED_DIRECTORIES`.
+
+**Las tareas programadas no se activan**
+- El bot debe estar ejecutándose cuando llegue la hora programada; las tareas no se activan si el bot está detenido.
+- Ejecute `/listschedules` para confirmar que la tarea aún está pendiente y que el formato de hora es correcto (`HH:MM` en formato de 24 horas).
+- Verifique la salida de `LOG_LEVEL=DEBUG` para ver errores del programador.
+
 ## Contribuir
 
 Consulta [CONTRIBUTING.md](CONTRIBUTING.md) para la configuración de desarrollo, estándares de código y cómo agregar nuevos comandos.
