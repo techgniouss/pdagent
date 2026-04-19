@@ -232,7 +232,8 @@ See [BUILD_WORKFLOW.md](BUILD_WORKFLOW.md) for the full build guide.
 ## Access & Security Notes
 
 - **Authorization:** Only Telegram user IDs in `AUTHORIZED_USER_IDS` (set via `pdagent configure` or `.env`) can use the bot. All others are silently rejected.
-- **Directory sandboxing:** File operations (`/cat`, `/ls`, `/find`, etc.) are restricted to `APPROVED_DIRECTORIES` using strict path validation.
+- **Directory sandboxing:** File operations (`/cat`, `/ls`, `/find`, etc.) are restricted to `APPROVED_DIRECTORIES` using strict path validation. Run `pdagent configure` and select **2) Approved Directories** to add or remove individual paths without re-entering all settings.
+- **Implicit sandbox expansion:** `CLAUDE_DEFAULT_REPO_PATH` (the Default Projects Directory) is **always** appended to the approved sandbox at runtime by `FileManager`, even if it is not listed in `APPROVED_DIRECTORIES`. This ensures commands like `/clauderepo`, `/claudecli`, and `/build` can always reach your projects folder.
 - **Rate limiting:** All commands are rate-limited per user. Dangerous commands (e.g., `/shutdown`) have much stricter limits.
 - **OS requirements:** UI automation commands (`/screenshot`, `/hotkey`, `/smartclick`, `/findelements`, etc.) require Windows.
 - **OCR requirement:** `/findtext` and `/smartclick` additionally require [Tesseract OCR](https://github.com/UB-Mannheim/tesseract/wiki) installed on the host.

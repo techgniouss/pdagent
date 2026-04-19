@@ -198,7 +198,10 @@ pdagent
 pdagent configure
 ```
 
-这将引导你设置所有必需的值，并保存到 `~/.pdagent/config`。
+在 **首次运行** 时，`pdagent configure` 会引导你完成所有三个部分（Telegram、Gemini 认证和可选设置）并将所有内容保存到 `~/.pdagent/config`。
+
+在 **后续运行** 中（当配置已存在时），它会显示你当前的值并呈现一个 **选择性更新菜单** —— 你可以更改单个字段（例如：授权用户 ID 或批准的目录），而无需重新输入其他所有内容。
+
 
 Gemini 身份验证步骤提供四个选项：
 
@@ -254,6 +257,17 @@ Pocket Desk Agent **完全在你的本地机器上运行**——除 Google 的 G
 - 在 Windows 上，某些包需要 Visual C++ 运行时
 
 ---
+
+**文件操作失败并显示 "Access denied" (拒绝访问) 或 "Path not allowed" (路径不被允许)**
+- 请求的路径在 `APPROVED_DIRECTORIES` 之外
+- 运行 `pdagent configure` 并选择 **2) Approved Directories**，使用 **A** 选项添加单个路径，而无需替换现有列表
+- 或者直接编辑配置：`APPROVED_DIRECTORIES="C:\Users\YourName\Documents,C:\projects"` (逗号分隔的绝对路径)
+- 注意：`CLAUDE_DEFAULT_REPO_PATH` **始终**在运行时添加到沙箱中，即使它没有列在 `APPROVED_DIRECTORIES` 中
+
+**计划任务不触发**
+- 计划时间到达时机器人必须正在运行 —— 如果机器人已停止，任务将不会触发
+- 运行 `/listschedules` 确认任务仍在挂起且时间格式正确（24 小时制 `HH:MM`）
+- 检查 `LOG_LEVEL=DEBUG` 记录以查看调度器错误
 
 ## 贡献
 

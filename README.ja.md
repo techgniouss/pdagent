@@ -209,6 +209,17 @@ pdagent
 
 ---
 
+**ファイル操作が "Access denied" または "Path not allowed" で失敗する**
+- リクエストされたパスが `APPROVED_DIRECTORIES` の範囲外です
+- `pdagent configure` を実行し、**2) Approved Directories** を選択して、**A** オプションを使用して既存のリストを置き換えることなく単一のパスを追加します
+- または設定を直接編集します：`APPROVED_DIRECTORIES="C:\Users\YourName\Documents,C:\projects"` (カンマ区切りの絶対パス)
+- 注意：`CLAUDE_DEFAULT_REPO_PATH` は、`APPROVED_DIRECTORIES` にリストされていなくても、実行時に**常に**サンドボックスに追加されます
+
+**スケジュールされたタスクが実行されない**
+- スケジュールされた時間にボットが実行されている必要があります。ボットが停止している場合、タスクはトリガーされません
+- `/listschedules` を実行して、タスクが保留中であることと、時間形式が正しいこと（24時間形式の `HH:MM`）を確認してください
+- スケジューラのエラーについては、`LOG_LEVEL=DEBUG` の出力を確認してください
+
 ## コントリビュート
 
 開発設定、コーディング標準、新しいコマンドの追加方法については [CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。

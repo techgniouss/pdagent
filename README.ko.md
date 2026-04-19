@@ -209,6 +209,17 @@ pdagent
 
 ---
 
+**파일 작업이 "Access denied" 또는 "Path not allowed"로 실패함**
+- 요청된 경로가 `APPROVED_DIRECTORIES` 범위를 벗어났습니다.
+- `pdagent configure`를 실행하고 **2) Approved Directories**를 선택한 다음, 기존 목록을 변경하지 않고 **A** 옵션을 사용하여 단일 경로를 추가하십시오.
+- 또는 구성을 직접 편집하십시오: `APPROVED_DIRECTORIES="C:\Users\사용자이름\Documents,C:\projects"` (쉼표로 구분된 절대 경로).
+- 참고: `CLAUDE_DEFAULT_REPO_PATH`는 `APPROVED_DIRECTORIES`에 나열되지 않더라도 런타임에 **항상** 샌드박스에 추가됩니다.
+
+**예약된 작업이 실행되지 않음**
+- 예약된 시간이 되었을 때 봇이 실행 중이어야 합니다. 봇이 중지된 경우 작업이 호출되지 않습니다.
+- `/listschedules`를 실행하여 작업이 대기 중인지와 시간 형식(24시간제 `HH:MM`)이 올바른지 확인하십시오.
+- 스케줄러 오류는 `LOG_LEVEL=DEBUG` 출력을 확인하십시오.
+
 ## 기여
 
 개발 설정, 코딩 표준, 새 명령어 추가 방법은 [CONTRIBUTING.md](CONTRIBUTING.md)를 참조하세요.

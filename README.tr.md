@@ -209,6 +209,17 @@ Ayrıntılı güvenlik bilgileri için **[SECURITY.md](SECURITY.md)**'ye bakın.
 
 ---
 
+**Dosya işlemi "Access denied" veya "Path not allowed" hatasıyla başarısız oluyor**
+- İstenen yol `APPROVED_DIRECTORIES` dışında.
+- `pdagent configure` komutunu çalıştırın ve mevcut listeyi değiştirmeden **A** seçeneğini kullanarak tek bir yol eklemek için **2) Approved Directories** öğesini seçin.
+- Veya yapılandırmayı doğrudan düzenleyin: `APPROVED_DIRECTORIES="C:\Kullanıcılar\Adınız\Belgeler,C:\projeler"` (virgülle ayrılmış mutlak yollar).
+- Not: `CLAUDE_DEFAULT_REPO_PATH`, `APPROVED_DIRECTORIES` içinde listelenmese bile çalışma zamanında sandbox'a **her zaman** eklenir.
+
+**Planlanan görevler çalışmıyor**
+- Planlanan zaman geldiğinde bot çalışıyor olmalıdır; bot durdurulursa görevler tetiklenmez.
+- Görevin hala beklemede olduğunu ve zaman formatının doğru olduğunu (`24 saatlik formatta HH:MM`) onaylamak için `/listschedules` komutunu çalıştırın.
+- Zamanlayıcı hataları için `LOG_LEVEL=DEBUG` çıktısını kontrol edin.
+
 ## Katkıda Bulunma
 
 Geliştirme kurulumu, kodlama standartları ve yeni komut ekleme hakkında bilgi için [CONTRIBUTING.md](CONTRIBUTING.md)'ye bakın.
