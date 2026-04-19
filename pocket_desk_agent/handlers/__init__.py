@@ -118,6 +118,7 @@ from pocket_desk_agent.handlers.antigravity import (  # noqa: F401
     antigravitymodel_command,
     find_antigravity_window,
     antigravityclaudecodeopen_command,
+    openclaudeinvscode_command,
     claudecli_command,
     claudeclisend_command,
     antigravityopenfolder_command,

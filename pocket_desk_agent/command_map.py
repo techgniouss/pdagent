@@ -77,6 +77,7 @@ COMMAND_REGISTRY = [
     ("antigravitymode", handlers.antigravitymode_command, "Switch Antigravity mode"),
     ("antigravitymodel", handlers.antigravitymodel_command, "Switch Antigravity model"),
     ("antigravityclaudecodeopen", handlers.antigravityclaudecodeopen_command, "Open Claude Code panel in VS Code"),
+    ("openclaudeinvscode", handlers.openclaudeinvscode_command, "Run Claude Code: Open in VS Code"),
     ("claudecli", handlers.claudecli_command, "Open Claude CLI in a specific folder"),
     ("claudeclisend", handlers.claudeclisend_command, "Send a prompt to active Claude CLI"),
     ("antigravityopenfolder", handlers.antigravityopenfolder_command, "Open a folder in VS Code"),

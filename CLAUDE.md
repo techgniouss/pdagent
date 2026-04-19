@@ -150,8 +150,8 @@ Config is loaded in this precedence order:
 
 1. Shell environment variables (highest priority)
 2. `~/.pdagent/config` (INI format, new)
-3. `~/.pdagent/.env` (legacy)
-4. `.env` in cwd (legacy)
+3. `~/.pdagent/.env` (legacy dotenv support)
+4. `~/.pd-agent/config` and `~/.pd-agent/.env` (temporary compatibility fallback)
 
 All values live in `pocket_desk_agent/config.py` → `Config` class.
 
@@ -167,7 +167,7 @@ All values live in `pocket_desk_agent/config.py` → `Config` class.
 | `GOOGLE_OAUTH_CLIENT_SECRET` | No | built-in | Override the built-in Antigravity plugin OAuth client secret |
 | `GOOGLE_API_KEY` | API key mode | — | Gemini API key (used when `GOOGLE_OAUTH_ENABLED=false`) |
 | `GEMINI_MODEL` | No | `gemini-2.0-flash` | Gemini model selection |
-| `APPROVED_DIRECTORIES` | No | `.` | Comma-separated allowed paths for file ops |
+| `APPROVED_DIRECTORIES` | No | `Path.home()` | Comma-separated allowed paths for file ops |
 | `CLAUDE_DEFAULT_REPO_PATH` | No | `~/Documents` | Default repo root for Claude integration |
 | `UPLOAD_EXPIRY_TIME` | No | `1h` | Dropbox link expiry (`1h`/`12h`/`24h`/`72h`) |
 | `AUTO_UPDATE_ENABLED` | No | `true` | Enable periodic git-pull auto-update |

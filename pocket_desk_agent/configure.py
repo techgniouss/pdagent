@@ -5,8 +5,8 @@ Stores configuration in two INI-format files under ~/.pdagent/:
   config       — non-sensitive settings (human-readable)
   credentials  — secrets only (chmod 600 on Unix)
 
-This mirrors the AWS-CLI pattern: separate config and credentials files
-in a dedicated app directory (~/.pdagent/).
+Legacy ~/.pd-agent/ files are still read for backward compatibility, but all
+new writes go to the canonical app directory.
 """
 
 from __future__ import annotations
@@ -16,29 +16,56 @@ import getpass
 import os
 from pathlib import Path
 
+from pocket_desk_agent.app_paths import (
+    app_path,
+    app_path_candidates,
+    ensure_app_dir,
+    existing_app_path,
+)
+
 
 # ---------------------------------------------------------------------------
 # Path helpers
 # ---------------------------------------------------------------------------
 
 def pdagent_dir() -> Path:
-    """Return the Pocket Desk Agent configuration directory (~/.pdagent)."""
-    return Path.home() / ".pdagent"
+    """Return the canonical Pocket Desk Agent configuration directory."""
+    return ensure_app_dir()
 
 
 def config_path() -> Path:
     """Return the path to the non-sensitive config file."""
-    return pdagent_dir() / "config"
+    return app_path("config")
 
 
 def credentials_path() -> Path:
     """Return the path to the credentials (secrets) file."""
-    return pdagent_dir() / "credentials"
+    return app_path("credentials")
+
+
+def dotenv_path() -> Path:
+    """Return the canonical legacy dotenv path."""
+    return app_path(".env")
+
+
+def config_path_candidates() -> tuple[Path, ...]:
+    """Return canonical and legacy candidate config paths."""
+    return app_path_candidates("config")
+
+
+def credentials_path_candidates() -> tuple[Path, ...]:
+    """Return canonical and legacy candidate credentials paths."""
+    return app_path_candidates("credentials")
+
+
+def dotenv_path_candidates() -> tuple[Path, ...]:
+    """Return canonical and legacy candidate dotenv paths."""
+    return app_path_candidates(".env")
 
 
 def has_config() -> bool:
-    """Return True if both config and credentials files exist."""
-    return config_path().exists() and credentials_path().exists()
+    """Return True if both config and credentials exist in supported locations."""
+    return existing_app_path("config").exists() and existing_app_path("credentials").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -78,11 +105,12 @@ def load_into_environ() -> None:
     os.environ with their values using setdefault — never overwrites
     values already set by the shell or earlier in the process.
 
-    Silent no-op if the files do not exist (backward compatibility
-    for users who still rely on .env files).
+    Legacy ~/.pd-agent files are read as fallbacks. Missing files are ignored.
     """
-    _load_file("credentials", credentials_path())
-    _load_file("config", config_path())
+    for path in credentials_path_candidates():
+        _load_file("credentials", path)
+    for path in config_path_candidates():
+        _load_file("config", path)
 
 
 def _load_file(file_type: str, path: Path) -> None:
@@ -157,10 +185,12 @@ def _show_current_config() -> None:
     """Display current configuration values (secrets masked)."""
     parser_cred = configparser.ConfigParser()
     parser_cfg = configparser.ConfigParser()
-    if credentials_path().exists():
-        parser_cred.read(credentials_path(), encoding="utf-8")
-    if config_path().exists():
-        parser_cfg.read(config_path(), encoding="utf-8")
+    current_credentials_path = existing_app_path("credentials")
+    current_config_path = existing_app_path("config")
+    if current_credentials_path.exists():
+        parser_cred.read(current_credentials_path, encoding="utf-8")
+    if current_config_path.exists():
+        parser_cfg.read(current_config_path, encoding="utf-8")
 
     def cred(key: str) -> str:
         v = parser_cred.get("default", key, fallback="")
@@ -294,7 +324,7 @@ def run_configure_wizard(reconfigure: bool = False) -> None:
             print("Configuration unchanged.")
             return
 
-    pdagent_dir().mkdir(parents=True, exist_ok=True)
+    ensure_app_dir()
 
     # ------------------------------------------------------------------
     # [1/3] Telegram Settings
@@ -391,7 +421,7 @@ def run_configure_wizard(reconfigure: bool = False) -> None:
     approved_directories = _prompt_optional(
         "Approved Directories",
         hint="Comma-separated directories this bot may access",
-        default=".",
+        default=str(Path.home()),
     )
     claude_default_repo_path = _prompt_optional(
         "Default Projects Directory",
