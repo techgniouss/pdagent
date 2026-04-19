@@ -28,7 +28,8 @@ import argparse
 import os
 import subprocess
 import sys
-from pathlib import Path
+
+from pocket_desk_agent.app_paths import app_path, ensure_app_dir, existing_app_path
 
 
 def _safe_print(message: str) -> None:
@@ -95,7 +96,8 @@ def _run_foreground() -> int:
 
 def _run_background() -> int:
     """Spawn the bot in the background and return immediately."""
-    log_file = Path.cwd() / "bot.log"
+    ensure_app_dir()
+    log_file = app_path("bot.log")
     creationflags = 0
     child_env = dict(os.environ)
     child_env["PDAGENT_ENABLE_RELOADER"] = "0"
@@ -123,9 +125,8 @@ def _run_background() -> int:
 def _auto_configure() -> None:
     """Auto-trigger the setup wizard and system dependency check on first run."""
     from pocket_desk_agent.configure import has_config, run_configure_wizard
-    _cwd_env = Path.cwd() / ".env"
-    _home_env = Path.home() / ".pdagent" / ".env"
-    if not has_config() and not _cwd_env.exists() and not _home_env.exists():
+
+    if not has_config() and not existing_app_path(".env").exists():
         run_configure_wizard(reconfigure=False)
         _ensure_tesseract()
 
@@ -153,7 +154,7 @@ def _stop_via_pidfile() -> int:
     """Fallback stop implementation that doesn't depend on scripts/."""
     import signal
 
-    pid_file = Path.home() / ".pdagent" / "bot.pid"
+    pid_file = existing_app_path("bot.pid")
     if not pid_file.exists():
         print("X No PID file found. Is the bot running?")
         return 1
@@ -180,7 +181,7 @@ def _stop_via_pidfile() -> int:
 
 def _status() -> int:
     """Print whether the bot is currently running."""
-    pid_file = Path.home() / ".pdagent" / "bot.pid"
+    pid_file = existing_app_path("bot.pid")
     if not pid_file.exists():
         print("Status: 🛑 NOT RUNNING")
         return 0

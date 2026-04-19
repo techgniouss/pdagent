@@ -13,16 +13,32 @@ from dotenv import load_dotenv
 # Load INI-based config/credentials first (new format).
 # Uses os.environ.setdefault — never overwrites shell env vars.
 # Silent no-op for users who still use .env files.
-from pocket_desk_agent.configure import load_into_environ
-load_into_environ()
+from pocket_desk_agent.configure import dotenv_path_candidates, load_into_environ
 
-# Fallback: load .env file (legacy support).
-# load_dotenv does not override values already in os.environ,
-# so INI values loaded above take precedence over .env values.
-dotenv_path = Path.cwd() / ".env"
-if not dotenv_path.exists():
-    dotenv_path = Path.home() / ".pdagent" / ".env"
-load_dotenv(dotenv_path=dotenv_path)
+
+def _load_config_files() -> None:
+    """Load config values from canonical and legacy app directories."""
+    load_into_environ()
+    for dotenv_path in dotenv_path_candidates():
+        load_dotenv(dotenv_path=dotenv_path, override=False)
+
+
+def _resolve_user_path(raw_path: str, *, default: Path | None = None) -> Path:
+    """Resolve user-configured paths without relying on the process cwd."""
+    value = raw_path.strip()
+    if not value:
+        if default is None:
+            raise ValueError("Path value is required when no default is supplied.")
+        return default
+
+    expanded = Path(os.path.expandvars(value)).expanduser()
+    if expanded.is_absolute():
+        return expanded
+
+    return (Path.home() / expanded).resolve()
+
+
+_load_config_files()
 
 
 class Config:
@@ -54,6 +70,7 @@ class Config:
     @classmethod
     def load(cls) -> None:
         """(Re-)read every config value from ``os.environ``."""
+        _load_config_files()
         cls.TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
         cls.TELEGRAM_BOT_USERNAME = os.getenv("TELEGRAM_BOT_USERNAME", "")
 
@@ -107,18 +124,24 @@ class Config:
             or os.getenv("ANTIGRAVITY_PROJECT_ID")
         )
 
+        approved_dirs_raw = (
+            os.getenv("APPROVED_DIRECTORIES")
+            or os.getenv("APPROVED_DIRECTORY")
+            or str(Path.home())
+        )
         cls.APPROVED_DIRECTORIES = [
-            Path(p.strip())
-            for p in os.getenv(
-                "APPROVED_DIRECTORIES",
-                os.getenv("APPROVED_DIRECTORY", "."),
-            ).split(",")
-            if p.strip()
+            _resolve_user_path(path_value, default=Path.home())
+            for path_value in approved_dirs_raw.split(",")
+            if path_value.strip()
         ]
 
-        cls.CLAUDE_DEFAULT_REPO_PATH = (
-            os.getenv("CLAUDE_DEFAULT_REPO_PATH")
-            or os.getenv("DEFAULT_REPO_PATH", str(Path.home() / "Documents"))
+        default_repo_path = Path.home() / "Documents"
+        cls.CLAUDE_DEFAULT_REPO_PATH = str(
+            _resolve_user_path(
+                os.getenv("CLAUDE_DEFAULT_REPO_PATH")
+                or os.getenv("DEFAULT_REPO_PATH", str(default_repo_path)),
+                default=default_repo_path,
+            )
         )
 
         cls.UPLOAD_EXPIRY_TIME = os.getenv("UPLOAD_EXPIRY_TIME", "1h")
