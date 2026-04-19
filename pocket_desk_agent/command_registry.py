@@ -2,14 +2,15 @@
 
 import json
 import logging
-from pathlib import Path
 from typing import Dict, List, Optional
 from dataclasses import dataclass
+
+from pocket_desk_agent.app_paths import app_path, existing_app_path
 
 logger = logging.getLogger(__name__)
 
 # Registry file location — under the project's config directory
-REGISTRY_PATH = Path.home() / ".pdagent" / "custom_commands.json"
+REGISTRY_PATH = app_path("custom_commands.json")
 
 
 @dataclass
@@ -58,6 +59,12 @@ class CommandRegistry:
                 with open(REGISTRY_PATH, 'r', encoding='utf-8') as f:
                     self.registry = json.load(f)
                 logger.info(f"Loaded {len(self.registry)} commands from registry")
+                return True
+            legacy_path = existing_app_path("custom_commands.json")
+            if legacy_path.exists():
+                with open(legacy_path, 'r', encoding='utf-8') as f:
+                    self.registry = json.load(f)
+                logger.info(f"Loaded {len(self.registry)} commands from legacy registry")
                 return True
             else:
                 logger.info("No existing registry file, starting with empty registry")

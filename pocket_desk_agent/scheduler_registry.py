@@ -6,9 +6,9 @@ import datetime as dt
 import json
 import logging
 from dataclasses import asdict, dataclass, field
-from pathlib import Path
 from typing import List, Optional
 
+from pocket_desk_agent.app_paths import app_path, existing_app_path
 from pocket_desk_agent.scheduling_utils import (
     get_task_due_at,
     local_now,
@@ -17,7 +17,7 @@ from pocket_desk_agent.scheduling_utils import (
 
 logger = logging.getLogger(__name__)
 
-SCHEDULER_PATH = Path.home() / ".pdagent" / "scheduled_tasks.json"
+SCHEDULER_PATH = app_path("scheduled_tasks.json")
 
 
 @dataclass
@@ -60,8 +60,12 @@ class SchedulerRegistry:
     def load(self) -> bool:
         """Load scheduled tasks from disk."""
         try:
-            if SCHEDULER_PATH.exists():
-                with open(SCHEDULER_PATH, "r", encoding="utf-8") as handle:
+            load_path = SCHEDULER_PATH
+            if not load_path.exists():
+                load_path = existing_app_path("scheduled_tasks.json")
+
+            if load_path.exists():
+                with open(load_path, "r", encoding="utf-8") as handle:
                     self.tasks = json.load(handle)
                 logger.info("Loaded %s scheduled tasks", len(self.tasks))
             else:
