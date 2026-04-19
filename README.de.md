@@ -209,6 +209,17 @@ Ausführliche Sicherheitsinformationen findest du in **[SECURITY.md](SECURITY.md
 
 ---
 
+**Dateivorgang schlägt mit „Access denied“ oder „Path not allowed“ fehl**
+- Der angeforderte Pfad liegt außerhalb von `APPROVED_DIRECTORIES`.
+- Führen Sie `pdagent configure` aus und wählen Sie **2) Approved Directories**, um einen einzelnen Pfad mit der Option **A** hinzuzufügen, ohne die vorhandene Liste zu ersetzen.
+- Oder bearbeiten Sie die Konfiguration direkt: `APPROVED_DIRECTORIES="C:\Benutzer\IhrName\Dokumente,C:\projekte"` (kommagetrennte absolute Pfade).
+- Hinweis: `CLAUDE_DEFAULT_REPO_PATH` wird zur Laufzeit **immer** zur Sandbox hinzugefügt, auch wenn es nicht in `APPROVED_DIRECTORIES` aufgeführt ist.
+
+**Geplante Aufgaben werden nicht ausgeführt**
+- Der Bot muss zum geplanten Zeitpunkt laufen – Aufgaben werden nicht ausgelöst, wenn der Bot gestoppt ist.
+- Führen Sie `/listschedules` aus, um zu bestätigen, dass die Aufgabe noch aussteht und das Zeitformat korrekt ist (`HH:MM` im 24-Stunden-Format).
+- Überprüfen Sie die `LOG_LEVEL=DEBUG`-Ausgabe auf Scheduler-Fehler.
+
 ## Mitwirken
 
 Siehe [CONTRIBUTING.md](CONTRIBUTING.md) für Entwicklungssetup, Coding-Standards und das Hinzufügen neuer Befehle.

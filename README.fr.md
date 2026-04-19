@@ -209,6 +209,17 @@ Pour des informations de sécurité détaillées, consultez **[SECURITY.md](SECU
 
 ---
 
+**L'opération sur le fichier échoue avec "Access denied" ou "Path not allowed"**
+- Le chemin demandé est en dehors de `APPROVED_DIRECTORIES`.
+- Exécutez `pdagent configure` et choisissez **2) Approved Directories** pour ajouter un chemin unique à l'aide de l'option **A**, sans remplacer la liste existante.
+- Ou modifiez directement la configuration : `APPROVED_DIRECTORIES="C:\Utilisateurs\VotreNom\Documents,C:\projets"` (chemins absolus séparés par des virgules).
+- Remarque : `CLAUDE_DEFAULT_REPO_PATH` est **toujours** ajouté au bac à sable (sandbox) au moment de l'exécution, même s'il n'est pas répertorié dans `APPROVED_DIRECTORIES`.
+
+**Les tâches planifiées ne se déclenchent pas**
+- Le bot doit être en cours d'exécution au moment prévu — les tâches ne se déclenchent pas si le bot est arrêté.
+- Exécutez `/listschedules` pour confirmer que la tâche est toujours en attente et que le format de l'heure est correct (`HH:MM` au format 24 heures).
+- Vérifiez la sortie `LOG_LEVEL=DEBUG` pour les erreurs du planificateur.
+
 ## Contribuer
 
 Voir [CONTRIBUTING.md](CONTRIBUTING.md) pour la configuration du développement, les standards de code et l'ajout de nouvelles commandes.

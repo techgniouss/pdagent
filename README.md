@@ -190,6 +190,8 @@ pip install -e ".[dev]"
 pdagent
 ```
 
+
+
 For the full local development guide (virtual environment setup, live reloader, make targets, resource profile), see **[docs/LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md)**.
 
 ---
@@ -202,7 +204,9 @@ For the full local development guide (virtual environment setup, live reloader, 
 pdagent configure
 ```
 
-This walks you through setting all required values and saves them to `~/.pdagent/config`.
+On the **first run**, `pdagent configure` walks through all three sections (Telegram, Gemini auth, and optional settings) and saves everything to `~/.pdagent/config`.
+
+On **subsequent runs** (when a config already exists), it shows your current values and presents a **selective update menu** — you can change a single field (e.g. Authorized User IDs or Approved Directories) without re-entering everything else.
 
 On Windows, the wizard also offers optional **automatic background startup after login**. This is disabled by default. If you enable it, Pocket Desk Agent starts automatically in the background after you sign in, so you do not need to run `pdagent start` after every reboot. This is **not** a Windows Service and is designed to preserve screenshot, OCR, Claude Desktop, and VS Code automation features.
 
@@ -268,7 +272,7 @@ GOOGLE_OAUTH_CLIENT_SECRET="your_client_secret"
 | `UPLOAD_EXPIRY_TIME` | `1h` | TempFile upload expiry for large-file links (`1h`/`12h`/`24h`/`72h`) |
 | `LOG_LEVEL` | `INFO` | Logging verbosity |
 | `MAX_TOKENS_PER_REQUEST` | `8000` | Gemini token limit per request |
-| `CLAUDE_DEFAULT_REPO_PATH` | `~/Documents` | Default repo root for Claude CLI integration |
+| `CLAUDE_DEFAULT_REPO_PATH` | `~/Documents` | Default repo root for Claude CLI integration. **Also automatically added to the file-system sandbox at runtime**, so the bot can always access this path even if it is not listed in `APPROVED_DIRECTORIES`. |
 | `SYSTEM_PROMPT` | — | Custom Gemini system prompt |
 | `DROPBOX_ACCESS_TOKEN` | — | Dropbox token for optional large-file uploads (see [docs/dropbox-setup.md](docs/dropbox-setup.md)) |
 
@@ -484,14 +488,14 @@ Pocket Desk Agent runs **entirely on your local machine** — no data is sent to
 **"Another bot instance is already running"**
 - Run `pdagent stop` to clear the stale process lock, then `pdagent start`
 - If `pdagent stop` does not resolve it, find and kill the process manually: `taskkill /F /IM python.exe` (Windows) or check for a leftover `.pid` file in `~/.pdagent/`
-
 **File operation fails with "Access denied" or "Path not allowed"**
 - The requested path is outside `APPROVED_DIRECTORIES`
-- Add the path to your config: `APPROVED_DIRECTORIES="C:\Users\YourName\Documents,C:\projects"`
-- Separate multiple directories with commas; use absolute paths
+- Run `pdagent configure` and choose **2) Approved Directories** to add a single path using the **A** option, without replacing the existing list
+- Or edit the config directly: `APPROVED_DIRECTORIES="C:\\Users\\YourName\\Documents,C:\\projects"` (comma-separated absolute paths)
+- Note: `CLAUDE_DEFAULT_REPO_PATH` is **always** added to the sandbox at runtime, even if not listed in `APPROVED_DIRECTORIES`
 
 **Scheduled tasks don't fire**
-- The bot must be running when the scheduled time arrives — tasks do not fire if the bot is stopped
+- The bot must be running when the scheduled time arrives -- tasks do not fire if the bot is stopped
 - Run `/listschedules` to confirm the task is still pending and the time format is correct (`HH:MM` in 24-hour time)
 - Check `LOG_LEVEL=DEBUG` output for scheduler errors
 
