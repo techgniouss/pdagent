@@ -15,6 +15,7 @@ from urllib.parse import urlparse, parse_qs, urlencode
 import requests
 import logging
 
+from pocket_desk_agent.app_paths import app_path, ensure_app_dir
 from pocket_desk_agent.constants import (
     OAUTH_REDIRECT_URI,
     ANTIGRAVITY_SCOPES,
@@ -38,9 +39,11 @@ class TokenStorage:
     """Manages token storage and retrieval"""
     
     def __init__(self, app_name: str = "antigravity-chatbot"):
-        self.config_dir = Path.home() / ".config" / app_name
+        ensure_app_dir()
+        self.config_dir = app_path("auth", app_name)
         self.config_dir.mkdir(parents=True, exist_ok=True)
         self.tokens_file = self.config_dir / "tokens.json"
+        self.legacy_tokens_file = Path.home() / ".config" / app_name / "tokens.json"
     
     def save_tokens(self, tokens: dict) -> None:
         """Save tokens to file with restricted permissions."""
@@ -79,12 +82,17 @@ class TokenStorage:
         if self.tokens_file.exists():
             with open(self.tokens_file, 'r') as f:
                 return json.load(f)
+        if self.legacy_tokens_file.exists():
+            with open(self.legacy_tokens_file, 'r') as f:
+                return json.load(f)
         return None
     
     def clear_tokens(self) -> None:
         """Clear stored tokens"""
         if self.tokens_file.exists():
             self.tokens_file.unlink()
+        if self.legacy_tokens_file.exists():
+            self.legacy_tokens_file.unlink()
 
 
 class PKCEGenerator:

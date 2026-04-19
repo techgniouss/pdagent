@@ -38,6 +38,64 @@ def _load_win_deps():
 
 logger = logging.getLogger(__name__)
 
+
+def _find_vscode_window():
+    """Return the first visible VS Code window, if any."""
+    try:
+        import pygetwindow as _gw
+
+        for window in _gw.getAllWindows():
+            try:
+                if "visual studio code" in window.title.lower() and window.visible:
+                    return window
+            except Exception:
+                continue
+
+        for window in _gw.getAllWindows():
+            try:
+                title = window.title.lower()
+                if "code" in title and window.visible and window.width > 200:
+                    return window
+            except Exception:
+                continue
+    except Exception as exc:
+        logger.error(f"Error finding VS Code window: {exc}")
+
+    return None
+
+
+def _run_vscode_palette_command(command_text: str) -> tuple[bool, str]:
+    """Focus VS Code and execute a command palette entry."""
+    try:
+        import pyautogui
+    except ImportError:
+        return False, "pyautogui is not installed.\n\nRun: pip install pyautogui"
+
+    vscode_window = _find_vscode_window()
+    if not vscode_window:
+        return False, "Could not find VS Code window.\n\nMake sure VS Code is open and try again."
+
+    try:
+        if vscode_window.isMinimized:
+            vscode_window.restore()
+            time.sleep(0.5)
+        vscode_window.activate()
+    except Exception:
+        pass
+
+    time.sleep(0.8)
+    pyautogui.hotkey('ctrl', 'shift', 'p')
+    time.sleep(0.7)
+    pyautogui.hotkey('ctrl', 'a')
+    time.sleep(0.2)
+    pyautogui.write(command_text, interval=0.04)
+    time.sleep(0.5)
+    pyautogui.press('enter')
+    time.sleep(0.5)
+
+    return True, ""
+
+
 def find_antigravity_window():
     """Find Antigravity desktop window and restore if minimized."""
     if not PYWINAUTO_AVAILABLE:
@@ -381,60 +439,10 @@ async def antigravityclaudecodeopen_command(update: Update, context: ContextType
     await update.message.reply_text("🧩 Opening Claude Code panel in VS Code...")
 
     try:
-        import pyautogui
-        import pygetwindow as gw
-
-        # Find VS Code window — look for title containing 'Visual Studio Code'
-        vscode_window = None
-        for w in gw.getAllWindows():
-            try:
-                if "visual studio code" in w.title.lower() and w.visible:
-                    vscode_window = w
-                    break
-            except Exception:
-                continue
-
-        if not vscode_window:
-            # VS Code may show just the file name — try matching 'code' in process
-            for w in gw.getAllWindows():
-                try:
-                    t = w.title.lower()
-                    if ("code" in t) and w.visible and w.width > 200:
-                        vscode_window = w
-                        break
-                except Exception:
-                    continue
-
-        if not vscode_window:
-            await update.message.reply_text(
-                "❌ Could not find VS Code window.\n\n"
-                "Make sure VS Code is open and try again."
-            )
+        success, error_message = _run_vscode_palette_command("Claude: Focus on Claude Code Input")
+        if not success:
+            await update.message.reply_text(f"❌ {error_message}")
             return
-
-        # Restore if minimized and bring to front
-        try:
-            if vscode_window.isMinimized:
-                vscode_window.restore()
-                time.sleep(0.5)
-            vscode_window.activate()
-        except Exception:
-            pass
-
-        # Small delay to ensure focus
-        time.sleep(0.8)
-
-        # Use pyautogui to send Ctrl+Shift+P (command palette)
-        pyautogui.hotkey('ctrl', 'shift', 'p')
-        time.sleep(0.7)
-
-        # Clear any existing text and type the command
-        pyautogui.hotkey('ctrl', 'a')
-        time.sleep(0.2)
-        pyautogui.typewrite('Claude: Focus on Claude Code Input', interval=0.04)
-        time.sleep(0.5)
-        pyautogui.press('enter')
-        time.sleep(0.5)
 
         await update.message.reply_text(
             "✅ Claude Code panel opened in VS Code!\n\n"
@@ -442,14 +450,32 @@ async def antigravityclaudecodeopen_command(update: Update, context: ContextType
         )
         logger.info("Opened Claude Code panel in VS Code via command palette")
 
-    except ImportError:
-        await update.message.reply_text(
-            "❌ pyautogui is not installed.\n\n"
-            "Run: pip install pyautogui"
-        )
     except Exception as e:
         await update.message.reply_text(f"❌ Error opening Claude Code panel: {str(e)}")
         logger.error(f"Error in antigravityclaudecodeopen_command: {e}", exc_info=True)
+
+
+async def openclaudeinvscode_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /openclaudeinvscode command - run Claude Code: Open in VS Code."""
+    if not update.message:
+        return
+
+    await update.message.reply_text("💻 Opening Claude Code in VS Code...")
+
+    try:
+        success, error_message = _run_vscode_palette_command("Claude Code: Open")
+        if not success:
+            await update.message.reply_text(f"❌ {error_message}")
+            return
+
+        await update.message.reply_text(
+            "✅ Sent `Claude Code: Open` to the VS Code command palette.",
+            parse_mode="Markdown",
+        )
+        logger.info("Executed Claude Code: Open in VS Code")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error opening Claude Code in VS Code: {str(e)}")
+        logger.error(f"Error in openclaudeinvscode_command: {e}", exc_info=True)
 
 
 async def claudecli_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -509,7 +535,7 @@ async def claudecli_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not folders:
             await update.message.reply_text(
                 "❌ No folders found.\n\n"
-                "Check that APPROVED_DIRECTORIES is configured in your .env."
+                "Check that APPROVED_DIRECTORIES is configured in your Pocket Desk Agent config."
             )
             return
 
@@ -649,7 +675,7 @@ async def antigravityopenfolder_command(update: Update, context: ContextTypes.DE
         if not folders:
             await update.message.reply_text(
                 "❌ No folders found.\n\n"
-                "Check that APPROVED_DIRECTORIES is configured in your .env."
+                "Check that APPROVED_DIRECTORIES is configured in your Pocket Desk Agent config."
             )
             return
 

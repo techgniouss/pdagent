@@ -8,6 +8,7 @@ from pathlib import Path
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
 from wakepy import keep
 
+from pocket_desk_agent.app_paths import app_path, ensure_app_dir, existing_app_path
 from pocket_desk_agent.config import Config
 from pocket_desk_agent.command_map import COMMAND_REGISTRY
 from pocket_desk_agent.handlers import (
@@ -26,10 +27,9 @@ from pocket_desk_agent.updater import get_version_string, startup_update_check, 
 import asyncio
 
 # Ensure user config directory exists
-CONFIG_DIR = Path.home() / ".pdagent"
-CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-PID_FILE = CONFIG_DIR / "bot.pid"
-LOG_FILE = Path.cwd() / "bot.log"
+ensure_app_dir()
+PID_FILE = app_path("bot.pid")
+LOG_FILE = app_path("bot.log")
 
 # Configure logging to both console and file
 logging.basicConfig(
@@ -76,8 +76,9 @@ def _should_enable_reloader(project_root: Path) -> bool:
 
 def acquire_lock():
     """Ensure only one bot instance runs at a time."""
-    if PID_FILE.exists():
-        old_pid = PID_FILE.read_text().strip()
+    existing_pid_file = existing_app_path("bot.pid")
+    if existing_pid_file.exists():
+        old_pid = existing_pid_file.read_text().strip()
         try:
             pid = int(old_pid)
             if _process_is_running(pid):
@@ -86,7 +87,7 @@ def acquire_lock():
             raise ValueError("stale pid")
         except ValueError:
             # Process is dead, remove stale lock
-            PID_FILE.unlink(missing_ok=True)
+            existing_pid_file.unlink(missing_ok=True)
 
     PID_FILE.write_text(str(os.getpid()))
     atexit.register(lambda: PID_FILE.unlink(missing_ok=True))

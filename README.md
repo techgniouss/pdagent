@@ -92,7 +92,7 @@ When you send a message from your phone, Telegram holds it until the bot's polli
 | `SchedulerRegistry` | Persists scheduled tasks to disk and checks every 5 s; survives restarts |
 | `RateLimiter` | Per-user token-bucket rate limiter applied automatically to every command |
 
-All 73 command handlers are registered centrally in `command_map.py`. Every handler is wrapped by `@safe_command`, which enforces authorization, rate limiting, and error reporting in a single place — no manual auth checks are needed in individual handlers.
+All 74 command handlers are registered centrally in `command_map.py`. Every handler is wrapped by `@safe_command`, which enforces authorization, rate limiting, and error reporting in a single place — no manual auth checks are needed in individual handlers.
 
 ---
 
@@ -215,7 +215,7 @@ The Gemini authentication step offers four choices:
 | `3) API Key` | Paste a Google AI Studio key. No login flow or browser needed. | Automation, headless servers, or API key preference |
 | `4) Setup Later` | Skips Gemini setup. Start the bot and authenticate via `/login` in Telegram at any time. | Trying the bot without AI first |
 
-> **Token refresh:** OAuth tokens (options 1 and 2) are stored locally in `~/.config/` and refresh automatically in the background. You will only need to re-authenticate if you explicitly log out or if the refresh token expires (typically after 7 days of inactivity).
+> **Token refresh:** OAuth tokens (options 1 and 2) are stored locally under `~/.pdagent/auth/` and refresh automatically in the background. You will only need to re-authenticate if you explicitly log out or if the refresh token expires (typically after 7 days of inactivity).
 
 > **Switching providers:** You can switch between auth modes at any time. Run `pdagent auth` and choose "Switch Provider", or use `/logout` then `/login` in Telegram to start a fresh auth flow.
 
@@ -288,7 +288,7 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 1. Shell environment variables (highest priority)
 2. `~/.pdagent/config` (INI format — written by `pdagent configure`)
 3. `~/.pdagent/.env` (legacy dotenv)
-4. `.env` in the current working directory (legacy dotenv)
+4. `~/.pd-agent/config` and `~/.pd-agent/.env` (temporary compatibility fallback)
 
 ---
 
@@ -314,7 +314,7 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 
 ## Commands Quick Reference
 
-> For the complete reference with all 73 built-in commands, see **[docs/COMMANDS.md](docs/COMMANDS.md)**.
+> For the complete reference with all 74 built-in commands, see **[docs/COMMANDS.md](docs/COMMANDS.md)**.
 
 <details>
 <summary><strong>Expand cheat sheet</strong></summary>
@@ -418,6 +418,7 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 | `/antigravitymode` | Switch Antigravity mode |
 | `/antigravitymodel` | Switch the Antigravity AI model |
 | `/antigravityclaudecodeopen` | Open the Claude Code panel in VS Code |
+| `/openclaudeinvscode` | Run `Claude Code: Open` in VS Code |
 | `/antigravityopenfolder <path>` | Open a folder in VS Code |
 | `/claudecli [path]` | Open Claude Code CLI in a folder |
 | `/claudeclisend <text>` | Send a prompt to an active Claude CLI session |
@@ -452,7 +453,7 @@ Pocket Desk Agent runs **entirely on your local machine** — no data is sent to
 1. **User allowlist**: Every request is checked against `AUTHORIZED_USER_IDS`. Unrecognized Telegram accounts are silently rejected — no error is returned to the sender.
 2. **Directory sandboxing**: File operations are restricted to `APPROVED_DIRECTORIES` using `Path.relative_to()` validation. Path traversal attacks (`../`) are blocked at the framework level.
 3. **Rate limiting**: All commands are rate-limited per user. Sensitive or expensive operations have stricter limits than routine commands.
-4. **Secret isolation**: Config and client credentials live in `~/.pdagent/`, while OAuth tokens are stored in provider-specific config directories such as `~/.config/antigravity-chatbot/` and `~/.config/pdagent-gemini/`, all with restricted file permissions. Never commit `.env` files, OAuth token files, or credential files.
+4. **Secret isolation**: Config, credentials, logs, and default runtime state live in `~/.pdagent/`, and legacy `~/.pd-agent/` files are still read for compatibility. Never commit `.env` files, OAuth token files, or credential files.
 5. **AI safety**: Gemini AI cannot execute shell commands directly. System automation tool access is tightly controlled, and any side-effecting UI interaction (keyboard, mouse, file modification, scheduling) triggers an inline confirmation prompt requiring explicit human-in-the-loop approval before execution.
 
 ---
@@ -461,7 +462,7 @@ Pocket Desk Agent runs **entirely on your local machine** — no data is sent to
 
 **Bot starts but doesn't respond to messages**
 - Confirm your Telegram user ID is in `AUTHORIZED_USER_IDS` (get it from [@userinfobot](https://t.me/userinfobot))
-- Check `bot.log` in your working directory for errors
+- Check `~/.pdagent/bot.log` for errors
 - Verify the bot token is correct — a wrong token causes silent polling failures
 - Run `/status` in the bot chat to verify the Gemini connection
 

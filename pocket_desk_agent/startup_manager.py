@@ -17,6 +17,8 @@ import tempfile
 import textwrap
 import xml.etree.ElementTree as ET
 
+from pocket_desk_agent.app_paths import app_dir
+
 
 TASK_NAME = "PocketDeskAgent"
 TASK_DELAY_ISO = "PT30S"
@@ -426,7 +428,7 @@ class StartupManager:
 
     def _working_dir(self) -> Path:
         """Return the autorun working directory."""
-        return self._home_dir / ".pdagent"
+        return app_dir(self._home_dir)
 
     def _run_schtasks(self, *args: str) -> subprocess.CompletedProcess[str]:
         """Run schtasks with the provided arguments."""

@@ -174,7 +174,8 @@ Bridge the bot to VS Code via the Antigravity desktop extension.
 | `/antigravitychat` | Focus the Antigravity chat input. | `/antigravitychat` |
 | `/antigravitymode` | Toggle Antigravity context mode (agentic/chat). | `/antigravitymode` |
 | `/antigravitymodel` | Switch the Antigravity AI model backend. | `/antigravitymodel` |
-| `/antigravityclaudecodeopen` | Open a Claude Code CLI terminal inside VS Code. | `/antigravityclaudecodeopen` |
+| `/antigravityclaudecodeopen` | Focus the Claude Code panel in VS Code. | `/antigravityclaudecodeopen` |
+| `/openclaudeinvscode` | Run `Claude Code: Open` from the VS Code command palette. | `/openclaudeinvscode` |
 | `/antigravityopenfolder` | Open a project folder in VS Code. | `/antigravityopenfolder` |
 
 ---

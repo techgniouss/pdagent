@@ -3,7 +3,7 @@
 import os
 import logging
 from pathlib import Path
-from typing import Optional, List, Tuple
+from typing import Optional, Tuple
 
 from pocket_desk_agent.config import Config
 
@@ -14,13 +14,16 @@ class FileManager:
     """Manages file system access within approved directory."""
     
     def __init__(self):
-        self.approved_dirs = list(Config.APPROVED_DIRECTORIES)
+        self.approved_dirs = [Path(path) for path in Config.APPROVED_DIRECTORIES]
         
         # Always allow access to the default projects directory
         if Config.CLAUDE_DEFAULT_REPO_PATH:
             repo_path = Path(Config.CLAUDE_DEFAULT_REPO_PATH)
             if repo_path not in self.approved_dirs:
                 self.approved_dirs.append(repo_path)
+
+        if not self.approved_dirs:
+            self.approved_dirs = [Path.home()]
                 
         self.current_dirs = {}  # user_id -> current_directory
     
@@ -52,7 +55,7 @@ class FileManager:
             if Config.CLAUDE_DEFAULT_REPO_PATH and Path(Config.CLAUDE_DEFAULT_REPO_PATH).exists():
                 self.current_dirs[user_id] = Path(Config.CLAUDE_DEFAULT_REPO_PATH)
             else:
-                self.current_dirs[user_id] = self.approved_dirs[0] if self.approved_dirs else Path(".")
+                self.current_dirs[user_id] = self.approved_dirs[0] if self.approved_dirs else Path.home()
         return self.current_dirs[user_id]
     
     def set_current_dir(self, user_id: int, path: str) -> Tuple[bool, str]:
