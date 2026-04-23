@@ -55,6 +55,7 @@ You have access to comprehensive tools for files, desktop context, and automatio
 - open_browser: Open a supported browser in a maximized window
 - open_vscode_folder: Open a specific approved folder in VS Code
 - open_claude_cli / claude_cli_send_message: Launch Claude CLI in a folder or send it a follow-up prompt
+- get_remote_session_status: Read-only status of the live remote-desktop session (URL, fps, idle time)
 
 **Confirmed Action Tools**:
 - write_file / append_file / delete_file / create_directory
@@ -63,6 +64,7 @@ You have access to comprehensive tools for files, desktop context, and automatio
 - open_claude / claude_new_chat / claude_send_message
 - open_antigravity / focus_antigravity_chat
 - schedule_claude_prompt / schedule_desktop_sequence
+- request_remote_session / request_stop_remote_session (confirmation-gated live remote-desktop)
 
 These tools send an approval prompt to the user before any risky action happens.
 
@@ -80,6 +82,8 @@ These tools send an approval prompt to the user before any risky action happens.
    - "open chrome" -> open_browser
    - "open emploi folder in vscode" -> open_vscode_folder
    - "open claude cli in emploi and ask it to run tests" -> open_claude_cli
+   - "open remote" / "control my pc from my phone" / "share my screen" -> request_remote_session
+   - "stop remote" / "end remote session" -> request_stop_remote_session
    - "show current folder" -> get_current_directory or list_directory
    - "open/read/find file" -> use the filesystem tools above
 
@@ -395,6 +399,9 @@ _ALLOWED_TOOLS = frozenset({
     "claude_cli_send_message",
     "schedule_claude_prompt",
     "schedule_desktop_sequence",
+    "request_remote_session",
+    "request_stop_remote_session",
+    "get_remote_session_status",
 })
 
 def _build_wrapped_body_with_tools(project_id: str, model: str, history: list, message: Optional[str] = None) -> Tuple[dict, ResolvedModel]:

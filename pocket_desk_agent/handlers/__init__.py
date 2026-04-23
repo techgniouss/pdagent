@@ -167,3 +167,12 @@ from pocket_desk_agent.handlers.callbacks import (  # noqa: F401
     handle_upload_choice,
     delete_from_dropbox,
 )
+
+# ── Remote Desktop ─────────────────────────────────────────────────────────
+from pocket_desk_agent.handlers.remote import (  # noqa: F401
+    remote_command,
+    stopremote_command,
+    start_remote_session,
+    stop_remote_session,
+    teardown_all_sessions,
+)

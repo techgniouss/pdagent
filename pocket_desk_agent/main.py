@@ -21,6 +21,7 @@ from pocket_desk_agent.handlers import (
     describe_task,
     execute_scheduled_task,
     safe_command,
+    teardown_all_sessions,
 )
 from pocket_desk_agent.scheduler_registry import get_scheduler_registry
 from pocket_desk_agent.updater import get_version_string, startup_update_check, format_update_notification
@@ -163,6 +164,14 @@ async def post_init(application: Application):
 
     # ── Background tasks (running inside the Application's event loop) ────
     asyncio.create_task(scheduler_loop(application))
+
+
+async def post_shutdown(application: Application):
+    """Tear down any active remote-desktop sessions cleanly on bot exit."""
+    try:
+        await teardown_all_sessions(application.bot)
+    except Exception as exc:
+        logger.warning(f"[remote] shutdown teardown raised: {exc}")
 
 
 def start_reloader():
@@ -317,6 +326,7 @@ def main():
         Application.builder()
         .token(Config.TELEGRAM_BOT_TOKEN)
         .post_init(post_init)
+        .post_shutdown(post_shutdown)
         .build()
     )
     
