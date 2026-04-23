@@ -23,6 +23,10 @@ COMMAND_REGISTRY = [
     ("find", handlers.find_command, "Search files"),
     ("info", handlers.info_command, "Get file info"),
     
+    # Remote Desktop Commands
+    ("remote", handlers.remote_command, "Start live remote desktop (returns HTTPS URL + QR)"),
+    ("stopremote", handlers.stopremote_command, "Stop the active remote desktop session"),
+
     # System Control Commands
     ("stopbot", handlers.stopbot_command, "Stop the bot process"),
     ("shutdown", handlers.shutdown_command, "Shutdown the PC"),

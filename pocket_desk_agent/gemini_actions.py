@@ -93,6 +93,9 @@ _RATE_LIMIT_LABELS = {
     "stop_screen_watch": "screen watcher stops",
     "schedule_claude_prompt": "Claude scheduling requests",
     "schedule_desktop_sequence": "desktop scheduling requests",
+    "request_remote_session": "remote-desktop start requests",
+    "request_stop_remote_session": "remote-desktop stop requests",
+    "get_remote_session_status": "remote-desktop status checks",
     "gemini_confirmation_request": "Gemini approval requests",
 }
 _RATE_LIMITED_TOOLS = frozenset(_RATE_LIMIT_LABELS) - {"gemini_confirmation_request"}
@@ -116,6 +119,9 @@ _GEMINI_TOOL_RATE_LIMITER.set_limit("start_screen_watch", calls=4, window=60)
 _GEMINI_TOOL_RATE_LIMITER.set_limit("stop_screen_watch", calls=8, window=60)
 _GEMINI_TOOL_RATE_LIMITER.set_limit("schedule_claude_prompt", calls=6, window=60)
 _GEMINI_TOOL_RATE_LIMITER.set_limit("schedule_desktop_sequence", calls=4, window=60)
+_GEMINI_TOOL_RATE_LIMITER.set_limit("request_remote_session", calls=3, window=60)
+_GEMINI_TOOL_RATE_LIMITER.set_limit("request_stop_remote_session", calls=3, window=60)
+_GEMINI_TOOL_RATE_LIMITER.set_limit("get_remote_session_status", calls=10, window=60)
 _GEMINI_TOOL_RATE_LIMITER.set_limit("gemini_confirmation_request", calls=8, window=60)
 
 
@@ -433,6 +439,32 @@ def get_gemini_action_tools() -> list[dict[str, Any]]:
                 },
                 "required": ["execute_at", "prompt"],
             },
+        },
+        {
+            "name": "request_remote_session",
+            "description": (
+                "Request a live remote-desktop session. This does NOT start the session directly — "
+                "it asks the user to confirm via an inline button, and only then opens the tunnel. "
+                "Use when the user says things like 'open remote', 'let me control my pc from phone', "
+                "or 'share my screen'."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+        {
+            "name": "request_stop_remote_session",
+            "description": (
+                "Request to stop the active remote-desktop session. Does not stop directly — "
+                "asks the user to confirm via an inline button."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+        {
+            "name": "get_remote_session_status",
+            "description": (
+                "Read-only status of the current user's remote-desktop session. Returns active/inactive, "
+                "the tunnel URL if active, idle seconds, and current fps/quality. Does not leak the session token."
+            ),
+            "parameters": {"type": "object", "properties": {}},
         },
         {
             "name": "schedule_desktop_sequence",
@@ -853,6 +885,71 @@ async def dispatch_gemini_tool(
             args={"execute_at": execute_at, "name": name, "actions": actions},
             summary=_summarize_scheduled_sequence(execute_at, name, actions),
             tool_runtime=tool_runtime,
+        )
+
+    if func_name == "request_remote_session":
+        from pocket_desk_agent.config import Config as _Config
+        from pocket_desk_agent.remote.session import get_for_user as _get_for_user
+
+        if not _Config.REMOTE_ENABLED:
+            return GeminiToolResult(False, "Remote desktop feature is disabled in configuration.")
+        if not _Config.REMOTE_AI_TOOLS_ENABLED:
+            return GeminiToolResult(
+                False,
+                "AI-initiated remote-desktop requests are disabled. The user can run /remote manually.",
+            )
+        existing = _get_for_user(user_id)
+        if existing:
+            return GeminiToolResult(
+                True,
+                f"A remote session is already active. Open: {existing.tunnel_url}",
+            )
+        return await _queue_confirmation(
+            user_id=user_id,
+            action_type="start_remote_session_ai",
+            args={},
+            summary="start a live remote-desktop session (opens a public tunnel)",
+            tool_runtime=tool_runtime,
+        )
+
+    if func_name == "request_stop_remote_session":
+        from pocket_desk_agent.config import Config as _Config
+        from pocket_desk_agent.remote.session import get_for_user as _get_for_user
+
+        if not _Config.REMOTE_AI_TOOLS_ENABLED:
+            return GeminiToolResult(
+                False,
+                "AI-initiated remote-desktop requests are disabled. The user can run /stopremote manually.",
+            )
+        existing = _get_for_user(user_id)
+        if not existing:
+            return GeminiToolResult(True, "No remote-desktop session is currently active.")
+        return await _queue_confirmation(
+            user_id=user_id,
+            action_type="stop_remote_session_ai",
+            args={},
+            summary="stop the active remote-desktop session",
+            tool_runtime=tool_runtime,
+        )
+
+    if func_name == "get_remote_session_status":
+        from pocket_desk_agent.config import Config as _Config
+        from pocket_desk_agent.handlers.remote import sanitized_status
+
+        if not _Config.REMOTE_ENABLED:
+            return GeminiToolResult(True, "Remote desktop feature is disabled in configuration.")
+        status = sanitized_status(user_id)
+        if not status.get("active"):
+            return GeminiToolResult(True, "Remote desktop session: inactive.")
+        return GeminiToolResult(
+            True,
+            (
+                f"Remote desktop session: active.\n"
+                f"URL: {status.get('url', '')}\n"
+                f"Idle: {status.get('idle_seconds', 0)}s\n"
+                f"Settings: {status.get('fps')} fps, quality {status.get('quality')}, "
+                f"max width {status.get('max_width')}."
+            ),
         )
 
     return GeminiToolResult(False, f"Tool '{func_name}' is not implemented.")
@@ -1357,6 +1454,26 @@ async def _execute_confirmed_action(pending: PendingGeminiAction, bot: Any) -> G
         )
         get_scheduler_registry().add_task(task)
         return GeminiToolResult(True, f"Scheduled the Claude prompt for {execute_at.strftime('%Y-%m-%d %H:%M')}.")
+
+    if action_type == "start_remote_session_ai":
+        from pocket_desk_agent.handlers.remote import start_remote_session
+
+        success, message = await start_remote_session(
+            user_id=pending.user_id,
+            chat_id=pending.chat_id,
+            bot=bot,
+        )
+        return GeminiToolResult(success, message)
+
+    if action_type == "stop_remote_session_ai":
+        from pocket_desk_agent.handlers.remote import stop_remote_session
+
+        success, message = await stop_remote_session(
+            user_id=pending.user_id,
+            bot=bot,
+            reason="stopped",
+        )
+        return GeminiToolResult(success, message)
 
     if action_type == "schedule_desktop_sequence":
         execute_at = _parse_schedule_time(str(args.get("execute_at", "")))

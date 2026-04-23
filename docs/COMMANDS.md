@@ -10,6 +10,7 @@ This document covers all commands organized by capability.
 - [File System Operations](#file-system-operations)
 - [System Settings & Controls](#system-settings--controls)
 - [Vision & UI Automation](#vision--ui-automation)
+- [Remote Desktop](#remote-desktop)
 - [Custom Command Sequences](#custom-command-sequences)
 - [Claude & CLI Integration](#claude--cli-integration)
 - [Antigravity Controller](#antigravity-controller)
@@ -104,6 +105,25 @@ Robotic Process Automation using OCR and computer vision.
 > **Note:** OCR commands (`/findtext`, `/smartclick`) require Tesseract OCR installed on the host.
 > `/findelements` uses computer vision (included in the standard installation).
 > `/windows` and `/focuswindow` switch top-level application windows, not browser tabs within a single app.
+
+---
+
+## Remote Desktop
+
+Stream your desktop to a mobile browser and control mouse + keyboard from anywhere over the internet. Backed by a [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) quick-tunnel (free, no account).
+
+| Command | Description | Example |
+| :--- | :--- | :--- |
+| `/remote` | Start a live remote-control session. Returns a public HTTPS URL and a QR code. The first browser that opens the link is bound to the session. | `/remote` |
+| `/stopremote` | Stop the active remote session for this user. | `/stopremote` |
+
+**Prerequisites:** `cloudflared` must be installed once on the host (`winget install Cloudflare.cloudflared`).
+
+**Mobile gestures:** tap = left click · drag = move + left-drag · long-press = right-click · two-finger vertical = scroll · ⌨︎ button = keyboard input.
+
+**Auto-end conditions:** explicit `/stopremote`, 15-minute idle timeout, or bot shutdown.
+
+See [docs/REMOTE.md](REMOTE.md) for the full setup, security, and troubleshooting guide.
 
 ---
 
