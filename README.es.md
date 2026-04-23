@@ -181,6 +181,8 @@ pdagent
 | `pdagent restart` | Reiniciar el demonio |
 | `pdagent status` | Verificar estado del demonio |
 | `pdagent configure` | Asistente de configuración |
+| `pdagent setup` | Check and install system dependencies (for example Tesseract OCR) |
+| `pdagent startup <enable\|disable\|status\|configure>` | Manage automatic startup after Windows login |
 | `pdagent auth` | Gestionar credenciales de Gemini |
 | `pdagent version` | Versión instalada |
 

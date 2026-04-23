@@ -181,6 +181,8 @@ pdagent
 | `pdagent restart` | デーモンを再起動 |
 | `pdagent status` | デーモンの状態を確認 |
 | `pdagent configure` | 設定ウィザード |
+| `pdagent setup` | Check and install system dependencies (for example Tesseract OCR) |
+| `pdagent startup <enable\|disable\|status\|configure>` | Manage automatic startup after Windows login |
 | `pdagent auth` | Gemini認証情報の管理 |
 | `pdagent version` | インストール済みバージョン |
 

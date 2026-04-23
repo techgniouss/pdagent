@@ -181,6 +181,8 @@ pdagent
 | `pdagent restart` | 데몬 재시작 |
 | `pdagent status` | 데몬 상태 확인 |
 | `pdagent configure` | 설정 마법사 |
+| `pdagent setup` | Check and install system dependencies (for example Tesseract OCR) |
+| `pdagent startup <enable\|disable\|status\|configure>` | Manage automatic startup after Windows login |
 | `pdagent auth` | Gemini 자격 증명 관리 |
 | `pdagent version` | 설치된 버전 |
 

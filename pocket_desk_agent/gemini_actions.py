@@ -85,6 +85,12 @@ _RATE_LIMIT_LABELS = {
     "claude_send_message": "Claude message actions",
     "open_antigravity": "Antigravity app actions",
     "focus_antigravity_chat": "Antigravity chat focus actions",
+    "open_browser": "browser launch actions",
+    "open_vscode_folder": "VS Code folder opens",
+    "open_claude_cli": "Claude CLI launches",
+    "claude_cli_send_message": "Claude CLI message actions",
+    "start_screen_watch": "screen watcher starts",
+    "stop_screen_watch": "screen watcher stops",
     "schedule_claude_prompt": "Claude scheduling requests",
     "schedule_desktop_sequence": "desktop scheduling requests",
     "gemini_confirmation_request": "Gemini approval requests",
@@ -102,6 +108,12 @@ _GEMINI_TOOL_RATE_LIMITER.set_limit("claude_new_chat", calls=4, window=60)
 _GEMINI_TOOL_RATE_LIMITER.set_limit("claude_send_message", calls=6, window=60)
 _GEMINI_TOOL_RATE_LIMITER.set_limit("open_antigravity", calls=6, window=60)
 _GEMINI_TOOL_RATE_LIMITER.set_limit("focus_antigravity_chat", calls=6, window=60)
+_GEMINI_TOOL_RATE_LIMITER.set_limit("open_browser", calls=6, window=60)
+_GEMINI_TOOL_RATE_LIMITER.set_limit("open_vscode_folder", calls=6, window=60)
+_GEMINI_TOOL_RATE_LIMITER.set_limit("open_claude_cli", calls=5, window=60)
+_GEMINI_TOOL_RATE_LIMITER.set_limit("claude_cli_send_message", calls=6, window=60)
+_GEMINI_TOOL_RATE_LIMITER.set_limit("start_screen_watch", calls=4, window=60)
+_GEMINI_TOOL_RATE_LIMITER.set_limit("stop_screen_watch", calls=8, window=60)
 _GEMINI_TOOL_RATE_LIMITER.set_limit("schedule_claude_prompt", calls=6, window=60)
 _GEMINI_TOOL_RATE_LIMITER.set_limit("schedule_desktop_sequence", calls=4, window=60)
 _GEMINI_TOOL_RATE_LIMITER.set_limit("gemini_confirmation_request", calls=8, window=60)
@@ -170,6 +182,27 @@ def get_gemini_action_tools() -> list[dict[str, Any]]:
             "parameters": {"type": "object", "properties": {}},
         },
         {
+            "name": "shutdown_computer",
+            "description": "Ask for confirmation before shutting down the computer.",
+            "parameters": {"type": "object", "properties": {}},
+        },
+        {
+            "name": "sleep_computer",
+            "description": "Ask for confirmation before putting the computer to sleep.",
+            "parameters": {"type": "object", "properties": {}},
+        },
+        {
+            "name": "set_privacy_mode",
+            "description": "Check privacy mode status, or ask for confirmation before turning privacy mode on or off.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "mode": {"type": "string", "description": "One of status, on, or off."}
+                },
+                "required": ["mode"],
+            },
+        },
+        {
             "name": "list_custom_commands",
             "description": "List saved custom automation commands and their action counts.",
             "parameters": {"type": "object", "properties": {}},
@@ -178,6 +211,62 @@ def get_gemini_action_tools() -> list[dict[str, Any]]:
             "name": "list_schedules",
             "description": "List the current user's pending scheduled tasks.",
             "parameters": {"type": "object", "properties": {}},
+        },
+        {
+            "name": "start_screen_watch",
+            "description": "Ask for confirmation before starting a recurring screen watcher that looks for visible text and sends a hotkey until the user stops it.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "text": {"type": "string", "description": "Visible screen text to watch for, such as Allow command."},
+                    "interval": {"type": "string", "description": "Repeat interval such as 1m, 30s, or 2m."},
+                    "hotkey": {"type": "string", "description": "Hotkey to send when the text appears, such as enter or ctrl+enter."},
+                    "scope": {"type": "string", "description": "Optional scope: screen, claude, or antigravity."},
+                    "cooldown": {"type": "string", "description": "Optional cooldown such as 30s or 1m to avoid repeated triggers."},
+                },
+                "required": ["text", "interval", "hotkey"],
+            },
+        },
+        {
+            "name": "stop_screen_watch",
+            "description": "Stop one active screen watcher by task ID, or stop all active screen watchers for the current user.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "task_id": {"type": "string", "description": "Optional task ID from list_schedules. Leave empty to stop all screen watchers."}
+                },
+            },
+        },
+        {
+            "name": "start_build_workflow",
+            "description": "Prepare the React Native build workflow and optionally narrow it to a project name so the user can choose which npm script to run.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "project": {"type": "string", "description": "Optional project name hint such as emploi."}
+                },
+            },
+        },
+        {
+            "name": "start_apk_retrieval_workflow",
+            "description": "Prepare the existing APK retrieval workflow and optionally narrow it to an Android project so the user can browse build outputs or pick an APK.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "project": {"type": "string", "description": "Optional Android project name hint such as emploi."}
+                },
+            },
+        },
+        {
+            "name": "run_saved_command",
+            "description": "Ask for confirmation before running one of the user's saved custom commands.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Saved command name without the leading slash."}
+                },
+                "required": ["name"],
+            },
         },
         {
             "name": "find_text_on_screen",
@@ -287,6 +376,51 @@ def get_gemini_action_tools() -> list[dict[str, Any]]:
             "name": "focus_antigravity_chat",
             "description": "Ask for confirmation before focusing Antigravity's agent chat input.",
             "parameters": {"type": "object", "properties": {}},
+        },
+        {
+            "name": "open_browser",
+            "description": "Ask for confirmation before opening a supported browser in a maximized window.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "browser": {"type": "string", "description": "Browser name such as edge, chrome, firefox, or brave."}
+                },
+                "required": ["browser"],
+            },
+        },
+        {
+            "name": "open_vscode_folder",
+            "description": "Ask for confirmation before opening a specific approved folder in VS Code.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "folder": {"type": "string", "description": "Folder path or folder name to resolve inside approved workspaces."}
+                },
+                "required": ["folder"],
+            },
+        },
+        {
+            "name": "open_claude_cli",
+            "description": "Ask for confirmation before opening Claude CLI in a specific approved folder, with an optional first prompt.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "folder": {"type": "string", "description": "Folder path or folder name to resolve inside approved workspaces."},
+                    "prompt": {"type": "string", "description": "Optional first prompt to send after Claude CLI opens."},
+                },
+                "required": ["folder"],
+            },
+        },
+        {
+            "name": "claude_cli_send_message",
+            "description": "Ask for confirmation before sending a follow-up message to the active Claude CLI window.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "message": {"type": "string", "description": "Prompt to send to the active Claude CLI window."}
+                },
+                "required": ["message"],
+            },
         },
         {
             "name": "schedule_claude_prompt",
@@ -414,11 +548,112 @@ async def dispatch_gemini_tool(
     if func_name == "view_clipboard":
         return GeminiToolResult(True, _read_clipboard_text())
 
+    if func_name == "shutdown_computer":
+        return await _queue_confirmation(
+            user_id=user_id,
+            action_type=func_name,
+            args={},
+            summary="shutdown the computer",
+            tool_runtime=tool_runtime,
+        )
+
+    if func_name == "sleep_computer":
+        return await _queue_confirmation(
+            user_id=user_id,
+            action_type=func_name,
+            args={},
+            summary="put the computer to sleep",
+            tool_runtime=tool_runtime,
+        )
+
+    if func_name == "set_privacy_mode":
+        import platform
+        from pocket_desk_agent.handlers.system import _build_privacy_mode_status_text, _normalize_privacy_mode_action
+
+        mode = _normalize_privacy_mode_action([str(args.get("mode", ""))])
+        if mode == "invalid":
+            return GeminiToolResult(False, "Invalid privacy mode. Use status, on, or off.")
+        if mode == "status":
+            return GeminiToolResult(True, _build_privacy_mode_status_text())
+        if platform.system() != "Windows":
+            return GeminiToolResult(False, "Privacy mode is currently only supported on Windows.")
+        return await _queue_confirmation(
+            user_id=user_id,
+            action_type=func_name,
+            args={"mode": mode},
+            summary=f"turn privacy mode {mode}",
+            tool_runtime=tool_runtime,
+        )
+
     if func_name == "list_custom_commands":
         return GeminiToolResult(True, _list_custom_commands_text())
 
     if func_name == "list_schedules":
         return GeminiToolResult(True, _list_schedules_text(user_id))
+
+    if func_name == "start_screen_watch":
+        search_text = str(args.get("text", "")).strip()
+        interval = str(args.get("interval", "")).strip()
+        hotkey = str(args.get("hotkey", "")).strip()
+        scope = str(args.get("scope", "screen")).strip().lower() or "screen"
+        cooldown = str(args.get("cooldown", "")).strip()
+        if not search_text or not interval or not hotkey:
+            return GeminiToolResult(False, "Please provide text, interval, and hotkey for the screen watcher.")
+        if scope not in {"screen", "claude", "antigravity"}:
+            return GeminiToolResult(False, "Screen watch scope must be screen, claude, or antigravity.")
+        summary = f"watch {scope} every {interval} for '{search_text}' and send hotkey '{hotkey}' until stopped"
+        if cooldown:
+            summary += f" with a cooldown of {cooldown}"
+        return await _queue_confirmation(
+            user_id=user_id,
+            action_type=func_name,
+            args={"text": search_text, "interval": interval, "hotkey": hotkey, "scope": scope, "cooldown": cooldown},
+            summary=summary,
+            tool_runtime=tool_runtime,
+        )
+
+    if func_name == "stop_screen_watch":
+        from pocket_desk_agent.handlers.scheduling import stop_screen_watch_tasks
+
+        task_id = str(args.get("task_id", "")).strip() or None
+        success, message = stop_screen_watch_tasks(user_id=user_id, task_id=task_id)
+        return GeminiToolResult(success, message)
+
+    if func_name == "start_build_workflow":
+        from pocket_desk_agent.handlers.build import prepare_build_workflow
+
+        current_dir = str(file_manager.get_current_dir(user_id))
+        success, message = prepare_build_workflow(
+            user_id=user_id,
+            current_dir=current_dir,
+            project_query=str(args.get("project", "")).strip() or None,
+        )
+        return GeminiToolResult(success, message)
+
+    if func_name == "start_apk_retrieval_workflow":
+        from pocket_desk_agent.handlers.build import prepare_apk_retrieval_workflow
+
+        current_dir = str(file_manager.get_current_dir(user_id))
+        success, message = prepare_apk_retrieval_workflow(
+            user_id=user_id,
+            current_dir=current_dir,
+            project_query=str(args.get("project", "")).strip() or None,
+        )
+        return GeminiToolResult(success, message)
+
+    if func_name == "run_saved_command":
+        command_name = str(args.get("name", "")).strip().lstrip("/")
+        if not command_name:
+            return GeminiToolResult(False, "Please provide the saved command name to run.")
+        if not get_registry().command_exists(command_name):
+            return GeminiToolResult(False, f"No saved command named '{command_name}' exists.")
+        return await _queue_confirmation(
+            user_id=user_id,
+            action_type=func_name,
+            args={"name": command_name},
+            summary=f"run the saved command '/{command_name}'",
+            tool_runtime=tool_runtime,
+        )
 
     if func_name == "find_text_on_screen":
         return await _find_text_on_screen(tool_runtime, str(args.get("text", "")))
@@ -530,6 +765,70 @@ async def dispatch_gemini_tool(
             action_type=func_name,
             args={},
             summary="focus the Antigravity agent chat input",
+            tool_runtime=tool_runtime,
+        )
+
+    if func_name == "open_browser":
+        browser = str(args.get("browser", "")).strip().lower()
+        if not browser:
+            return GeminiToolResult(False, "Please provide a browser name such as chrome, edge, firefox, or brave.")
+        if browser not in {"edge", "chrome", "firefox", "brave"}:
+            return GeminiToolResult(False, "Unsupported browser. Choose edge, chrome, firefox, or brave.")
+        return await _queue_confirmation(
+            user_id=user_id,
+            action_type=func_name,
+            args={"browser": browser},
+            summary=f"open {browser} in a maximized window",
+            tool_runtime=tool_runtime,
+        )
+
+    if func_name == "open_vscode_folder":
+        from pocket_desk_agent.handlers.antigravity import resolve_workspace_folder
+
+        folder = str(args.get("folder", "")).strip()
+        if not folder:
+            return GeminiToolResult(False, "Please provide the folder path or folder name to open in VS Code.")
+        resolved, folder_or_error = resolve_workspace_folder(folder)
+        if not resolved:
+            return GeminiToolResult(False, folder_or_error)
+        return await _queue_confirmation(
+            user_id=user_id,
+            action_type=func_name,
+            args={"folder": folder_or_error},
+            summary=f"open the folder {_shorten(folder_or_error)} in VS Code",
+            tool_runtime=tool_runtime,
+        )
+
+    if func_name == "open_claude_cli":
+        from pocket_desk_agent.handlers.antigravity import resolve_workspace_folder
+
+        folder = str(args.get("folder", "")).strip()
+        prompt = str(args.get("prompt", "")).strip()
+        if not folder:
+            return GeminiToolResult(False, "Please provide the folder path or folder name for Claude CLI.")
+        resolved, folder_or_error = resolve_workspace_folder(folder)
+        if not resolved:
+            return GeminiToolResult(False, folder_or_error)
+        summary = f"open Claude CLI in {_shorten(folder_or_error)}"
+        if prompt:
+            summary += f" and send {_shorten(prompt)}"
+        return await _queue_confirmation(
+            user_id=user_id,
+            action_type=func_name,
+            args={"folder": folder_or_error, "prompt": prompt},
+            summary=summary,
+            tool_runtime=tool_runtime,
+        )
+
+    if func_name == "claude_cli_send_message":
+        message = str(args.get("message", "")).strip()
+        if not message:
+            return GeminiToolResult(False, "Please provide the Claude CLI message to send.")
+        return await _queue_confirmation(
+            user_id=user_id,
+            action_type=func_name,
+            args={"message": message},
+            summary=f"send a message to Claude CLI: {_shorten(message)}",
             tool_runtime=tool_runtime,
         )
 
@@ -788,6 +1087,9 @@ def _list_custom_commands_text() -> str:
 
 def _list_schedules_text(user_id: int) -> str:
     """Return the current user's pending schedules."""
+    from pocket_desk_agent.handlers.scheduling import describe_task
+    from pocket_desk_agent.scheduling_utils import format_eta, get_task_due_at
+
     tasks = [t for t in get_scheduler_registry().get_all_pending() if t.get("user_id") == user_id]
     if not tasks:
         return "There are no pending scheduled tasks for this user."
@@ -795,17 +1097,18 @@ def _list_schedules_text(user_id: int) -> str:
     now = dt.datetime.now().astimezone()
     lines = []
     for index, task in enumerate(tasks, start=1):
-        execute_at_text = task.get("execute_at", "")
+        due_at = get_task_due_at(task)
         try:
-            execute_at = dt.datetime.fromisoformat(execute_at_text)
-            delta = execute_at - now
-            minutes = max(0, int(delta.total_seconds() // 60))
-            eta = f"in {minutes}m" if minutes < 60 else f"in {minutes // 60}h {minutes % 60}m"
-            when = execute_at.strftime("%Y-%m-%d %H:%M")
+            when = due_at.strftime("%Y-%m-%d %H:%M:%S") if due_at else str(task.get("execute_at", "")).strip()
+            eta = format_eta(due_at, now=now) if due_at else "unknown ETA"
         except Exception:
-            when = execute_at_text
+            when = str(task.get("execute_at", "")).strip()
             eta = "unknown ETA"
-        lines.append(f"{index}. {task.get('id', '?')} at {when} ({eta}) -> {task.get('command', '')}")
+        try:
+            description = describe_task(ScheduledTask.from_dict(task))
+        except Exception:
+            description = str(task.get("command", "")).strip() or "task"
+        lines.append(f"{index}. {task.get('id', '?')} at {when} ({eta}) -> {description}")
     return "Pending scheduled tasks:\n" + "\n".join(lines)
 
 
@@ -826,6 +1129,57 @@ async def _execute_confirmed_action(pending: PendingGeminiAction, bot: Any) -> G
                 str(args.get("path", "")),
                 str(args.get("content", "")),
             )
+        return GeminiToolResult(success, message)
+
+    if action_type == "shutdown_computer":
+        from pocket_desk_agent.handlers.system import perform_system_shutdown
+
+        perform_system_shutdown()
+        return GeminiToolResult(True, "Shutdown requested. The computer should power off shortly.")
+
+    if action_type == "sleep_computer":
+        from pocket_desk_agent.handlers.system import perform_system_sleep
+
+        return GeminiToolResult(True, perform_system_sleep())
+
+    if action_type == "set_privacy_mode":
+        from pocket_desk_agent.handlers.system import _set_privacy_mode_windows
+
+        mode = str(args.get("mode", "status")).strip().lower()
+        if mode not in {"on", "off"}:
+            return GeminiToolResult(False, "Privacy mode confirmations only support on or off.")
+        success, message = _set_privacy_mode_windows(mode == "on")
+        return GeminiToolResult(success, message)
+
+    if action_type == "run_saved_command":
+        command_name = str(args.get("name", "")).strip().lstrip("/")
+        if not command_name:
+            return GeminiToolResult(False, "No saved command name was provided.")
+        return await _run_saved_command(bot=bot, chat_id=pending.chat_id, user_id=pending.user_id, command_name=command_name)
+
+    if action_type == "start_screen_watch":
+        from pocket_desk_agent.handlers.scheduling import start_screen_watch_task
+        from pocket_desk_agent.scheduling_utils import parse_duration_spec
+
+        interval_text = str(args.get("interval", "")).strip()
+        interval_delta = parse_duration_spec(interval_text)
+        if not interval_delta:
+            return GeminiToolResult(False, "Invalid screen watch interval. Use values like 30s, 1m, or 2m.")
+        cooldown_text = str(args.get("cooldown", "")).strip()
+        cooldown_seconds = 0
+        if cooldown_text:
+            cooldown_delta = parse_duration_spec(cooldown_text)
+            if not cooldown_delta:
+                return GeminiToolResult(False, "Invalid screen watch cooldown. Use values like 30s or 1m.")
+            cooldown_seconds = int(cooldown_delta.total_seconds())
+        success, message = start_screen_watch_task(
+            user_id=pending.user_id,
+            search_text=str(args.get("text", "")),
+            interval_seconds=int(interval_delta.total_seconds()),
+            hotkey=str(args.get("hotkey", "")),
+            scope=str(args.get("scope", "screen")),
+            cooldown_seconds=cooldown_seconds,
+        )
         return GeminiToolResult(success, message)
 
     if action_type == "set_clipboard":
@@ -959,6 +1313,36 @@ async def _execute_confirmed_action(pending: PendingGeminiAction, bot: Any) -> G
             args=[],
         )
 
+    if action_type == "open_browser":
+        from pocket_desk_agent.handlers.antigravity import launch_browser
+
+        success, message = launch_browser(str(args.get("browser", "")))
+        return GeminiToolResult(success, message)
+
+    if action_type == "open_vscode_folder":
+        from pocket_desk_agent.handlers.antigravity import open_folder_in_vscode, resolve_workspace_folder
+
+        resolved, folder_or_error = resolve_workspace_folder(str(args.get("folder", "")))
+        if not resolved:
+            return GeminiToolResult(False, folder_or_error)
+        success, message = open_folder_in_vscode(folder_or_error)
+        return GeminiToolResult(success, message)
+
+    if action_type == "open_claude_cli":
+        from pocket_desk_agent.handlers.antigravity import launch_claude_cli, resolve_workspace_folder
+
+        resolved, folder_or_error = resolve_workspace_folder(str(args.get("folder", "")))
+        if not resolved:
+            return GeminiToolResult(False, folder_or_error)
+        success, message = launch_claude_cli(folder_or_error, str(args.get("prompt", "")))
+        return GeminiToolResult(success, message)
+
+    if action_type == "claude_cli_send_message":
+        from pocket_desk_agent.handlers.antigravity import send_prompt_to_claude_cli
+
+        success, message = send_prompt_to_claude_cli(str(args.get("message", "")))
+        return GeminiToolResult(success, message)
+
     if action_type == "schedule_claude_prompt":
         execute_at = _parse_schedule_time(str(args.get("execute_at", "")))
         if not execute_at:
@@ -1067,6 +1451,24 @@ async def _run_handler_action(
     if collector.messages:
         return GeminiToolResult(True, "\n".join(collector.messages[-3:]))
     return GeminiToolResult(True, f"Completed action via {handler_name}.")
+
+
+async def _run_saved_command(bot: Any, chat_id: int, user_id: int, command_name: str) -> GeminiToolResult:
+    """Execute a saved custom command through the existing command runner."""
+    from pocket_desk_agent.handlers.custom_commands import execute_custom_command
+
+    collector = _MessageCollector(bot, chat_id)
+    update = SimpleNamespace(
+        effective_user=SimpleNamespace(id=user_id),
+        effective_chat=SimpleNamespace(id=chat_id),
+        message=collector,
+    )
+    context = SimpleNamespace(bot=bot, args=[])
+    await execute_custom_command(update, context, command_name)
+    if collector.messages:
+        final_message = collector.messages[-1]
+        return GeminiToolResult(not final_message.startswith("❌"), "\n".join(collector.messages[-3:]))
+    return GeminiToolResult(True, f"Completed saved command '/{command_name}'.")
 
 
 class _MessageCollector:

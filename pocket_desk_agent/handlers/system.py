@@ -152,6 +152,50 @@ async def shutdown_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
+
+
+def perform_system_shutdown() -> None:
+    """Shutdown the host machine using the same OS-specific behavior as /shutdown."""
+    system = platform.system()
+    if system == "Windows":
+        subprocess.run(["shutdown", "/s", "/t", "5"], check=True)
+        return
+
+    if system == "Linux":
+        try:
+            subprocess.run(["shutdown", "-h", "now"], check=True)
+        except subprocess.CalledProcessError:
+            subprocess.run(["sudo", "shutdown", "-h", "now"], check=True)
+        return
+
+    if system == "Darwin":
+        try:
+            subprocess.run(["shutdown", "-h", "now"], check=True)
+        except subprocess.CalledProcessError:
+            subprocess.run(["sudo", "shutdown", "-h", "now"], check=True)
+        return
+
+    raise RuntimeError(f"Shutdown is not supported on {system}.")
+
+
+def perform_system_sleep() -> str:
+    """Put the host to sleep and return a user-facing status message."""
+    system = platform.system()
+
+    if system == "Windows":
+        subprocess.Popen(["rundll32.exe", "powrprof.dll,SetSuspendState", "0", "1", "0"])
+        return "PC is going to sleep. Bot remains active."
+
+    if system == "Darwin":
+        subprocess.Popen(["pmset", "sleepnow"])
+        return "Mac is going to sleep. Bot remains active."
+
+    if system == "Linux":
+        subprocess.Popen(["systemctl", "suspend"])
+        return "PC is going to sleep. Bot remains active."
+
+    raise RuntimeError(f"Sleep is not supported on {system}.")
+
 async def battery_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /battery command - check battery status."""
     if not update.message:

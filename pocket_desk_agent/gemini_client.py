@@ -39,21 +39,27 @@ You are assisting a USER with various tasks, including coding, general questions
 You have access to comprehensive tools for files, desktop context, and automation.
 
 **Exploration Tools**:
+- get_current_directory / change_directory: Handle requests like /pwd and /cd
+- list_directory / search_files / read_file / get_file_info: Handle requests like /ls, /find, /cat, and /info
 - get_tree_structure: Get complete project structure (use this first to understand the project!)
-- list_directory: List files in a specific directory
-- search_files: Find files by name pattern
-- read_file: Read file contents
-- get_file_info: Get file metadata
 
 **Desktop Tools**:
 - capture_screenshot: Capture the current screen and send it back to the chat
 - list_open_windows / focus_window: Inspect and switch application windows
 - find_text_on_screen / scan_ui_elements: Understand what's visible before clicking
 - view_clipboard / get_battery_status: Inspect host state
+- start_screen_watch / stop_screen_watch: Start or stop recurring screen watchers that look for text and send a hotkey
+- start_build_workflow: Prepare the existing build flow so the user can choose a project/script
+- start_apk_retrieval_workflow: Prepare the existing APK retrieval flow so the user can choose a project or browse build outputs
+- set_privacy_mode: Check or control display privacy mode
+- open_browser: Open a supported browser in a maximized window
+- open_vscode_folder: Open a specific approved folder in VS Code
+- open_claude_cli / claude_cli_send_message: Launch Claude CLI in a folder or send it a follow-up prompt
 
 **Confirmed Action Tools**:
 - write_file / append_file / delete_file / create_directory
 - set_clipboard / press_hotkey / click_coordinates / smart_click_text / click_ui_element
+- run_saved_command / shutdown_computer / sleep_computer
 - open_claude / claude_new_chat / claude_send_message
 - open_antigravity / focus_antigravity_chat
 - schedule_claude_prompt / schedule_desktop_sequence
@@ -66,6 +72,16 @@ These tools send an approval prompt to the user before any risky action happens.
 3. Explain what you're doing and why
 4. For risky actions, tell the user an approval prompt has been sent
 5. All file paths are relative to the current working directory unless the tool says otherwise
+6. Prefer existing workflows for slash-command-style requests. Examples:
+   - "build emploi project" -> start_build_workflow
+   - "get apk from emploi" -> start_apk_retrieval_workflow
+   - "watch Claude every minute for Allow and press enter with 30s cooldown" -> start_screen_watch
+   - "stop watching my screen" -> stop_screen_watch
+   - "open chrome" -> open_browser
+   - "open emploi folder in vscode" -> open_vscode_folder
+   - "open claude cli in emploi and ask it to run tests" -> open_claude_cli
+   - "show current folder" -> get_current_directory or list_directory
+   - "open/read/find file" -> use the filesystem tools above
 
 Use these tools proactively to understand context and complete tasks efficiently!
 """
@@ -351,8 +367,16 @@ _ALLOWED_TOOLS = frozenset({
     "list_open_windows",
     "focus_window",
     "view_clipboard",
+    "shutdown_computer",
+    "sleep_computer",
+    "set_privacy_mode",
     "list_custom_commands",
     "list_schedules",
+    "start_screen_watch",
+    "stop_screen_watch",
+    "start_build_workflow",
+    "start_apk_retrieval_workflow",
+    "run_saved_command",
     "find_text_on_screen",
     "scan_ui_elements",
     "set_clipboard",
@@ -365,6 +389,10 @@ _ALLOWED_TOOLS = frozenset({
     "claude_send_message",
     "open_antigravity",
     "focus_antigravity_chat",
+    "open_browser",
+    "open_vscode_folder",
+    "open_claude_cli",
+    "claude_cli_send_message",
     "schedule_claude_prompt",
     "schedule_desktop_sequence",
 })

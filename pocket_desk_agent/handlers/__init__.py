@@ -150,6 +150,8 @@ from pocket_desk_agent.handlers.scheduling import (  # noqa: F401
     schedule_command,
     repeatschedule_command,
     watchperm_command,
+    watchscreen_command,
+    stopscreenwatch_command,
     listschedules_command,
     cancelschedule_command,
     cleanup_scheduled_task_artifacts,
