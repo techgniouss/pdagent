@@ -59,7 +59,7 @@ Everything below works with no AI configuration required:
 - **Macro Recording**: Record multi-step UI sequences and replay them with a single command.
 - **Claude Desktop Integration**: Remote control of Claude Desktop App — send prompts, switch models, manage workspaces, and automate chat flows without touching your PC.
 - **VS Code / Antigravity Integration**: Open folders, switch AI models, and drive the Antigravity VS Code extension remotely.
-- **Task Scheduler**: Schedule one-shot or repeating automation flows, Claude prompts, and temporary Claude/Antigravity permission watchers. Tasks survive restarts.
+- **Task Scheduler**: Schedule one-shot or repeating automation flows, Claude prompts, temporary Claude/Antigravity permission watchers, and recurring screen watchers that react to visible text. Tasks survive restarts.
 - **Build Automation**: Trigger React Native Android builds and retrieve APKs through Telegram or large-file upload links when needed.
 - **Auto-Update**: The bot can check for and apply updates on demand.
 - **Lightweight**: ~55-70 MB idle RAM, <0.5% idle CPU. Heavy dependencies (OpenCV, NumPy, Dropbox) load on-demand only when their commands are used.
@@ -92,7 +92,7 @@ When you send a message from your phone, Telegram holds it until the bot's polli
 | `SchedulerRegistry` | Persists scheduled tasks to disk and checks every 5 s; survives restarts |
 | `RateLimiter` | Per-user token-bucket rate limiter applied automatically to every command |
 
-All 74 command handlers are registered centrally in `command_map.py`. Every handler is wrapped by `@safe_command`, which enforces authorization, rate limiting, and error reporting in a single place — no manual auth checks are needed in individual handlers.
+All 76 command handlers are registered centrally in `command_map.py`. Every handler is wrapped by `@safe_command`, which enforces authorization, rate limiting, and error reporting in a single place — no manual auth checks are needed in individual handlers.
 
 ---
 
@@ -318,7 +318,7 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 
 ## Commands Quick Reference
 
-> For the complete reference with all 74 built-in commands, see **[docs/COMMANDS.md](docs/COMMANDS.md)**.
+> For the complete reference with all 76 built-in commands, see **[docs/COMMANDS.md](docs/COMMANDS.md)**.
 
 <details>
 <summary><strong>Expand cheat sheet</strong></summary>
@@ -435,6 +435,8 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 | `/schedule <HH:MM>` | Start recording a scheduled automation sequence |
 | `/repeatschedule every <interval> for <duration>` | Record an automation sequence that repeats for a limited time |
 | `/watchperm <claude\|antigravity> every <interval> for <duration>` | Repeatedly scan Claude or Antigravity for approval buttons and click them when safe |
+| `/watchscreen <text> every <interval> press <hotkey>` | Repeatedly scan the full screen or a target app for text and send a hotkey until stopped |
+| `/stopscreenwatch [task_id\|all]` | Stop one or all active screen watchers |
 | `/claudeschedule <HH:MM> <text>` | Schedule a Claude prompt |
 | `/listschedules` | View all pending scheduled tasks |
 | `/cancelschedule <id>` | Cancel a scheduled task |
@@ -458,7 +460,7 @@ Pocket Desk Agent runs **entirely on your local machine** — no data is sent to
 2. **Directory sandboxing**: File operations are restricted to `APPROVED_DIRECTORIES` using `Path.relative_to()` validation. Path traversal attacks (`../`) are blocked at the framework level.
 3. **Rate limiting**: All commands are rate-limited per user. Sensitive or expensive operations have stricter limits than routine commands.
 4. **Secret isolation**: Config, credentials, logs, and default runtime state live in `~/.pdagent/`, and legacy `~/.pd-agent/` files are still read for compatibility. Never commit `.env` files, OAuth token files, or credential files.
-5. **AI safety**: Gemini AI cannot execute shell commands directly. System automation tool access is tightly controlled, and any side-effecting UI interaction (keyboard, mouse, file modification, scheduling) triggers an inline confirmation prompt requiring explicit human-in-the-loop approval before execution.
+5. **AI safety**: Gemini AI cannot execute shell commands directly. System automation tool access is tightly controlled, and any side-effecting UI interaction (keyboard, mouse, file modification, app launching, scheduling) triggers an inline confirmation prompt requiring explicit human-in-the-loop approval before execution.
 
 ---
 

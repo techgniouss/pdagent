@@ -3,14 +3,18 @@
 import logging
 import os
 import sys
-import platform
-import subprocess
 import asyncio
 import time
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
 from pocket_desk_agent.gemini_actions import handle_gemini_confirmation_callback
+from pocket_desk_agent.handlers.antigravity import (
+    launch_browser,
+    launch_claude_cli,
+    open_folder_in_vscode,
+)
+from pocket_desk_agent.handlers.system import perform_system_shutdown
 from pocket_desk_agent.handlers._shared import (
     auth_client,
     recording_sessions,
@@ -34,7 +38,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     if query.data == "confirm_stopbot":
-        await query.edit_message_text("🛑 Stopping bot... Goodbye!")
+        await query.edit_message_text("Stopping bot... Goodbye!")
         logger.info("Bot stop requested via Telegram command")
         # Give time for message to send
         await asyncio.sleep(1)
@@ -42,51 +46,35 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         asyncio.get_event_loop().call_soon(lambda: sys.exit(0))
     
     elif query.data == "cancel_stopbot":
-        await query.edit_message_text("✅ Bot stop cancelled. Bot is still running.")
+        await query.edit_message_text("Bot stop cancelled. Bot is still running.")
     
     elif query.data == "confirm_shutdown":
-        await query.edit_message_text("💤 Shutting down laptop... Goodbye!")
+        await query.edit_message_text("Shutting down laptop... Goodbye!")
         logger.info("Laptop shutdown requested via Telegram command")
         # Give time for message to send
         await asyncio.sleep(1)
-        
-        # Execute shutdown command based on OS
-        system = platform.system()
+
         try:
-            if system == "Windows":
-                # Windows shutdown - no special permissions needed
-                subprocess.run(["shutdown", "/s", "/t", "5"], check=True)
-            elif system == "Linux":
-                # Linux - try without sudo first, then with sudo
-                try:
-                    subprocess.run(["shutdown", "-h", "now"], check=True)
-                except subprocess.CalledProcessError:
-                    subprocess.run(["sudo", "shutdown", "-h", "now"], check=True)
-            elif system == "Darwin":  # macOS
-                # macOS - try without sudo first, then with sudo
-                try:
-                    subprocess.run(["shutdown", "-h", "now"], check=True)
-                except subprocess.CalledProcessError:
-                    subprocess.run(["sudo", "shutdown", "-h", "now"], check=True)
+            perform_system_shutdown()
         except Exception as e:
             logger.error(f"Shutdown failed: {e}")
             # Try to notify user if possible (though connection might be lost)
             try:
                 await context.bot.send_message(
                     chat_id=query.message.chat_id,
-                    text=f"❌ Shutdown failed: {str(e)}"
+                    text=f"Shutdown failed: {str(e)}"
                 )
             except Exception:
                 pass
-    
+
     elif query.data == "cancel_shutdown":
-        await query.edit_message_text("✅ Shutdown cancelled. Laptop is still running.")
+        await query.edit_message_text("Shutdown cancelled. Laptop is still running.")
     
     # Handle smartclick selections
     elif query.data.startswith("smartclick_"):
         if query.data == "smartclick_cancel":
             await query.edit_message_caption(
-                caption="❌ Smart click cancelled.",
+                caption="Smart click cancelled.",
                 reply_markup=None
             )
             logger.info("Smart click cancelled by user")
@@ -104,7 +92,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     pyautogui.click(x, y)
                     
                     await query.edit_message_caption(
-                        caption=f"✅ Clicked occurrence {index} at ({x}, {y})",
+                        caption=f"Clicked occurrence {index} at ({x}, {y})",
                         reply_markup=None
                     )
                     logger.info(f"Smart click executed at ({x}, {y})")
@@ -161,7 +149,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_name = query.data.replace("overwrite_cmd_", "")
         user_id = update.effective_user.id
         
-        # Initialize recording session — include all required fields so
+        # Initialize recording session - include all required fields so
         # record_action_if_active never hits a KeyError on 'started_at' / 'scheduled_at'
         recording_sessions[user_id] = {
             "command_name": command_name,
@@ -171,21 +159,21 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         }
         
         await query.edit_message_text(
-            f"✅ Recording command: {command_name}\n\n"
+            f"Recording command: {command_name}\n\n"
             "Send automation commands to add to the sequence:\n"
-            "• /hotkey <keys> [text]\n"
-            "• /clipboard <text>\n"
-            "• /findtext <text>\n"
-            "• /smartclick <text>\n"
-            "• /pasteenter\n"
-            "• /typeenter <text>\n\n"
+            "- /hotkey <keys> [text]\n"
+            "- /clipboard <text>\n"
+            "- /findtext <text>\n"
+            "- /smartclick <text>\n"
+            "- /pasteenter\n"
+            "- /typeenter <text>\n\n"
             "When done: /done\n"
             "To cancel: /cancelrecord"
         )
         logger.info(f"Started recording session (overwrite) for user {user_id}, command: {command_name}")
     
     elif query.data == "cancel_overwrite":
-        await query.edit_message_text("✅ Cancelled. Command was not overwritten.")
+        await query.edit_message_text("Cancelled. Command was not overwritten.")
     
     # Handle command deletion confirmation
     elif query.data.startswith("delete_cmd_"):
@@ -198,18 +186,18 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if success:
             await query.edit_message_text(
-                f"✅ Command '{command_name}' deleted successfully."
+                f"Command '{command_name}' deleted successfully."
             )
             logger.info(f"Deleted command: {command_name}")
         else:
             await query.edit_message_text(
-                f"❌ Failed to delete command '{command_name}'.\n"
+                f"Failed to delete command '{command_name}'.\n"
                 "Check bot logs for details."
             )
             logger.error(f"Failed to delete command: {command_name}")
     
     elif query.data == "cancel_delete":
-        await query.edit_message_text("✅ Cancelled. Command was not deleted.")
+        await query.edit_message_text("Cancelled. Command was not deleted.")
     
     # Handle logout confirmation and new login selections
     elif query.data in ("confirm_logout", "cancel_logout") or query.data.startswith("login:"):
@@ -230,61 +218,15 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await query.answer("Selection expired. Run /claudecli again.", show_alert=True)
                 return
 
-            await query.edit_message_text(f"💻 Opening Claude CLI in `{folder_path}`...", parse_mode="Markdown")
-
-            if platform.system() == "Windows":
-                import threading
-
-                def launch_and_type():
-                    try:
-                        normalized_path = os.path.normpath(folder_path)
-                        # Launch Claude Code via cmd — use list form with cwd to
-                        # avoid shell injection via folder names containing quotes
-                        # or shell metacharacters.
-                        process = subprocess.Popen(
-                            ["cmd.exe", "/k", "title Claude CLI && claude"],
-                            cwd=normalized_path,
-                        )
-
-                        if initial_prompt:
-                            import pygetwindow as gw
-                            import pyautogui
-                            
-                            window_found = False
-                            # Retry loop up to 10 seconds to wait for Claude CLI to load
-                            for _ in range(10):
-                                time.sleep(1.0)
-                                for w in gw.getAllWindows():
-                                    if "Claude CLI" in w.title and w.visible:
-                                        try:
-                                            if w.isMinimized:
-                                                w.restore()
-                                            w.activate()
-                                            time.sleep(0.5)
-                                            window_found = True
-                                            break
-                                        except Exception:
-                                            pass
-                                if window_found:
-                                    break
-                            
-                            if window_found:
-                                time.sleep(1.5)  # additional sleep for the node process to be interactive
-                                pyautogui.write(initial_prompt, interval=0.01)
-                                pyautogui.press('enter')
-                            else:
-                                logger.error("Could not find Claude CLI window to type prompt into")
-                    except Exception as e:
-                        logger.error(f"Error in launch_and_type: {e}", exc_info=True)
-
-                threading.Thread(target=launch_and_type, daemon=True).start()
-                
-                await update.effective_chat.send_message(
-                    f"✅ Claude CLI opened!\n\n"
-                    f"Repository: {folder_path}"
-                )
-            else:
-                await query.answer("This feature is currently only supported on Windows.", show_alert=True)
+            await query.edit_message_text(f"Opening Claude CLI in `{folder_path}`...", parse_mode="Markdown")
+            success, message = launch_claude_cli(folder_path, initial_prompt)
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text=message,
+                parse_mode="Markdown",
+            )
+            if success:
+                claudecli_options.pop(user_id, None)
         except Exception as e:
             logger.error(f"Error handling claudecli callback: {e}", exc_info=True)
             await query.answer(f"Error: {str(e)}", show_alert=True)
@@ -301,145 +243,27 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await query.answer("Selection expired. Run /antigravityopenfolder again.", show_alert=True)
                 return
 
-            await query.edit_message_text(f"📂 Opening `{folder_path}` in VS Code...", parse_mode="Markdown")
-
-            if platform.system() == "Windows":
-                import pyautogui
-                import pygetwindow as gw
-                import pyperclip
-
-                # Find VS Code window robustly
-                vscode_window = None
-                for w in gw.getAllWindows():
-                    try:
-                        if "visual studio code" in w.title.lower() and w.visible:
-                            vscode_window = w
-                            break
-                    except Exception:
-                        continue
-
-                if vscode_window:
-                    # Bring VS Code to front
-                    try:
-                        if vscode_window.isMinimized:
-                            vscode_window.restore()
-                            time.sleep(0.5)
-                        vscode_window.activate()
-                    except Exception:
-                        pass
-                    time.sleep(0.8)
-
-                    # Use Ctrl+K then Ctrl+O to open folder dialog
-                    pyautogui.hotkey('ctrl', 'k')
-                    time.sleep(0.3)
-                    pyautogui.hotkey('ctrl', 'o')
-                    time.sleep(1.2)  # Wait for the file dialog to open
-
-                    # Paste path and confirm
-                    pyperclip.copy(folder_path)
-                    pyautogui.hotkey('ctrl', 'a')  # Select all existing text first
-                    time.sleep(0.2)
-                    pyautogui.hotkey('ctrl', 'v')
-                    time.sleep(0.6)
-                    pyautogui.press('enter')
-                    time.sleep(0.5)
-
-                    await context.bot.send_message(
-                        chat_id=query.message.chat_id,
-                        text=f"✅ VS Code opening folder:\n`{folder_path}`\n\n_Used Ctrl+K → Ctrl+O shortcut_",
-                        parse_mode="Markdown"
-                    )
-                else:
-                    # VS Code not open — open it directly with the folder
-                    subprocess.Popen(["code", folder_path])
-                    time.sleep(2)
-                    await context.bot.send_message(
-                        chat_id=query.message.chat_id,
-                        text=f"✅ Launched VS Code with folder:\n`{folder_path}`",
-                        parse_mode="Markdown"
-                    )
-            else:
-                subprocess.Popen(["code", folder_path], shell=True)
-                await context.bot.send_message(
-                    chat_id=query.message.chat_id,
-                    text=f"✅ Opened in VS Code:\n`{folder_path}`",
-                    parse_mode="Markdown"
-                )
-
-            openfolder_options.pop(user_id, None)
+            await query.edit_message_text(f"Opening `{folder_path}` in VS Code...", parse_mode="Markdown")
+            success, message = open_folder_in_vscode(folder_path)
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text=message,
+                parse_mode="Markdown",
+            )
+            if success:
+                openfolder_options.pop(user_id, None)
 
         except Exception as e:
             await query.answer(f"Error: {str(e)}", show_alert=True)
             logger.error(f"Error in openfolder callback: {e}", exc_info=True)
 
-
     # Handle browser open selection
     elif query.data.startswith("browser_"):
         browser_key = query.data.replace("browser_", "")
-
-        BROWSER_PATHS = {
-            "edge": [
-                r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-                r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
-            ],
-            "chrome": [
-                r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-                r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
-                os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
-            ],
-            "firefox": [
-                r"C:\Program Files\Mozilla Firefox\firefox.exe",
-                r"C:\Program Files (x86)\Mozilla Firefox\firefox.exe",
-            ],
-            "brave": [
-                os.path.expandvars(r"%LOCALAPPDATA%\BraveSoftware\Brave-Browser\Application\brave.exe"),
-                r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
-            ],
-        }
-
-        BROWSER_LABELS = {
-            "edge": "Microsoft Edge",
-            "chrome": "Google Chrome",
-            "firefox": "Mozilla Firefox",
-            "brave": "Brave",
-        }
-
-        paths = BROWSER_PATHS.get(browser_key, [])
-        exe_path = next((p for p in paths if os.path.exists(p)), None)
-
-        if not exe_path:
-            # fallback: try launching by name via shell
-            fallback_names = {"edge": "msedge", "chrome": "chrome", "firefox": "firefox", "brave": "brave"}
-            exe_path = fallback_names.get(browser_key, browser_key)
-            use_shell = True
-        else:
-            use_shell = False
-
-        label = BROWSER_LABELS.get(browser_key, browser_key.title())
-
-        try:
-            if use_shell:
-                subprocess.Popen(
-                    f'start /max "" {exe_path}',
-                    shell=True
-                )
-            else:
-                subprocess.Popen(
-                    [exe_path, "--start-maximized"],
-                    shell=False
-                )
-
-            await query.edit_message_text(
-                f"✅ Opening *{label}* in maximized window...",
-                parse_mode="Markdown"
-            )
-            logger.info(f"Opened browser: {label} via {exe_path}")
-
-        except Exception as e:
-            await query.edit_message_text(f"❌ Failed to open {label}: {str(e)}")
-            logger.error(f"Browser open error ({browser_key}): {e}")
-
-
+        success, message = launch_browser(browser_key)
+        await query.edit_message_text(message)
+        if not success:
+            logger.warning("Browser callback failed for %s: %s", browser_key, message)
 
 async def handle_dropbox_delete(update: Update, context: ContextTypes.DEFAULT_TYPE, query):
     """Handle Dropbox file deletion request."""
@@ -453,7 +277,7 @@ async def handle_dropbox_delete(update: Update, context: ContextTypes.DEFAULT_TY
         dropbox_path = parts[3]
         
         await query.edit_message_text(
-            f"🗑️ Deleting file from Dropbox...\n\n"
+            f"Deleting file from Dropbox...\n\n"
             f"File: {os.path.basename(dropbox_path)}"
         )
         
@@ -463,14 +287,14 @@ async def handle_dropbox_delete(update: Update, context: ContextTypes.DEFAULT_TY
         if result['success']:
             await context.bot.send_message(
                 chat_id=query.message.chat_id,
-                text=f"✅ File deleted from Dropbox successfully!\n\n"
+                text=f"File deleted from Dropbox successfully!\n\n"
                      f"File: {os.path.basename(dropbox_path)}"
             )
             logger.info(f"Deleted file from Dropbox: {dropbox_path}")
         else:
             await context.bot.send_message(
                 chat_id=query.message.chat_id,
-                text=f"❌ Failed to delete file from Dropbox:\n{result['error']}\n\n"
+                text=f"Failed to delete file from Dropbox:\n{result['error']}\n\n"
                      f"You can delete it manually from the Dropbox app."
             )
             logger.error(f"Failed to delete from Dropbox: {result['error']}")
@@ -479,7 +303,7 @@ async def handle_dropbox_delete(update: Update, context: ContextTypes.DEFAULT_TY
         logger.error(f"Error in handle_dropbox_delete: {e}")
         await context.bot.send_message(
             chat_id=query.message.chat_id,
-            text=f"❌ Error: {str(e)}"
+            text=f"Error: {str(e)}"
         )
 
 
@@ -535,7 +359,7 @@ async def handle_upload_choice(update: Update, context: ContextTypes.DEFAULT_TYP
         # Check if we have state for this user
         if user_id not in large_file_upload_state:
             await query.edit_message_text(
-                "❌ Upload session expired. Please try again."
+                "Upload session expired. Please try again."
             )
             return
         
@@ -543,7 +367,7 @@ async def handle_upload_choice(update: Update, context: ContextTypes.DEFAULT_TYP
         if time.time() - large_file_upload_state[user_id]['timestamp'] > 600:
             del large_file_upload_state[user_id]
             await query.edit_message_text(
-                "❌ Upload session expired (10 minutes). Please try again."
+                "Upload session expired (10 minutes). Please try again."
             )
             return
         
@@ -555,19 +379,19 @@ async def handle_upload_choice(update: Update, context: ContextTypes.DEFAULT_TYP
             service = 'tempfile'
             service_name = 'TempFile.org'
             await query.edit_message_text(
-                f"⚡ Starting TempFile.org upload...\n\n"
+                f"Starting TempFile.org upload...\n\n"
                 f"Uploading {file_size_mb:.2f} MB..."
             )
         elif query.data.startswith("upload_dropbox_"):
             service = 'dropbox'
             service_name = 'Dropbox'
             await query.edit_message_text(
-                f"☁️ Starting Dropbox upload...\n\n"
+                f"Starting Dropbox upload...\n\n"
                 f"Uploading {file_size_mb:.2f} MB...\n"
                 f"This may take a few minutes for large files..."
             )
         else:
-            await query.edit_message_text("❌ Unknown upload service")
+            await query.edit_message_text("Unknown upload service")
             return
         
         # Upload file
@@ -579,12 +403,12 @@ async def handle_upload_choice(update: Update, context: ContextTypes.DEFAULT_TYP
             expiry = upload_result.get('expiry', 'Unknown')
             
             message_text = (
-                f"✅ Upload successful!\n\n"
-                f"📥 Download your APK:\n{upload_result['link']}\n\n"
-                f"ℹ️ Service: {service_used}\n"
-                f"⏰ Expires: {expiry}\n\n"
-                f"💡 Tip: Open the link on your Android device to install directly!\n\n"
-                f"📂 Local path (if needed):\n{file_path}"
+                f"Upload successful!\n\n"
+                f"Download your APK:\n{upload_result['link']}\n\n"
+                f"Service: {service_used}\n"
+                f"Expires: {expiry}\n\n"
+                f"Tip: Open the link on your Android device to install directly!\n\n"
+                f"Local path (if needed):\n{file_path}"
             )
             
             # Add delete button for Dropbox uploads
@@ -593,7 +417,7 @@ async def handle_upload_choice(update: Update, context: ContextTypes.DEFAULT_TYP
                 dropbox_file_path = f'/{os.path.basename(file_path)}'
                 
                 keyboard = [
-                    [InlineKeyboardButton("🗑️ Delete from Dropbox", callback_data=f"delete_dropbox_{user_id}_{dropbox_file_path}")]
+                    [InlineKeyboardButton("Delete from Dropbox", callback_data=f"delete_dropbox_{user_id}_{dropbox_file_path}")]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
@@ -612,8 +436,8 @@ async def handle_upload_choice(update: Update, context: ContextTypes.DEFAULT_TYP
         else:
             await context.bot.send_message(
                 chat_id=query.message.chat_id,
-                text=f"❌ Upload failed: {upload_result['error']}\n\n"
-                     f"📂 File location:\n{file_path}\n\n"
+                text=f"Upload failed: {upload_result['error']}\n\n"
+                     f"File location:\n{file_path}\n\n"
                      f"Please retrieve it manually or try another upload method."
             )
             logger.error(f"Upload to {service_name} failed: {upload_result['error']}")
@@ -625,10 +449,9 @@ async def handle_upload_choice(update: Update, context: ContextTypes.DEFAULT_TYP
         logger.error(f"Error in handle_upload_choice: {e}")
         await context.bot.send_message(
             chat_id=query.message.chat_id,
-            text=f"❌ Error: {str(e)}"
+            text=f"Error: {str(e)}"
         )
 
 
 # Claude Desktop Automation Commands
-
 

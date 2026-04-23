@@ -223,6 +223,7 @@ Gemini 身份验证步骤提供四个选项：
 | `pdagent status` | 检查守护进程是否正在运行 |
 | `pdagent configure` | 运行交互式设置向导 |
 | `pdagent setup` | 检查并安装系统依赖 |
+| `pdagent startup <enable\|disable\|status\|configure>` | Manage automatic startup after Windows login |
 | `pdagent auth` | 管理 Gemini 身份验证凭据 |
 | `pdagent version` | 打印已安装版本 |
 

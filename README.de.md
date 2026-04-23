@@ -181,6 +181,8 @@ pdagent
 | `pdagent restart` | Dienst neu starten |
 | `pdagent status` | Status prüfen |
 | `pdagent configure` | Einrichtungsassistent |
+| `pdagent setup` | Check and install system dependencies (for example Tesseract OCR) |
+| `pdagent startup <enable\|disable\|status\|configure>` | Manage automatic startup after Windows login |
 | `pdagent auth` | Gemini-Zugangsdaten verwalten |
 | `pdagent version` | Installierte Version anzeigen |
 

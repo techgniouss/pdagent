@@ -139,6 +139,15 @@ class SchedulerRegistry:
             return self.save()
         return False
 
+    def update_task_metadata(self, task_id: str, metadata: dict) -> bool:
+        """Replace the stored metadata for one task."""
+        for task_dict in self.tasks:
+            if task_dict.get("id") != task_id:
+                continue
+            task_dict["metadata"] = dict(metadata)
+            return self.save()
+        return False
+
     def finalize_task_run(
         self,
         task_id: str,

@@ -24,6 +24,304 @@ from pocket_desk_agent.config import Config
 
 logger = logging.getLogger(__name__)
 
+
+def _discover_build_repositories(base_dir: str) -> list[str]:
+    """Return repositories under ``base_dir`` that contain a package.json file."""
+    repos: list[str] = []
+
+    package_json_path = os.path.join(base_dir, "package.json")
+    if os.path.exists(package_json_path):
+        repos.append(base_dir)
+        return repos
+
+    for item in os.listdir(base_dir):
+        item_path = os.path.join(base_dir, item)
+        if os.path.isdir(item_path) and os.path.exists(os.path.join(item_path, "package.json")):
+            repos.append(item_path)
+
+    return repos
+
+
+def _filter_build_scripts(scripts: dict[str, str]) -> dict[str, str]:
+    """Prefer build-related npm scripts while falling back to the full script map."""
+    build_scripts = {
+        key: value
+        for key, value in scripts.items()
+        if any(keyword in key.lower() for keyword in ["android", "build", "release", "debug"])
+    }
+    return build_scripts or scripts
+
+
+def _load_repo_scripts(repo_path: str) -> dict[str, str]:
+    """Load and filter scripts from a repository's package.json."""
+    package_json_path = os.path.join(repo_path, "package.json")
+    with open(package_json_path, "r", encoding="utf-8") as handle:
+        package_data = json.load(handle)
+
+    scripts = package_data.get("scripts", {})
+    if not isinstance(scripts, dict):
+        return {}
+
+    normalized_scripts = {str(name): str(command) for name, command in scripts.items()}
+    return _filter_build_scripts(normalized_scripts)
+
+
+def prepare_build_workflow(
+    user_id: int,
+    current_dir: str,
+    project_query: str | None = None,
+) -> tuple[bool, str]:
+    """Prime the existing build-selection state for slash commands or Gemini."""
+    current_path = str(current_dir)
+    if not os.path.exists(current_path):
+        build_state.pop(user_id, None)
+        return (
+            False,
+            f"Current directory not found:\n{current_path}\n\n"
+            "Run '/cd <path>' to change directory or 'pdagent configure' to set CLAUDE_DEFAULT_REPO_PATH.",
+        )
+
+    try:
+        repos = _discover_build_repositories(current_path)
+    except Exception as exc:
+        build_state.pop(user_id, None)
+        logger.error("Failed to discover build repositories in %s: %s", current_path, exc, exc_info=True)
+        return False, f"Error listing repositories: {exc}"
+
+    if not repos:
+        build_state.pop(user_id, None)
+        return (
+            False,
+            f"No projects with package.json found in:\n{current_path}\n\n"
+            "Use /cd to navigate to your projects directory first.",
+        )
+
+    filtered_repos = repos
+    project_hint = (project_query or "").strip().lower()
+    if project_hint:
+        filtered_repos = [
+            repo_path
+            for repo_path in repos
+            if project_hint in os.path.basename(repo_path).lower()
+        ]
+        if not filtered_repos:
+            repo_names = ", ".join(os.path.basename(path) for path in repos[:10])
+            if len(repos) > 10:
+                repo_names += ", ..."
+            build_state.pop(user_id, None)
+            return (
+                False,
+                f"No project matched '{project_query}'.\n\n"
+                f"Available projects here: {repo_names}",
+            )
+
+    if len(filtered_repos) == 1:
+        selected_repo = filtered_repos[0]
+        try:
+            build_scripts = _load_repo_scripts(selected_repo)
+        except Exception as exc:
+            build_state.pop(user_id, None)
+            logger.error("Failed to load package.json for %s: %s", selected_repo, exc, exc_info=True)
+            return False, f"Error reading package.json: {exc}"
+
+        if not build_scripts:
+            build_state.pop(user_id, None)
+            return False, f"No scripts found in package.json for {os.path.basename(selected_repo)}"
+
+        build_state[user_id] = {
+            "repos": filtered_repos,
+            "selected_repo": selected_repo,
+            "scripts": build_scripts,
+            "step": "select_script",
+            "timestamp": time.time(),
+        }
+
+        repo_name = os.path.basename(selected_repo)
+        message = f"Project detected: {repo_name}\n\nAvailable npm scripts:\n\n"
+        for index, (script_name, script_cmd) in enumerate(build_scripts.items(), 1):
+            preview = f"{script_cmd[:60]}{'...' if len(script_cmd) > 60 else ''}"
+            message += f"{index}. npm run {script_name}\n   -> {preview}\n\n"
+
+        message += "Reply with the number or exact script name to run it.\n\nExample: 1 or android"
+        return True, message
+
+    build_state[user_id] = {
+        "repos": filtered_repos,
+        "step": "select_repo",
+        "timestamp": time.time(),
+    }
+
+    message = f"Found {len(filtered_repos)} React Native repositories:\n\n"
+    for index, repo_path in enumerate(filtered_repos, 1):
+        message += f"{index}. {os.path.basename(repo_path)}\n"
+
+    message += "\nReply with the number or name to select a repository.\n\nExample: 1 or MyApp"
+    return True, message
+
+
+
+def _discover_android_repositories(base_dir: str) -> list[str]:
+    """Return repositories under ``base_dir`` that contain an Android project."""
+    repos: list[str] = []
+
+    android_path = os.path.join(base_dir, "android")
+    if os.path.exists(android_path):
+        repos.append(base_dir)
+        return repos
+
+    for item in os.listdir(base_dir):
+        item_path = os.path.join(base_dir, item)
+        if os.path.isdir(item_path) and os.path.exists(os.path.join(item_path, "android")):
+            repos.append(item_path)
+
+    return repos
+
+
+def _format_apk_folder_contents(folder_path: str) -> tuple[bool, str]:
+    """Render a folder listing for the APK retrieval workflow."""
+    try:
+        items = os.listdir(folder_path)
+    except Exception as exc:
+        logger.error("Error reading APK output folder %s: %s", folder_path, exc, exc_info=True)
+        return False, f"Error reading folder: {exc}"
+
+    if not items:
+        return True, "Folder is empty.\n\nReply with 'back' to go up."
+
+    message = f"Current folder: {os.path.basename(folder_path)}\n\n"
+
+    folders: list[str] = []
+    files: list[str] = []
+    for item in items:
+        item_path = os.path.join(folder_path, item)
+        if os.path.isdir(item_path):
+            folders.append(item)
+        else:
+            files.append(item)
+
+    for index, folder in enumerate(sorted(folders), 1):
+        message += f"{index}. [DIR] {folder}/\n"
+
+    for index, filename in enumerate(sorted(files), len(folders) + 1):
+        file_path = os.path.join(folder_path, filename)
+        if filename.endswith(".apk"):
+            file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
+            message += f"{index}. [APK] {filename} ({file_size_mb:.2f} MB)\n"
+        else:
+            message += f"{index}. [FILE] {filename}\n"
+
+    message += "\nReply with:\n"
+    message += "- Number to navigate/select\n"
+    message += "- 'back' to go up\n"
+    message += "- 'cancel' to exit\n\n"
+    message += f"Path: {folder_path}"
+    return True, message
+
+
+def prepare_apk_retrieval_workflow(
+    user_id: int,
+    current_dir: str,
+    project_query: str | None = None,
+) -> tuple[bool, str]:
+    """Prime the existing APK retrieval state for slash commands or Gemini."""
+    current_path = str(current_dir)
+    if not os.path.exists(current_path):
+        apk_retrieval_state.pop(user_id, None)
+        return (
+            False,
+            f"Current directory not found:\n{current_path}\n\n"
+            "Run '/cd <path>' to change directory or 'pdagent configure' to set CLAUDE_DEFAULT_REPO_PATH.",
+        )
+
+    try:
+        repos = _discover_android_repositories(current_path)
+    except Exception as exc:
+        apk_retrieval_state.pop(user_id, None)
+        logger.error("Failed to discover Android repositories in %s: %s", current_path, exc, exc_info=True)
+        return False, f"Error listing repositories: {exc}"
+
+    if not repos:
+        apk_retrieval_state.pop(user_id, None)
+        return (
+            False,
+            f"No projects with android folder found in:\n{current_path}\n\n"
+            "Use /cd to navigate to your projects directory first.",
+        )
+
+    filtered_repos = repos
+    project_hint = (project_query or "").strip().lower()
+    if project_hint:
+        filtered_repos = [
+            repo_path
+            for repo_path in repos
+            if project_hint in os.path.basename(repo_path).lower()
+        ]
+        if not filtered_repos:
+            repo_names = ", ".join(os.path.basename(path) for path in repos[:10])
+            if len(repos) > 10:
+                repo_names += ", ..."
+            apk_retrieval_state.pop(user_id, None)
+            return (
+                False,
+                f"No project matched '{project_query}'.\n\n"
+                f"Available Android projects here: {repo_names}",
+            )
+
+    if len(filtered_repos) == 1:
+        selected_repo = filtered_repos[0]
+        outputs_path = os.path.join(selected_repo, "android", "app", "build", "outputs")
+
+        if not os.path.exists(outputs_path):
+            apk_retrieval_state.pop(user_id, None)
+            return (
+                False,
+                f"No build outputs found for {os.path.basename(selected_repo)}\n\n"
+                "Build the app first using /build command.",
+            )
+
+        try:
+            if not os.listdir(outputs_path):
+                apk_retrieval_state.pop(user_id, None)
+                return (
+                    False,
+                    f"Build outputs folder is empty for {os.path.basename(selected_repo)}\n\n"
+                    "Build the app first using /build command.",
+                )
+        except Exception as exc:
+            apk_retrieval_state.pop(user_id, None)
+            logger.error("Failed to inspect APK outputs in %s: %s", outputs_path, exc, exc_info=True)
+            return False, f"Error reading folder: {exc}"
+
+        success, folder_message = _format_apk_folder_contents(outputs_path)
+        if not success:
+            apk_retrieval_state.pop(user_id, None)
+            return False, folder_message
+
+        apk_retrieval_state[user_id] = {
+            "repos": filtered_repos,
+            "selected_repo": selected_repo,
+            "current_path": outputs_path,
+            "step": "navigate",
+            "timestamp": time.time(),
+        }
+
+        repo_name = os.path.basename(selected_repo)
+        return True, f"Project detected: {repo_name}\n\nLoading build outputs...\n\n{folder_message}"
+
+    apk_retrieval_state[user_id] = {
+        "repos": filtered_repos,
+        "step": "select_repo",
+        "timestamp": time.time(),
+    }
+
+    message = f"Found {len(filtered_repos)} Android repositories:\n\n"
+    for index, repo_path in enumerate(filtered_repos, 1):
+        message += f"{index}. {os.path.basename(repo_path)}\n"
+
+    message += "\nReply with the number or name to select a repository.\n\nExample: 1 or MyApp"
+    return True, message
+
+
 def upload_to_tempfile(file_path: str) -> dict:
     """
     Upload file to tempfile.org (up to 100MB, temporary storage).
@@ -279,103 +577,18 @@ async def build_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /build command - start build workflow."""
     if not update.message:
         return
-    
+
     user_id = update.effective_user.id
-    
+
     await update.message.reply_text("🔨 Starting build workflow...\n\nListing local repositories...")
-    
-    try:
-        current_dir = file_manager.get_current_dir(user_id)
-        current_dir_str = str(current_dir)
-        
-        # Check if current path exists
-        if not current_dir.exists():
-            await update.message.reply_text(
-                f"❌ Current directory not found:\n{current_dir_str}\n\n"
-                f"Run '/cd <path>' to change directory or 'pdagent configure' to set CLAUDE_DEFAULT_REPO_PATH."
-            )
-            return
-        
-        repos = []
-        
-        # First check if the current directory IS the project
-        package_json_path = os.path.join(current_dir_str, 'package.json')
-        if os.path.exists(package_json_path):
-            repos.append(current_dir_str)
-        else:
-            # Otherwise look for subdirectories
-            for item in os.listdir(current_dir_str):
-                item_path = os.path.join(current_dir_str, item)
-                if os.path.isdir(item_path):
-                    if os.path.exists(os.path.join(item_path, 'package.json')):
-                        repos.append(item_path)
-        
-        if not repos:
-            await update.message.reply_text(
-                f"❌ No projects with package.json found in:\n{current_dir_str}\n\n"
-                f"Use /cd to navigate to your projects directory first."
-            )
-            return
-        
-        # Fast-forward if only 1 project is found
-        if len(repos) == 1:
-            selected_repo = repos[0]
-            package_json_path = os.path.join(selected_repo, 'package.json')
-            try:
-                with open(package_json_path, 'r', encoding='utf-8') as f:
-                    package_data = json.load(f)
-                
-                scripts = package_data.get('scripts', {})
-                if not scripts:
-                    await update.message.reply_text(f"❌ No scripts found in package.json for {os.path.basename(selected_repo)}")
-                    return
-                
-                build_scripts = {k: v for k, v in scripts.items() if any(kw in k.lower() for kw in ['android', 'build', 'release', 'debug'])}
-                if not build_scripts:
-                    build_scripts = scripts
-                
-                # Directly jump to select_script phase
-                build_state[user_id] = {
-                    'repos': repos,
-                    'selected_repo': selected_repo,
-                    'scripts': build_scripts,
-                    'step': 'select_script',
-                    'timestamp': time.time()
-                }
-                
-                repo_name = os.path.basename(selected_repo)
-                message = f"✅ Project detected: {repo_name}\n\n📋 Available npm scripts:\n\n"
-                for i, (s_name, s_cmd) in enumerate(build_scripts.items(), 1):
-                    message += f"{i}. npm run {s_name}\n   → {s_cmd[:60]}{'...' if len(s_cmd) > 60 else ''}\n\n"
-                
-                message += "💡 Reply with the number or exact script name to run it.\n\nExample: 1 or android"
-                await update.message.reply_text(message)
-                logger.info(f"Fast-forwarded to script selection for project {repo_name}")
-                return
-            except Exception as e:
-                logger.error(f"Failed to fast-forward build script prep: {e}")
-                # Fall back to normal repo selection if it fails
-        
-        # Normal flow (multiple repos)
-        build_state[user_id] = {
-            'repos': repos,
-            'step': 'select_repo',
-            'timestamp': time.time()
-        }
-        
-        message = f"📱 Found {len(repos)} React Native repositories:\n\n"
-        for i, repo_path in enumerate(repos, 1):
-            repo_name = os.path.basename(repo_path)
-            message += f"{i}. {repo_name}\n"
-        
-        message += f"\n💡 Reply with the number or name to select a repository.\n\nExample: 1 or MyApp"
-        
-        await update.message.reply_text(message)
-        logger.info(f"Listed {len(repos)} repositories for build workflow (user {user_id})")
-        
-    except Exception as e:
-        await update.message.reply_text(f"❌ Error listing repositories: {str(e)}")
-        logger.error(f"Error in build_command: {e}")
+
+    current_dir = str(file_manager.get_current_dir(user_id))
+    success, message = prepare_build_workflow(user_id, current_dir)
+    await update.message.reply_text(message)
+    if success:
+        logger.info("Prepared build workflow for user %s in %s", user_id, current_dir)
+    else:
+        logger.warning("Build workflow preparation failed for user %s: %s", user_id, message)
 
 
 async def check_build_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
@@ -783,111 +996,22 @@ async def find_and_send_apk(update: Update, context: ContextTypes.DEFAULT_TYPE, 
 
 # APK Retrieval Commands
 
-# Store APK retrieval state for conversational flow
-apk_retrieval_state = {}
-
-
 async def getapk_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /getapk command - retrieve existing APK files."""
     if not update.message:
         return
-    
+
     user_id = update.effective_user.id
-    
-    await update.message.reply_text("📦 APK Retrieval Tool\n\nListing local repositories...")
-    
-    try:
-        current_dir = file_manager.get_current_dir(user_id)
-        current_dir_str = str(current_dir)
-        
-        # Check if current path exists
-        if not current_dir.exists():
-            await update.message.reply_text(
-                f"❌ Current directory not found:\n{current_dir_str}\n\n"
-                f"Run '/cd <path>' to change directory or 'pdagent configure' to set CLAUDE_DEFAULT_REPO_PATH."
-            )
-            return
-        
-        repos = []
-        
-        # First check if the current directory IS the project (has android folder)
-        android_path = os.path.join(current_dir_str, 'android')
-        if os.path.exists(android_path):
-            repos.append(current_dir_str)
-        else:
-            # Otherwise look for subdirectories
-            for item in os.listdir(current_dir_str):
-                item_path = os.path.join(current_dir_str, item)
-                if os.path.isdir(item_path):
-                    if os.path.exists(os.path.join(item_path, 'android')):
-                        repos.append(item_path)
-        
-        if not repos:
-            await update.message.reply_text(
-                f"❌ No projects with android folder found in:\n{current_dir_str}\n\n"
-                f"Use /cd to navigate to your projects directory first."
-            )
-            return
-        
-        # Fast-forward if only 1 project is found
-        if len(repos) == 1:
-            selected_repo = repos[0]
-            outputs_path = os.path.join(selected_repo, 'android', 'app', 'build', 'outputs')
-            
-            if not os.path.exists(outputs_path):
-                await update.message.reply_text(
-                    f"❌ No build outputs found for {os.path.basename(selected_repo)}\n\n"
-                    f"Build the app first using /build command."
-                )
-                return
-                
-            try:
-                items = os.listdir(outputs_path)
-                if not items:
-                    await update.message.reply_text(
-                        f"❌ Build outputs folder is empty for {os.path.basename(selected_repo)}\n\n"
-                        f"Build the app first using /build command."
-                    )
-                    return
-                
-                # Directly jump to navigate phase
-                apk_retrieval_state[user_id] = {
-                    'repos': repos,
-                    'selected_repo': selected_repo,
-                    'current_path': outputs_path,
-                    'step': 'navigate',
-                    'timestamp': time.time()
-                }
-                
-                repo_name = os.path.basename(selected_repo)
-                await update.message.reply_text(f"✅ Project detected: {repo_name}\n\nLoading build outputs...")
-                await show_folder_contents(update, user_id, outputs_path)
-                logger.info(f"Fast-forwarded to APK selection for project {repo_name}")
-                return
-            except Exception as e:
-                logger.error(f"Failed to fast-forward getapk prep: {e}")
-                # Fall back to normal repo selection
-                
-        # Normal flow (multiple repos)
-        apk_retrieval_state[user_id] = {
-            'repos': repos,
-            'step': 'select_repo',
-            'timestamp': time.time()
-        }
-        
-        message = f"📱 Found {len(repos)} Android repositories:\n\n"
-        for i, repo_path in enumerate(repos, 1):
-            repo_name = os.path.basename(repo_path)
-            message += f"{i}. {repo_name}\n"
-        
-        message += f"\n💡 Reply with the number or name to select a repository.\n\nExample: 1 or MyApp"
-        
-        await update.message.reply_text(message)
-        logger.info(f"Listed {len(repos)} repositories for APK retrieval (user {user_id})")
-        
-    except Exception as e:
-        await update.message.reply_text(f"❌ Error listing repositories: {str(e)}")
-        logger.error(f"Error in getapk_command: {e}")
+
+    await update.message.reply_text("APK Retrieval Tool\n\nListing local repositories...")
+
+    current_dir = str(file_manager.get_current_dir(user_id))
+    success, message = prepare_apk_retrieval_workflow(user_id, current_dir)
+    await update.message.reply_text(message)
+    if success:
+        logger.info("Prepared APK retrieval workflow for user %s in %s", user_id, current_dir)
+    else:
+        logger.warning("APK retrieval workflow preparation failed for user %s: %s", user_id, message)
 
 
 async def check_apk_retrieval_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
@@ -1097,54 +1221,10 @@ async def check_apk_retrieval_selection(update: Update, context: ContextTypes.DE
 
 async def show_folder_contents(update: Update, user_id: int, folder_path: str):
     """Show contents of a folder during APK retrieval."""
-    try:
-        items = os.listdir(folder_path)
-        
-        if not items:
-            await update.message.reply_text(
-                f"📂 Folder is empty.\n\n"
-                f"Reply with 'back' to go up."
-            )
-            return
-        
-        message = f"📂 Current folder: {os.path.basename(folder_path)}\n\n"
-        
-        folders = []
-        files = []
-        
-        for item in items:
-            item_path = os.path.join(folder_path, item)
-            if os.path.isdir(item_path):
-                folders.append(item)
-            else:
-                files.append(item)
-        
-        # Show folders first
-        for i, folder in enumerate(sorted(folders), 1):
-            message += f"{i}. 📁 {folder}/\n"
-        
-        # Show files
-        for i, file in enumerate(sorted(files), len(folders) + 1):
-            file_size = os.path.getsize(os.path.join(folder_path, file))
-            file_size_mb = file_size / (1024 * 1024)
-            if file.endswith('.apk'):
-                message += f"{i}. 📦 {file} ({file_size_mb:.2f} MB)\n"
-            else:
-                message += f"{i}. 📄 {file}\n"
-        
-        message += f"\n💡 Reply with:\n"
-        message += f"• Number to navigate/select\n"
-        message += f"• 'back' to go up\n"
-        message += f"• 'cancel' to exit\n\n"
-        message += f"Path: {folder_path}"
-        
-        await update.message.reply_text(message)
-        
-    except Exception as e:
-        await update.message.reply_text(f"❌ Error reading folder: {str(e)}")
-        logger.error(f"Error showing folder contents: {e}")
-
-
+    success, message = _format_apk_folder_contents(folder_path)
+    await update.message.reply_text(message)
+    if not success:
+        logger.error("Error showing folder contents for %s: %s", folder_path, message)
 
 
 async def send_apk_file(update: Update, context: ContextTypes.DEFAULT_TYPE, apk_path: str):
@@ -1224,5 +1304,3 @@ async def send_apk_file(update: Update, context: ContextTypes.DEFAULT_TYPE, apk_
         logger.error(f"Error in send_apk_file: {e}")
 
 # Scheduler Commands
-
-

@@ -199,6 +199,8 @@ Schedule one-shot or repeating automations, Claude prompts, and temporary permis
 | `/schedule <HH:MM>` | Start recording an automation sequence to run at a specific time. | `/schedule 14:00` |
 | `/repeatschedule every <interval> for <duration>` | Record an automation sequence that starts immediately after `/done` and repeats for a limited time. | `/repeatschedule every 1m for 15m` |
 | `/watchperm <claude\|antigravity> every <interval> for <duration> [labels=...]` | Repeatedly scan the Claude or Antigravity window for approval buttons like `Allow` or `Run` and click them when there is exactly one strong match. | `/watchperm claude every 1m for 15m` |
+| `/watchscreen <text> every <interval> press <hotkey>` | Repeatedly scan the full screen or a target app for visible text and send a hotkey whenever it appears, until you stop the watcher. Optional suffixes: `in <screen\|claude\|antigravity>` and `cooldown <duration>`. | `/watchscreen Allow command every 1m press ctrl+enter in claude cooldown 30s` |
+| `/stopscreenwatch [task_id\|all]` | Stop one active screen watcher by task ID or stop all active screen watchers for your account. | `/stopscreenwatch all` |
 | `/claudeschedule <HH:MM> <text>` | Schedule a prompt to be sent to Claude at a specific time. | `/claudeschedule 02:00 run tests and summarize` |
 | `/listschedules` | View all pending scheduled tasks with countdown timers. | `/listschedules` |
 | `/cancelschedule <id>` | Cancel a pending scheduled task by its ID. | `/cancelschedule claude_123` |
@@ -212,7 +214,7 @@ Schedule one-shot or repeating automations, Claude prompts, and temporary permis
 - `every 30s for 10m`
 - `every 2h for 6h`
 
-`/watchperm` is Windows-only and requires Tesseract OCR. For safety, it only clicks when the target app window has a single clear OCR match among the configured labels.
+`/watchperm` and `/watchscreen` are Windows-only and require Tesseract OCR. `/watchperm` only clicks when the target app window has a single clear OCR match among the configured labels. `/watchscreen` can watch the whole screen or just Claude/Antigravity, and an optional cooldown can suppress repeated triggers while the same dialog stays visible.
 
 ---
 
