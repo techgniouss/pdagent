@@ -13,6 +13,17 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.tox/
+.nox/
+.pyre/
+.coverage
+.coverage.*
+htmlcov/
+.pytest_tmp/
 .Python
 build/
 develop-eggs/
@@ -43,6 +54,7 @@ venv.bak/
 .gemini/
 .antigravity/
 .kiro/
+plugins/
 brain/
 logs/
 *.log

@@ -181,6 +181,8 @@ pdagent
 | `pdagent restart` | Daemon'ı yeniden başlat |
 | `pdagent status` | Daemon durumunu kontrol et |
 | `pdagent configure` | Kurulum sihirbazı |
+| `pdagent setup` | Check and install system dependencies (for example Tesseract OCR) |
+| `pdagent startup <enable\|disable\|status\|configure>` | Manage automatic startup after Windows login |
 | `pdagent auth` | Gemini kimlik bilgilerini yönet |
 | `pdagent version` | Kurulu sürüm |
 

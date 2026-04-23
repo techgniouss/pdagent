@@ -4,8 +4,9 @@ import logging
 import os
 import platform
 import subprocess
-import asyncio
 import time
+import threading
+from pathlib import Path
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
@@ -37,6 +38,39 @@ def _load_win_deps():
 
 
 logger = logging.getLogger(__name__)
+
+_BROWSER_PATHS = {
+    "edge": [
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+    ],
+    "chrome": [
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
+    ],
+    "firefox": [
+        r"C:\Program Files\Mozilla Firefox\firefox.exe",
+        r"C:\Program Files (x86)\Mozilla Firefox\firefox.exe",
+    ],
+    "brave": [
+        os.path.expandvars(r"%LOCALAPPDATA%\BraveSoftware\Brave-Browser\Application\brave.exe"),
+        r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
+    ],
+}
+_BROWSER_FALLBACK_NAMES = {
+    "edge": "msedge",
+    "chrome": "chrome",
+    "firefox": "firefox",
+    "brave": "brave",
+}
+_BROWSER_LABELS = {
+    "edge": "Microsoft Edge",
+    "chrome": "Google Chrome",
+    "firefox": "Mozilla Firefox",
+    "brave": "Brave",
+}
+_FOLDER_SCAN_LIMIT = 40
 
 
 def _find_vscode_window():
@@ -96,6 +130,259 @@ def _run_vscode_palette_command(command_text: str) -> tuple[bool, str]:
     return True, ""
 
 
+def _discover_candidate_folders(limit: int = _FOLDER_SCAN_LIMIT) -> list[str]:
+    """Return likely workspace folders from approved roots and common dev locations."""
+    from pocket_desk_agent.handlers._shared import file_manager
+
+    seed_paths = list(getattr(Config, "APPROVED_DIRECTORIES", []))
+    common = [
+        str(Path.home()),
+        str(Path.home() / "Downloads"),
+        str(Path.home() / "Desktop"),
+        str(Path.home() / "Documents"),
+        os.path.expandvars(r"%USERPROFILE%\source"),
+        os.path.expandvars(r"%USERPROFILE%\repos"),
+    ]
+    for candidate in common:
+        if os.path.isdir(candidate) and candidate not in seed_paths:
+            seed_paths.append(candidate)
+
+    folders: list[str] = []
+    seen: set[str] = set()
+    for root in seed_paths:
+        root_path = Path(os.path.expandvars(root)).expanduser()
+        if not root_path.is_dir():
+            continue
+
+        normalized_root = str(root_path.resolve())
+        if not file_manager._is_safe_path(Path(normalized_root)):
+            continue
+        if normalized_root not in seen:
+            seen.add(normalized_root)
+            folders.append(normalized_root)
+            if len(folders) >= limit:
+                break
+
+        try:
+            for entry in os.scandir(normalized_root):
+                if not entry.is_dir(follow_symlinks=False):
+                    continue
+                normalized_subdir = str(Path(entry.path).expanduser().resolve())
+                if not file_manager._is_safe_path(Path(normalized_subdir)):
+                    continue
+                if normalized_subdir in seen:
+                    continue
+                seen.add(normalized_subdir)
+                folders.append(normalized_subdir)
+                if len(folders) >= limit:
+                    return folders
+        except PermissionError:
+            continue
+
+    return folders[:limit]
+
+
+def resolve_workspace_folder(query: str) -> tuple[bool, str]:
+    """Resolve a folder path or folder name to one safe workspace path."""
+    from pocket_desk_agent.handlers._shared import file_manager
+
+    raw_query = query.strip()
+    if not raw_query:
+        return False, "Please provide a folder path or folder name."
+
+    direct_path = Path(os.path.expandvars(raw_query)).expanduser()
+    if direct_path.exists() and direct_path.is_dir():
+        if file_manager._is_safe_path(direct_path):
+            return True, str(direct_path.resolve())
+        return False, f"Access denied: {direct_path} is outside the approved directories."
+
+    folders = _discover_candidate_folders()
+    lowered_query = raw_query.lower()
+    exact_matches = [
+        folder for folder in folders
+        if lowered_query == os.path.basename(folder).lower() or lowered_query == folder.lower()
+    ]
+    matches = exact_matches or [
+        folder for folder in folders
+        if lowered_query in os.path.basename(folder).lower() or lowered_query in folder.lower()
+    ]
+
+    if not matches:
+        return False, f"No folder matched '{raw_query}'."
+    if len(matches) == 1:
+        return True, matches[0]
+
+    preview = "\n".join(f"- {path}" for path in matches[:6])
+    if len(matches) > 6:
+        preview += "\n- ..."
+    return False, f"Multiple folders matched '{raw_query}'. Please be more specific.\n\n{preview}"
+
+
+def launch_browser(browser_key: str) -> tuple[bool, str]:
+    """Open a supported browser in a maximized window."""
+    browser = browser_key.strip().lower()
+    if browser not in _BROWSER_LABELS:
+        supported = ", ".join(sorted(_BROWSER_LABELS))
+        return False, f"Unsupported browser '{browser_key}'. Choose one of: {supported}."
+
+    exe_path = next((path for path in _BROWSER_PATHS.get(browser, []) if os.path.exists(path)), None)
+    label = _BROWSER_LABELS[browser]
+
+    try:
+        if exe_path:
+            subprocess.Popen([exe_path, "--start-maximized"], shell=False)
+        else:
+            subprocess.Popen(f'start /max "" {_BROWSER_FALLBACK_NAMES[browser]}', shell=True)
+        return True, f"Opening {label} in a maximized window."
+    except Exception as exc:
+        logger.error("Failed to open browser %s: %s", browser, exc, exc_info=True)
+        return False, f"Failed to open {label}: {exc}"
+
+
+def open_folder_in_vscode(folder_path: str) -> tuple[bool, str]:
+    """Open a folder in VS Code, focusing the app first when possible."""
+    from pocket_desk_agent.handlers._shared import file_manager
+
+    target_path = Path(os.path.expandvars(folder_path)).expanduser()
+    if not target_path.is_dir():
+        return False, f"Folder not found: {target_path}"
+    target = str(target_path.resolve())
+    if not file_manager._is_safe_path(Path(target)):
+        return False, f"Access denied: {target} is outside the approved directories."
+
+    if platform.system() == "Windows":
+        try:
+            import pyautogui
+            import pyperclip
+        except ImportError as exc:
+            return False, f"Missing dependency: {exc}"
+
+        vscode_window = _find_vscode_window()
+        if vscode_window:
+            try:
+                if vscode_window.isMinimized:
+                    vscode_window.restore()
+                    time.sleep(0.5)
+                vscode_window.activate()
+            except Exception:
+                pass
+
+            time.sleep(0.8)
+            pyautogui.hotkey('ctrl', 'k')
+            time.sleep(0.3)
+            pyautogui.hotkey('ctrl', 'o')
+            time.sleep(1.2)
+            pyperclip.copy(target)
+            pyautogui.hotkey('ctrl', 'a')
+            time.sleep(0.2)
+            pyautogui.hotkey('ctrl', 'v')
+            time.sleep(0.6)
+            pyautogui.press('enter')
+            time.sleep(0.5)
+            return True, f"VS Code is opening folder:\n`{target}`"
+
+        try:
+            subprocess.Popen(["code", target], shell=False)
+            return True, f"Launched VS Code with folder:\n`{target}`"
+        except Exception as exc:
+            logger.error("Failed to launch VS Code with %s: %s", target, exc, exc_info=True)
+            return False, f"Failed to open VS Code folder {target}: {exc}"
+
+    try:
+        subprocess.Popen(["code", target], shell=False)
+        return True, f"Opened in VS Code:\n`{target}`"
+    except Exception as exc:
+        logger.error("Failed to launch VS Code with %s: %s", target, exc, exc_info=True)
+        return False, f"Failed to open VS Code folder {target}: {exc}"
+
+
+def launch_claude_cli(folder_path: str, initial_prompt: str = "") -> tuple[bool, str]:
+    """Open Claude CLI in a folder and optionally send an initial prompt."""
+    from pocket_desk_agent.handlers._shared import file_manager
+
+    target_path = Path(os.path.expandvars(folder_path)).expanduser()
+    if not target_path.is_dir():
+        return False, f"Folder not found: {target_path}"
+    target = str(target_path.resolve())
+    if not file_manager._is_safe_path(Path(target)):
+        return False, f"Access denied: {target} is outside the approved directories."
+    if platform.system() != "Windows":
+        return False, "Claude CLI launching is currently only supported on Windows."
+
+    def launch_and_type() -> None:
+        try:
+            subprocess.Popen(["cmd.exe", "/k", "title Claude CLI && claude"], cwd=target)
+            if not initial_prompt:
+                return
+
+            import pyautogui
+            import pygetwindow as _gw
+
+            window_found = False
+            for _ in range(10):
+                time.sleep(1.0)
+                for window in _gw.getAllWindows():
+                    if "Claude CLI" not in window.title or not window.visible:
+                        continue
+                    try:
+                        if window.isMinimized:
+                            window.restore()
+                        window.activate()
+                        time.sleep(0.5)
+                        window_found = True
+                        break
+                    except Exception:
+                        continue
+                if window_found:
+                    break
+
+            if window_found:
+                time.sleep(1.5)
+                pyautogui.write(initial_prompt, interval=0.01)
+                pyautogui.press('enter')
+            else:
+                logger.error("Could not find Claude CLI window to type prompt into")
+        except Exception as exc:
+            logger.error("Error launching Claude CLI in %s: %s", target, exc, exc_info=True)
+
+    threading.Thread(target=launch_and_type, daemon=True).start()
+    if initial_prompt:
+        return True, f"Claude CLI opened in:\n`{target}`\n\nInitial prompt queued."
+    return True, f"Claude CLI opened in:\n`{target}`"
+
+
+def send_prompt_to_claude_cli(prompt: str) -> tuple[bool, str]:
+    """Send a prompt to the active Claude CLI window."""
+    if platform.system() != "Windows":
+        return False, "This feature is only supported on Windows."
+
+    message = prompt.strip()
+    if not message:
+        return False, "Please provide a prompt to send to Claude CLI."
+
+    try:
+        import pyautogui
+        import pygetwindow as _gw
+    except ImportError as exc:
+        return False, f"Missing dependency: {exc}"
+
+    for window in _gw.getAllWindows():
+        if "Claude CLI" not in window.title or not window.visible:
+            continue
+        try:
+            if window.isMinimized:
+                window.restore()
+            window.activate()
+            time.sleep(0.5)
+            pyautogui.write(message, interval=0.01)
+            pyautogui.press('enter')
+            return True, "Follow-up prompt sent to Claude CLI."
+        except Exception:
+            continue
+
+    return False, "Could not find the open Claude CLI window. Run /claudecli first."
+
+
 def find_antigravity_window():
     """Find Antigravity desktop window and restore if minimized."""
     if not PYWINAUTO_AVAILABLE:
@@ -131,7 +418,7 @@ async def openantigravity_command(update: Update, context: ContextTypes.DEFAULT_
     if not update.message:
         return
     
-    await update.message.reply_text("🚀 Opening Antigravity desktop app...")
+    await update.message.reply_text("Opening Antigravity desktop app...")
     
     try:
         # First check if Antigravity is already running
@@ -145,7 +432,7 @@ async def openantigravity_command(update: Update, context: ContextTypes.DEFAULT_
                     window.activate()
                     time.sleep(0.3)
                     await update.message.reply_text(
-                        "✅ Antigravity app is now active!\n\n"
+                        "Antigravity app is now active!\n\n"
                         "The window has been brought to front."
                     )
                     logger.info("Antigravity window restored and activated")
@@ -162,7 +449,7 @@ async def openantigravity_command(update: Update, context: ContextTypes.DEFAULT_
                 # Common Electron installation paths or protocol handler
                 subprocess.Popen("start antigravity://", shell=True)
                 time.sleep(3)
-                await update.message.reply_text("✅ Attempted to open Antigravity via protocol handler.")
+                await update.message.reply_text("Attempted to open Antigravity via protocol handler.")
                 return
             except Exception:
                 # Try common paths
@@ -173,18 +460,18 @@ async def openantigravity_command(update: Update, context: ContextTypes.DEFAULT_
                 for path in possible_paths:
                     if os.path.exists(path):
                         subprocess.Popen([path])
-                        await update.message.reply_text(f"✅ Opening Antigravity from: {path}")
+                        await update.message.reply_text(f"Opening Antigravity from: {path}")
                         return
                 
                 await update.message.reply_text(
-                    "❌ Could not find Antigravity installation.\n\n"
+                    "Could not find Antigravity installation.\n\n"
                     "Please ensure Antigravity is installed and in your PATH, or that the protocol handler is registered."
                 )
         else:
-            await update.message.reply_text(f"❌ /openantigravity is currently optimized for Windows.")
+            await update.message.reply_text(f"/openantigravity is currently optimized for Windows.")
             
     except Exception as e:
-        await update.message.reply_text(f"❌ Error opening Antigravity: {str(e)}")
+        await update.message.reply_text(f"Error opening Antigravity: {str(e)}")
 
 
 async def antigravitychat_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -193,12 +480,12 @@ async def antigravitychat_command(update: Update, context: ContextTypes.DEFAULT_
         return
     
     if not PYWINAUTO_AVAILABLE:
-        await update.message.reply_text("❌ UI automation is only available on Windows with pywinauto.")
+        await update.message.reply_text("UI automation is only available on Windows with pywinauto.")
         return
         
     window = find_antigravity_window()
     if not window:
-        await update.message.reply_text("❌ Antigravity window not found. Try /openantigravity first.")
+        await update.message.reply_text("Antigravity window not found. Try /openantigravity first.")
         return
     
     try:
@@ -210,10 +497,10 @@ async def antigravitychat_command(update: Update, context: ContextTypes.DEFAULT_
         time.sleep(0.8)
         send_keys('^l')
         
-        await update.message.reply_text("✅ Sent command sequence to Antigravity (Ctrl+Shift+P -> Ctrl+L).")
+        await update.message.reply_text("Sent command sequence to Antigravity (Ctrl+Shift+P -> Ctrl+L).")
         logger.info("Executed Antigravity chat sequence")
     except Exception as e:
-        await update.message.reply_text(f"❌ Error sending commands: {str(e)}")
+        await update.message.reply_text(f"Error sending commands: {str(e)}")
 
 
 async def antigravitymode_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -227,10 +514,10 @@ async def antigravitymode_command(update: Update, context: ContextTypes.DEFAULT_
         
     mode = context.args[0].lower()
     if mode not in ["planning", "fast"]:
-        await update.message.reply_text("❌ Mode must be 'planning' or 'fast'.")
+        await update.message.reply_text("Mode must be 'planning' or 'fast'.")
         return
         
-    await update.message.reply_text(f"🎯 Attempting to switch to {mode} mode...")
+    await update.message.reply_text(f"Attempting to switch to {mode} mode...")
 
     try:
         import pyautogui
@@ -266,28 +553,28 @@ async def antigravitymode_command(update: Update, context: ContextTypes.DEFAULT_
         if matches:
             pyautogui.click(matches[0].x, matches[0].y)
             await update.message.reply_text(
-                f"✅ Switched to {mode_label} mode (clicked at {matches[0].x}, {matches[0].y})."
+                f"Switched to {mode_label} mode (clicked at {matches[0].x}, {matches[0].y})."
             )
             logger.info(f"Switched Antigravity mode to {mode_label}")
         else:
             await update.message.reply_text(
-                f"❌ Could not find '{mode_label}' option on screen.\n\n"
+                f"Could not find '{mode_label}' option on screen.\n\n"
                 "Make sure Antigravity is open and the mode selector is visible."
             )
 
     except Exception as e:
-        await update.message.reply_text(f"❌ Error switching mode: {str(e)}")
+        await update.message.reply_text(f"Error switching mode: {str(e)}")
 
 
 async def antigravitymodel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /antigravitymodel command - select or list Antigravity models."""
     if not PYWINAUTO_AVAILABLE:
-        await update.message.reply_text("❌ Automation is only available on Windows.")
+        await update.message.reply_text("Automation is only available on Windows.")
         return
         
     window = find_antigravity_window()
     if not window:
-        await update.message.reply_text("❌ Antigravity window not found. Try /openantigravity first.")
+        await update.message.reply_text("Antigravity window not found. Try /openantigravity first.")
         return
 
     import pyautogui
@@ -296,7 +583,7 @@ async def antigravitymodel_command(update: Update, context: ContextTypes.DEFAULT
     
     # LISTING MODE: /antigravitymodel (no args)
     if not context.args:
-        await update.message.reply_text("🔍 Locating model selector to list available models...")
+        await update.message.reply_text("Locating model selector to list available models...")
         try:
             window.activate()
             time.sleep(0.5)
@@ -336,21 +623,21 @@ async def antigravitymodel_command(update: Update, context: ContextTypes.DEFAULT
                             models.append(clean_model)
                 
                 if models:
-                    msg = "📋 Available Antigravity Models:\n\n"
-                    msg += "\n".join([f"• {m}" for m in models])
+                    msg = "Available Antigravity Models:\n\n"
+                    msg += "\n".join([f"- {m}" for m in models])
                     msg += "\n\nUse `/antigravitymodel <name>` to select one."
                     await update.message.reply_text(msg)
                 else:
-                    await update.message.reply_text("❌ Found the selector but couldn't read the model list. Please try again.")
+                    await update.message.reply_text("Found the selector but couldn't read the model list. Please try again.")
             else:
-                await update.message.reply_text("❌ Could not locate the model selector on screen.")
+                await update.message.reply_text("Could not locate the model selector on screen.")
         except Exception as e:
-            await update.message.reply_text(f"❌ Error listing models: {str(e)}")
+            await update.message.reply_text(f"Error listing models: {str(e)}")
         return
         
     # SELECTION MODE: /antigravitymodel <model_name>
     model_name = " ".join(context.args)
-    await update.message.reply_text(f"🎯 Attempting to select model: {model_name}...")
+    await update.message.reply_text(f"Attempting to select model: {model_name}...")
     
     try:
         window.activate()
@@ -408,16 +695,16 @@ async def antigravitymodel_command(update: Update, context: ContextTypes.DEFAULT
             pyautogui.click(found_match.x, found_match.y)
             # Click slightly away and back or just press enter to confirm if needed
             pyautogui.press('enter')
-            await update.message.reply_text(f"✅ Selected model '{model_name}' successfully.")
+            await update.message.reply_text(f"Selected model '{model_name}' successfully.")
             logger.info(f"Model selected: {model_name}")
         else:
             await update.message.reply_text(
-                f"❌ Could not find model '{model_name}'.\n"
+                f"Could not find model '{model_name}'.\n"
                 "Verify spelling or use /antigravitymodel without arguments to see available list."
             )
             
     except Exception as e:
-        await update.message.reply_text(f"❌ Error during model selection: {str(e)}")
+        await update.message.reply_text(f"Error during model selection: {str(e)}")
 
 
 # Build Workflow Commands
@@ -436,22 +723,22 @@ async def antigravityclaudecodeopen_command(update: Update, context: ContextType
     if not update.message:
         return
 
-    await update.message.reply_text("🧩 Opening Claude Code panel in VS Code...")
+    await update.message.reply_text("Opening Claude Code panel in VS Code...")
 
     try:
         success, error_message = _run_vscode_palette_command("Claude: Focus on Claude Code Input")
         if not success:
-            await update.message.reply_text(f"❌ {error_message}")
+            await update.message.reply_text(f"{error_message}")
             return
 
         await update.message.reply_text(
-            "✅ Claude Code panel opened in VS Code!\n\n"
+            "Claude Code panel opened in VS Code!\n\n"
             "The extension chat should now be visible."
         )
         logger.info("Opened Claude Code panel in VS Code via command palette")
 
     except Exception as e:
-        await update.message.reply_text(f"❌ Error opening Claude Code panel: {str(e)}")
+        await update.message.reply_text(f"Error opening Claude Code panel: {str(e)}")
         logger.error(f"Error in antigravityclaudecodeopen_command: {e}", exc_info=True)
 
 
@@ -460,21 +747,21 @@ async def openclaudeinvscode_command(update: Update, context: ContextTypes.DEFAU
     if not update.message:
         return
 
-    await update.message.reply_text("💻 Opening Claude Code in VS Code...")
+    await update.message.reply_text("Opening Claude Code in VS Code...")
 
     try:
         success, error_message = _run_vscode_palette_command("Claude Code: Open")
         if not success:
-            await update.message.reply_text(f"❌ {error_message}")
+            await update.message.reply_text(f"{error_message}")
             return
 
         await update.message.reply_text(
-            "✅ Sent `Claude Code: Open` to the VS Code command palette.",
+            "Sent `Claude Code: Open` to the VS Code command palette.",
             parse_mode="Markdown",
         )
         logger.info("Executed Claude Code: Open in VS Code")
     except Exception as e:
-        await update.message.reply_text(f"❌ Error opening Claude Code in VS Code: {str(e)}")
+        await update.message.reply_text(f"Error opening Claude Code in VS Code: {str(e)}")
         logger.error(f"Error in openclaudeinvscode_command: {e}", exc_info=True)
 
 
@@ -484,90 +771,42 @@ async def claudecli_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     user_id = update.effective_user.id
-    
-    # Extract any prompt the user wants to pass to Claude CLI
     prompt = " ".join(context.args) if context.args else ""
 
-    await update.message.reply_text("🔍 Scanning folders for Claude CLI...")
+    await update.message.reply_text("Scanning folders for Claude CLI...")
 
     try:
-        import pathlib
-
-        # Build list of candidate root directories
-        seed_paths = list(getattr(Config, "APPROVED_DIRECTORIES", []))
-
-        # Always include common dev roots
-        common = [
-            str(pathlib.Path.home()),
-            str(pathlib.Path.home() / "Downloads"),
-            str(pathlib.Path.home() / "Desktop"),
-            str(pathlib.Path.home() / "Documents"),
-            os.path.expandvars(r"%USERPROFILE%\source"),
-            os.path.expandvars(r"%USERPROFILE%\repos"),
-        ]
-        for p in common:
-            if os.path.isdir(p) and p not in seed_paths:
-                seed_paths.append(p)
-
-        # Expand each seed to its immediate subdirectories (+ itself)
-        folders = []
-        seen = set()
-
-        for root in seed_paths:
-            if not os.path.isdir(root):
-                continue
-            # Include the root itself
-            norm = os.path.normpath(root)
-            if norm not in seen:
-                seen.add(norm)
-                folders.append(norm)
-            # Include immediate subdirectories
-            try:
-                for entry in os.scandir(root):
-                    if entry.is_dir(follow_symlinks=False):
-                        norm_sub = os.path.normpath(entry.path)
-                        if norm_sub not in seen:
-                            seen.add(norm_sub)
-                            folders.append(norm_sub)
-            except PermissionError:
-                pass
-
+        folders = _discover_candidate_folders(limit=_FOLDER_SCAN_LIMIT)
         if not folders:
             await update.message.reply_text(
-                "❌ No folders found.\n\n"
+                "No folders found.\n\n"
                 "Check that APPROVED_DIRECTORIES is configured in your Pocket Desk Agent config."
             )
             return
 
-        # Store options for this user (max 40)
-        folders = folders[:40]
         claudecli_options[user_id] = {
             "paths": {i: p for i, p in enumerate(folders)},
-            "prompt": prompt
+            "prompt": prompt,
         }
 
-        # Build inline keyboard — one button per row
         keyboard = []
         for i, path in enumerate(folders):
-            label = f"📁 {os.path.basename(path) or path}"
+            label = f"Folder: {os.path.basename(path) or path}"
             keyboard.append([InlineKeyboardButton(label, callback_data=f"claudecli_{i}")])
 
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
-        message_text = f"💻 *Select a repo to open in Claude CLI:*\n\n_{len(folders)} folder(s) found_"
+        message_text = f"*Select a repo to open in Claude CLI:*\n\n_{len(folders)} folder(s) found_"
         if prompt:
             message_text += f"\n\n*Prompt to send:* `{prompt}`"
 
         await update.message.reply_text(
             message_text,
             parse_mode="Markdown",
-            reply_markup=reply_markup
+            reply_markup=InlineKeyboardMarkup(keyboard),
         )
 
-    except Exception as e:
-        await update.message.reply_text(f"❌ Error listing folders: {str(e)}")
-        logger.error(f"Error in claudecli_command: {e}", exc_info=True)
-
+    except Exception as exc:
+        await update.message.reply_text(f"Error listing folders: {exc}")
+        logger.error("Error in claudecli_command: %s", exc, exc_info=True)
 
 async def claudeclisend_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /claudeclisend - type a followup prompt into the open Claude CLI window."""
@@ -577,49 +816,18 @@ async def claudeclisend_command(update: Update, context: ContextTypes.DEFAULT_TY
     prompt = " ".join(context.args)
     if not prompt:
         await update.message.reply_text(
-            "❌ Please provide a prompt.\n"
+            "Please provide a prompt.\n"
             "Example: `/claudeclisend expand on that last explanation`",
-            parse_mode="Markdown"
+            parse_mode="Markdown",
         )
         return
 
-    if platform.system() != "Windows":
-        await update.message.reply_text("❌ This feature is only supported on Windows.")
-        return
+    await update.message.reply_text("Sending follow-up to Claude CLI...")
 
-    await update.message.reply_text("⌨️ Sending follow-up to Claude CLI...")
-
-    try:
-        import pygetwindow as gw
-        import pyautogui
-        
-        window_found = False
-        for w in gw.getAllWindows():
-            # Specifically targeting the CLI window we titled "Claude CLI"
-            if "Claude CLI" in w.title and w.visible:
-                try:
-                    if w.isMinimized:
-                        w.restore()
-                    w.activate()
-                    time.sleep(0.5)
-                    window_found = True
-                    break
-                except Exception:
-                    pass
-                    
-        if window_found:
-            pyautogui.write(prompt, interval=0.01)
-            pyautogui.press('enter')
-            await update.message.reply_text("✅ Follow-up prompt sent to Claude CLI!")
-        else:
-            await update.message.reply_text(
-                "❌ Could not find the open Claude CLI window.\n"
-                "You must run /claudecli first to spawn the terminal session."
-            )
-    except Exception as e:
-        logger.error(f"Error in claudeclisend_command: {e}", exc_info=True)
-        await update.message.reply_text(f"❌ Error sending prompt: {str(e)}")
-
+    success, message = send_prompt_to_claude_cli(prompt)
+    await update.message.reply_text(message)
+    if not success:
+        logger.warning("claudeclisend failed: %s", message)
 
 async def antigravityopenfolder_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /antigravityopenfolder - list folders and open selected one in VS Code."""
@@ -627,136 +835,58 @@ async def antigravityopenfolder_command(update: Update, context: ContextTypes.DE
         return
 
     user_id = update.effective_user.id
-
-    await update.message.reply_text("🔍 Scanning folders...")
+    await update.message.reply_text("Scanning folders...")
 
     try:
-        import pathlib
-
-        # Build list of candidate root directories
-        seed_paths = list(getattr(Config, "APPROVED_DIRECTORIES", []))
-
-        # Always include common dev roots
-        common = [
-            str(pathlib.Path.home()),
-            str(pathlib.Path.home() / "Downloads"),
-            str(pathlib.Path.home() / "Desktop"),
-            str(pathlib.Path.home() / "Documents"),
-            os.path.expandvars(r"%USERPROFILE%\source"),
-            os.path.expandvars(r"%USERPROFILE%\repos"),
-        ]
-        for p in common:
-            if os.path.isdir(p) and p not in seed_paths:
-                seed_paths.append(p)
-
-        # Expand each seed to its immediate subdirectories (+ itself)
-        folders = []
-        seen = set()
-
-        for root in seed_paths:
-            if not os.path.isdir(root):
-                continue
-            # Include the root itself
-            norm = os.path.normpath(root)
-            if norm not in seen:
-                seen.add(norm)
-                folders.append(norm)
-            # Include immediate subdirectories
-            try:
-                for entry in os.scandir(root):
-                    if entry.is_dir(follow_symlinks=False):
-                        norm_sub = os.path.normpath(entry.path)
-                        if norm_sub not in seen:
-                            seen.add(norm_sub)
-                            folders.append(norm_sub)
-            except PermissionError:
-                pass
-
+        folders = _discover_candidate_folders(limit=_FOLDER_SCAN_LIMIT)
         if not folders:
             await update.message.reply_text(
-                "❌ No folders found.\n\n"
+                "No folders found.\n\n"
                 "Check that APPROVED_DIRECTORIES is configured in your Pocket Desk Agent config."
             )
             return
 
-        # Store options for this user (max 40 to keep the list manageable)
-        folders = folders[:40]
         openfolder_options[user_id] = {i: p for i, p in enumerate(folders)}
 
-        # Build inline keyboard — one button per row
         keyboard = []
         for i, path in enumerate(folders):
-            label = f"📁 {os.path.basename(path) or path}"
+            label = f"Folder: {os.path.basename(path) or path}"
             keyboard.append([InlineKeyboardButton(label, callback_data=f"openfolder_{i}")])
 
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
         await update.message.reply_text(
-            f"📂 *Select a folder to open in VS Code:*\n\n"
-            f"_{len(folders)} folder(s) found_",
+            f"*Select a folder to open in VS Code:*\n\n_{len(folders)} folder(s) found_",
             parse_mode="Markdown",
-            reply_markup=reply_markup
+            reply_markup=InlineKeyboardMarkup(keyboard),
         )
 
-    except Exception as e:
-        await update.message.reply_text(f"❌ Error listing folders: {str(e)}")
-        logger.error(f"Error in antigravityopenfolder_command: {e}")
-
+    except Exception as exc:
+        await update.message.reply_text(f"Error listing folders: {exc}")
+        logger.error("Error in antigravityopenfolder_command: %s", exc, exc_info=True)
 
 async def openbrowser_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /openbrowser - show browser options and open selected one maximized."""
     if not update.message:
         return
 
-    # Detect which browsers are actually installed
-    BROWSER_PATHS = {
-        "edge": [
-            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
-        ],
-        "chrome": [
-            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
-            os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
-        ],
-        "firefox": [
-            r"C:\Program Files\Mozilla Firefox\firefox.exe",
-            r"C:\Program Files (x86)\Mozilla Firefox\firefox.exe",
-        ],
-        "brave": [
-            os.path.expandvars(r"%LOCALAPPDATA%\BraveSoftware\Brave-Browser\Application\brave.exe"),
-            r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
-        ],
-    }
-
-    BROWSER_EMOJIS = {
-        "edge": "🌐 Microsoft Edge",
-        "chrome": "🔵 Google Chrome",
-        "firefox": "🦊 Mozilla Firefox",
-        "brave": "🦁 Brave",
-    }
-
-    # Build buttons only for installed browsers (always include Edge & Chrome as fallback)
     keyboard = []
-    for key, paths in BROWSER_PATHS.items():
+    for key, paths in _BROWSER_PATHS.items():
         installed = any(os.path.exists(p) for p in paths)
-        if installed or key in ("edge", "chrome"):  # always show edge/chrome
-            keyboard.append([InlineKeyboardButton(
-                BROWSER_EMOJIS[key],
-                callback_data=f"browser_{key}"
-            )])
+        if installed or key in {"edge", "chrome"}:
+            label = _BROWSER_LABELS.get(key, key.title())
+            keyboard.append([InlineKeyboardButton(label, callback_data=f"browser_{key}")])
 
     if not keyboard:
-        await update.message.reply_text("❌ No supported browsers detected on this system.")
+        await update.message.reply_text("No supported browsers detected on this system.")
         return
 
-    reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        "🌐 *Which browser would you like to open?*\n\n"
-        "_Selected browser will open maximized._",
+        "*Which browser would you like to open?*\n\n"
+        "_The selected browser will open maximized._",
         parse_mode="Markdown",
-        reply_markup=reply_markup
+        reply_markup=InlineKeyboardMarkup(keyboard),
     )
+
+
 
 
 

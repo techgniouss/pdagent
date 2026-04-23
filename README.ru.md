@@ -181,6 +181,8 @@ pdagent
 | `pdagent restart` | Перезапуск демона |
 | `pdagent status` | Проверка состояния |
 | `pdagent configure` | Мастер настройки |
+| `pdagent setup` | Check and install system dependencies (for example Tesseract OCR) |
+| `pdagent startup <enable\|disable\|status\|configure>` | Manage automatic startup after Windows login |
 | `pdagent auth` | Управление учётными данными Gemini |
 | `pdagent version` | Версия |
 

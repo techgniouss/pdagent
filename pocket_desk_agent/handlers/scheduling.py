@@ -7,6 +7,7 @@ import datetime as dt
 import logging
 import os
 import platform
+import re
 import time
 from typing import Iterable, Optional
 
@@ -20,6 +21,7 @@ from pocket_desk_agent.scheduling_utils import (
     format_eta,
     get_task_due_at,
     local_now,
+    parse_duration_spec,
     parse_repeat_expression,
     parse_schedule_time as _parse_schedule_time,
     parse_iso_datetime,
@@ -29,6 +31,8 @@ logger = logging.getLogger(__name__)
 
 REPEAT_MIN_INTERVAL_SECONDS = 15
 DEFAULT_PERMISSION_LABELS = ("Allow", "Run", "Approve", "Continue")
+SCREEN_WATCH_MAX_DURATION_DAYS = 3650
+SCREEN_WATCH_SCOPES = {"screen", "claude", "antigravity"}
 
 
 def parse_schedule_time(time_str: str) -> Optional[dt.datetime]:
@@ -38,6 +42,17 @@ def parse_schedule_time(time_str: str) -> Optional[dt.datetime]:
 
 def describe_task(task: ScheduledTask) -> str:
     """Return a compact human-readable summary of a scheduled task."""
+    if task.task_type == "screen_watch":
+        metadata = task.metadata or {}
+        search_text = str(metadata.get("search_text", "")).strip() or "screen text"
+        hotkey = str(metadata.get("hotkey", "")).strip() or "hotkey"
+        scope = str(metadata.get("scope", "screen")).strip().lower() or "screen"
+        cooldown_seconds = int(metadata.get("cooldown_seconds", 0) or 0)
+        summary = f"Screen watcher ({scope}): '{search_text}' -> {hotkey}"
+        if cooldown_seconds > 0:
+            summary += f" [cooldown {format_duration(cooldown_seconds)}]"
+        return summary
+
     if task.task_type == "permission_watch":
         metadata = task.metadata or {}
         target = str(metadata.get("target", "desktop")).title()
@@ -78,6 +93,147 @@ def cleanup_scheduled_task_artifacts(task: ScheduledTask) -> None:
             command_name,
             exc,
         )
+
+
+def parse_screen_watch_request(raw_text: str) -> Optional[tuple[str, int, str, str, int]]:
+    """Parse ``<text> every <interval> press <hotkey>`` with optional scope/cooldown."""
+    normalized = " ".join(raw_text.strip().split())
+    match = re.fullmatch(
+        r"(.+?)\s+every\s+([^\s]+)\s+(?:(?:press|send|hit)\s+)?(.+)",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return None
+
+    search_text = match.group(1).strip()
+    interval_spec = match.group(2).strip()
+    hotkey = match.group(3).strip()
+    scope = "screen"
+    cooldown_seconds = 0
+
+    while hotkey:
+        cooldown_match = re.search(r"\s+cooldown\s+([^\s]+)\s*$", hotkey, flags=re.IGNORECASE)
+        if cooldown_match:
+            cooldown_delta = parse_duration_spec(cooldown_match.group(1).strip())
+            if not cooldown_delta:
+                return None
+            cooldown_seconds = int(cooldown_delta.total_seconds())
+            hotkey = hotkey[:cooldown_match.start()].strip()
+            continue
+
+        scope_match = re.search(r"\s+(?:in|within|on)\s+(screen|claude|antigravity)\s*$", hotkey, flags=re.IGNORECASE)
+        if scope_match:
+            scope = scope_match.group(1).strip().lower()
+            hotkey = hotkey[:scope_match.start()].strip()
+            continue
+
+        break
+
+    interval_delta = parse_duration_spec(interval_spec)
+    if not search_text or not hotkey or not interval_delta or scope not in SCREEN_WATCH_SCOPES:
+        return None
+
+    return search_text, int(interval_delta.total_seconds()), hotkey, scope, cooldown_seconds
+
+
+def start_screen_watch_task(
+    user_id: int,
+    search_text: str,
+    interval_seconds: int,
+    hotkey: str,
+    *,
+    scope: str = "screen",
+    cooldown_seconds: int = 0,
+) -> tuple[bool, str]:
+    """Create a long-running screen watcher that repeats until manually stopped."""
+    cleaned_text = search_text.strip()
+    cleaned_hotkey = hotkey.strip()
+    cleaned_scope = scope.strip().lower() or "screen"
+    if not cleaned_text:
+        return False, "Please provide the screen text to monitor."
+    if not cleaned_hotkey:
+        return False, "Please provide the hotkey to send when the text appears."
+    if cleaned_scope not in SCREEN_WATCH_SCOPES:
+        supported = ", ".join(sorted(SCREEN_WATCH_SCOPES))
+        return False, f"Scope must be one of: {supported}."
+    if interval_seconds < REPEAT_MIN_INTERVAL_SECONDS:
+        return False, f"Repeat interval must be at least {REPEAT_MIN_INTERVAL_SECONDS} seconds."
+    if cooldown_seconds < 0:
+        return False, "Cooldown cannot be negative."
+
+    now = local_now()
+    repeat_until = now + dt.timedelta(days=SCREEN_WATCH_MAX_DURATION_DAYS)
+    task = ScheduledTask(
+        id=f"screenwatch_{int(time.time())}",
+        user_id=user_id,
+        command="screen_watch",
+        execute_at=now.isoformat(),
+        task_type="screen_watch",
+        interval_seconds=interval_seconds,
+        repeat_until=repeat_until.isoformat(),
+        next_run_at=now.isoformat(),
+        metadata={
+            "search_text": cleaned_text,
+            "hotkey": cleaned_hotkey,
+            "scope": cleaned_scope,
+            "cooldown_seconds": cooldown_seconds,
+            "until_stopped": True,
+        },
+    )
+    get_scheduler_registry().add_task(task)
+
+    message = (
+        "Screen watcher started.\n\n"
+        f"Watching for: {cleaned_text}\n"
+        f"Scope: {cleaned_scope}\n"
+        f"Checks every: {format_duration(interval_seconds)}\n"
+        f"Action: {cleaned_hotkey}\n"
+    )
+    if cooldown_seconds > 0:
+        message += f"Cooldown: {format_duration(cooldown_seconds)}\n"
+    message += (
+        f"Task ID: {task.id}\n\n"
+        "It will keep running until you stop it with /stopscreenwatch or /cancelschedule."
+    )
+
+    return (
+        True,
+        message,
+    )
+
+
+def stop_screen_watch_tasks(user_id: int, task_id: Optional[str] = None) -> tuple[bool, str]:
+    """Stop one or more pending screen watchers for the current user."""
+    registry = get_scheduler_registry()
+    pending = [
+        ScheduledTask.from_dict(task)
+        for task in registry.get_all_pending()
+        if task.get("user_id") == user_id and task.get("task_type") == "screen_watch"
+    ]
+
+    if task_id:
+        target = next((task for task in pending if task.id == task_id), None)
+        if not target:
+            return False, f"No active screen watcher found with ID {task_id}."
+        removed = registry.pop_task(target.id)
+        if not removed:
+            return False, f"Failed to stop screen watcher {task_id}."
+        return True, f"Stopped screen watcher {removed.id}."
+
+    if not pending:
+        return False, "There are no active screen watchers to stop."
+
+    stopped_ids: list[str] = []
+    for task in pending:
+        removed = registry.pop_task(task.id)
+        if removed:
+            stopped_ids.append(removed.id)
+
+    if not stopped_ids:
+        return False, "Failed to stop the active screen watchers."
+
+    return True, "Stopped screen watchers:\n" + "\n".join(stopped_ids)
 
 
 async def claudeschedule_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -292,6 +448,60 @@ async def watchperm_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     )
 
 
+async def watchscreen_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /watchscreen <text> every <interval> press <hotkey>."""
+    if not update.message:
+        return
+
+    if platform.system() != "Windows":
+        await update.message.reply_text("/watchscreen is currently only available on Windows.")
+        return
+
+    raw_text = update.message.text.partition(" ")[2].strip()
+    parsed = parse_screen_watch_request(raw_text)
+    if not parsed:
+        await update.message.reply_text(
+            "Usage: /watchscreen <text> every <interval> press <hotkey>\n"
+            "Example: /watchscreen Allow command every 1m press ctrl+enter in claude cooldown 30s\n\n"
+            "Optional suffixes:\n"
+            "- in <screen|claude|antigravity>\n"
+            "- cooldown <duration>\n\n"
+            "The watcher keeps running until you stop it with /stopscreenwatch."
+        )
+        return
+
+    search_text, interval_seconds, hotkey, scope, cooldown_seconds = parsed
+    success, message = start_screen_watch_task(
+        user_id=update.effective_user.id,
+        search_text=search_text,
+        interval_seconds=interval_seconds,
+        hotkey=hotkey,
+        scope=scope,
+        cooldown_seconds=cooldown_seconds,
+    )
+    await update.message.reply_text(message)
+    if not success:
+        logger.warning("watchscreen rejected for user %s: %s", update.effective_user.id, message)
+
+
+async def stopscreenwatch_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /stopscreenwatch [task_id]."""
+    if not update.message:
+        return
+
+    task_id = context.args[0].strip() if context.args else None
+    if task_id and task_id.lower() == "all":
+        task_id = None
+
+    success, message = stop_screen_watch_tasks(
+        user_id=update.effective_user.id,
+        task_id=task_id,
+    )
+    await update.message.reply_text(message)
+    if not success:
+        logger.warning("stopscreenwatch returned no-op for user %s: %s", update.effective_user.id, message)
+
+
 async def listschedules_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /listschedules."""
     if not update.message:
@@ -319,7 +529,13 @@ async def listschedules_command(update: Update, context: ContextTypes.DEFAULT_TY
         eta = format_eta(due_at, now=now) if due_at else "unknown"
         lines.append(f"{index}. {describe_task(task)}")
         lines.append(f"   Next run: {due_text} ({eta})")
-        if task.interval_seconds and task.repeat_until:
+        if task.task_type == "screen_watch" and task.interval_seconds:
+            lines.append(
+                "   Repeats: every "
+                f"{format_duration(task.interval_seconds)} until stopped manually"
+            )
+            lines.append(f"   Runs completed: {task.run_count}")
+        elif task.interval_seconds and task.repeat_until:
             repeat_until = parse_iso_datetime(task.repeat_until)
             if repeat_until:
                 lines.append(
@@ -383,6 +599,9 @@ async def cancelschedule_command(update: Update, context: ContextTypes.DEFAULT_T
 async def execute_scheduled_task(task: ScheduledTask, bot) -> tuple[bool, Optional[str]]:
     """Execute a single scheduled task."""
     try:
+        if task.task_type == "screen_watch" or task.command == "screen_watch":
+            return await _execute_screen_watch(task, bot)
+
         if task.task_type == "permission_watch" or task.command.startswith("permission_watch:"):
             return await _execute_permission_watch(task, bot)
 
@@ -604,6 +823,100 @@ async def _execute_scheduled_custom_command(task: ScheduledTask, bot) -> tuple[b
             chat_id=task.user_id,
             text=f"Scheduled automation '{command_name}' completed.",
         )
+    return True, None
+
+
+async def _execute_screen_watch(task: ScheduledTask, bot) -> tuple[bool, Optional[str]]:
+    """Search the full screen for text and send a hotkey when it appears."""
+    if platform.system() != "Windows":
+        return False, "Screen watcher is only available on Windows."
+
+    metadata = task.metadata or {}
+    search_text = str(metadata.get("search_text", "")).strip()
+    hotkey = str(metadata.get("hotkey", "")).strip()
+    scope = str(metadata.get("scope", "screen")).strip().lower() or "screen"
+    cooldown_seconds = int(metadata.get("cooldown_seconds", 0) or 0)
+    if not search_text or not hotkey:
+        return False, "Screen watcher metadata is missing search_text or hotkey."
+    if scope not in SCREEN_WATCH_SCOPES:
+        return False, f"Screen watcher scope must be one of: {', '.join(sorted(SCREEN_WATCH_SCOPES))}."
+
+    try:
+        import pyautogui
+        from pocket_desk_agent.automation_utils import (
+            find_text_in_image,
+            map_keys_to_pyautogui,
+            press_key,
+            send_hotkey,
+        )
+    except ImportError as exc:
+        return False, f"Missing dependency: {exc}"
+
+    screenshot = None
+    if scope == "screen":
+        screenshot = pyautogui.screenshot()
+    else:
+        window = _find_permission_target_window(scope)
+        if not window:
+            logger.info("Screen watcher skipped because %s window was not found", scope)
+            return True, None
+        region = _window_region(window)
+        if not region:
+            logger.info("Screen watcher skipped because %s window bounds were invalid", scope)
+            return True, None
+        screenshot = pyautogui.screenshot(region=region)
+
+    try:
+        matches = find_text_in_image(screenshot, search_text)
+    except Exception as exc:
+        logger.warning("Screen watcher OCR failed for '%s': %s", search_text, exc)
+        return False, str(exc)
+
+    if not matches:
+        logger.info("Screen watcher found no match for '%s'", search_text)
+        return True, None
+
+    if cooldown_seconds > 0:
+        last_triggered_at = parse_iso_datetime(str(metadata.get("last_triggered_at") or ""))
+        if last_triggered_at:
+            next_allowed = last_triggered_at + dt.timedelta(seconds=cooldown_seconds)
+            if next_allowed > local_now():
+                logger.info(
+                    "Screen watcher cooldown active for user %s: '%s' -> %s",
+                    task.user_id,
+                    search_text,
+                    hotkey,
+                )
+                return True, None
+
+    keys = map_keys_to_pyautogui(hotkey)
+    if not keys:
+        return False, f"Could not parse hotkey '{hotkey}'."
+
+    if len(keys) == 1:
+        press_key(pyautogui, keys[0])
+    else:
+        send_hotkey(pyautogui, *keys)
+
+    if cooldown_seconds > 0:
+        metadata["last_triggered_at"] = local_now().isoformat()
+        get_scheduler_registry().update_task_metadata(task.id, metadata)
+
+    await bot.send_message(
+        chat_id=task.user_id,
+        text=(
+            f"Screen watcher detected '{search_text}' in {scope} and sent '{hotkey}'.\n"
+            f"Matches found: {len(matches)}"
+        ),
+    )
+    logger.info(
+        "Screen watcher triggered for user %s in %s: '%s' -> %s (%s matches)",
+        task.user_id,
+        scope,
+        search_text,
+        hotkey,
+        len(matches),
+    )
     return True, None
 
 

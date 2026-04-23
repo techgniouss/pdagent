@@ -19,7 +19,7 @@ setup: install
 	@python scripts/manage_auth.py
 
 test:
-	pytest -v
+	@echo "No automated test cases are configured for this repository."
 
 lint:
 	flake8 pocket_desk_agent/

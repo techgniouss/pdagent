@@ -92,6 +92,8 @@ COMMAND_REGISTRY = [
     ("schedule", handlers.schedule_command, "Schedule custom command"),
     ("repeatschedule", handlers.repeatschedule_command, "Repeat a custom command for a duration"),
     ("watchperm", handlers.watchperm_command, "Watch Claude or Antigravity for approval buttons"),
+    ("watchscreen", handlers.watchscreen_command, "Watch the screen for text and send a hotkey"),
+    ("stopscreenwatch", handlers.stopscreenwatch_command, "Stop one or all active screen watchers"),
     ("claudeschedule", handlers.claudeschedule_command, "Schedule prompt to Claude"),
     ("listschedules", handlers.listschedules_command, "View all pending scheduled tasks"),
     ("cancelschedule", handlers.cancelschedule_command, "Cancel a pending scheduled task"),
