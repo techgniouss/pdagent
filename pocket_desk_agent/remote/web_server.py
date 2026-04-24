@@ -28,6 +28,14 @@ logger = logging.getLogger(__name__)
 
 COOKIE_NAME = "pdremote"
 _BACKPRESSURE_BYTES = 512 * 1024
+_PREVIEW_UA_MARKERS = (
+    "telegrambot",
+    "twitterbot",
+    "slackbot",
+    "discordbot",
+    "facebookexternalhit",
+    "whatsapp",
+)
 
 
 def _client_ip(request: Any) -> str:
@@ -51,6 +59,12 @@ def _fingerprint(request: Any) -> tuple[str, str]:
     return ua, ip_hash
 
 
+def _is_link_preview_request(request: Any) -> bool:
+    """Return True for known crawler/link-preview requests."""
+    ua = request.headers.get("User-Agent", "").lower()
+    return any(marker in ua for marker in _PREVIEW_UA_MARKERS)
+
+
 def _cookie_token(request: Any) -> Optional[str]:
     cookie = request.cookies.get(COOKIE_NAME)
     return cookie if cookie else None
@@ -63,10 +77,16 @@ def _authorize_ws(session: RemoteSession, request: Any) -> Optional[str]:
     token = _cookie_token(request)
     if not token or token != session.token:
         return "bad cookie"
+    current_fp = _fingerprint(request)
     if session.bound_fingerprint is None:
-        return "no fingerprint bound yet"
-    if _fingerprint(request) != session.bound_fingerprint:
-        return "fingerprint mismatch"
+        session.bound_fingerprint = current_fp
+        logger.info("[remote] bound WS fingerprint for user %s", session.user_id)
+        return None
+    if current_fp != session.bound_fingerprint:
+        # Mobile networks or proxy metadata can shift between requests.
+        # If cookie token is valid, allow and refresh the bound fingerprint.
+        logger.info("[remote] refreshed WS fingerprint for user %s", session.user_id)
+        session.bound_fingerprint = current_fp
     return None
 
 
@@ -87,11 +107,16 @@ async def _handle_root(request: Any) -> Any:
 
     current_fp = _fingerprint(request)
     if session.bound_fingerprint is None:
-        session.bound_fingerprint = current_fp
-        logger.info("[remote] bound fingerprint for user %s", session.user_id)
+        if _is_link_preview_request(request):
+            logger.info("[remote] preview request detected; deferring fingerprint bind for user %s", session.user_id)
+        else:
+            session.bound_fingerprint = current_fp
+            logger.info("[remote] bound fingerprint for user %s", session.user_id)
     elif session.bound_fingerprint != current_fp:
-        logger.info("[remote] root rejected: fingerprint mismatch for user %s", session.user_id)
-        return web.Response(status=401, text="Unauthorized.")
+        # Some messengers/open-in-browser flows change UA/IP between requests.
+        # Token/cookie validation above already authenticates the caller.
+        session.bound_fingerprint = current_fp
+        logger.info("[remote] refreshed root fingerprint for user %s", session.user_id)
 
     response = web.Response(text=_VIEWER_HTML, content_type="text/html")
     response.set_cookie(
@@ -114,7 +139,7 @@ async def _handle_healthz(request: Any) -> Any:
 
 
 async def _handle_ws_video(request: Any) -> Any:
-    from aiohttp import WSMsgType, web  # type: ignore
+    from aiohttp import web  # type: ignore
 
     session: RemoteSession = request.app["session"]
     reject = _authorize_ws(session, request)
@@ -125,6 +150,7 @@ async def _handle_ws_video(request: Any) -> Any:
     ws = web.WebSocketResponse(heartbeat=20.0, max_msg_size=0)
     await ws.prepare(request)
     session.active_ws.add(ws)
+    session.touch()
 
     from pocket_desk_agent.remote.capture import frame_iter
 
@@ -149,6 +175,8 @@ async def _handle_ws_video(request: Any) -> Any:
             try:
                 await ws.send_bytes(jpeg)
                 sent_frames += 1
+                # Keep the session alive while someone is actively viewing.
+                session.touch()
             except ConnectionResetError:
                 break
             except Exception as exc:
@@ -259,47 +287,75 @@ _VIEWER_HTML = r"""<!doctype html>
   #ime { position:fixed; bottom:-40px; left:0; width:100%; opacity:0.01; font-size:16px; padding:4px; border:none; }
   #status { position:fixed; left:0; right:0; bottom:56px; text-align:center; color:#fbbf24; font:13px system-ui; pointer-events:none; text-shadow:0 1px 3px #000; }
   #slider { width:120px; }
+  #trackpadWrap { position:fixed; left:8px; right:8px; bottom:calc(env(safe-area-inset-bottom,0) + 56px); height:110px; display:none; z-index:6; }
+  #trackpadWrap.show { display:block; }
+  #trackpadLabel { color:#bdbdbd; font:12px/1.1 system-ui; margin:0 0 6px 6px; }
+  #trackpad { height:86px; border:1px solid #3a3a3a; border-radius:12px; background:rgba(0,0,0,.65); touch-action:none; }
 </style>
 </head>
 <body>
   <div id="stage"><canvas id="view"></canvas></div>
   <div id="hud">
-    <span id="conn" class="pill">connecting…</span>
+    <span id="conn" class="pill">connecting...</span>
     <span id="fps" class="pill">-- fps</span>
   </div>
   <div id="status"></div>
   <div id="toolbar">
-    <button id="kbBtn">⌨︎ keys</button>
-    <button id="rcBtn">↗ right</button>
+    <button id="kbBtn">keys</button>
+    <button id="rcBtn">right</button>
+    <button id="mouseBtn">mouse off</button>
+    <button id="zoomBtn">zoom 1.0x</button>
+    <button id="modeBtn">pan off</button>
     <input id="slider" type="range" min="30" max="85" value="60" />
-    <button id="stopBtn">✕ end</button>
+    <button id="stopBtn">end</button>
+  </div>
+  <div id="trackpadWrap">
+    <div id="trackpadLabel">mouse pad: drag to move, tap to click</div>
+    <div id="trackpad"></div>
   </div>
   <input id="ime" autocomplete="off" autocapitalize="off" spellcheck="false" />
 <script>
 (function(){
+  var stage = document.getElementById('stage');
   var canvas = document.getElementById('view');
   var ctx = canvas.getContext('2d');
-  var img = new Image();
-  var lastUrl = null;
   var connEl = document.getElementById('conn');
   var fpsEl = document.getElementById('fps');
   var statusEl = document.getElementById('status');
   var slider = document.getElementById('slider');
   var kbBtn = document.getElementById('kbBtn');
   var rcBtn = document.getElementById('rcBtn');
+  var mouseBtn = document.getElementById('mouseBtn');
+  var zoomBtn = document.getElementById('zoomBtn');
+  var modeBtn = document.getElementById('modeBtn');
+  var trackpadWrap = document.getElementById('trackpadWrap');
+  var trackpad = document.getElementById('trackpad');
   var stopBtn = document.getElementById('stopBtn');
   var ime = document.getElementById('ime');
 
   var vw = 1280, vh = 720;
   var frameCount = 0, frameWindow = Date.now();
   var rightClickMode = false;
+  var renderBusy = false;
+  var queuedData = null;
+  var viewZoom = 1.0;
+  var viewPanX = 0;
+  var viewPanY = 0;
+  var panMode = false;
+  var panDrag = null;
+  var ZOOM_STEPS = [1.0, 1.5, 2.0, 3.0];
+  var mouseMode = false;
+  var padTouch = null;
+  var padMouseDrag = null;
+  var padTwoFingerY = 0;
+  var padLongTimer = null;
+  var PAD_GAIN = 1.6;
 
   function resize() {
     var ar = vw / vh;
     var cw = window.innerWidth, ch = window.innerHeight;
     if (cw / ch > ar) { canvas.style.height = ch + 'px'; canvas.style.width = (ch*ar) + 'px'; }
     else { canvas.style.width = cw + 'px'; canvas.style.height = (cw/ar) + 'px'; }
-    canvas.width = vw; canvas.height = vh;
   }
   window.addEventListener('resize', resize);
   resize();
@@ -309,7 +365,128 @@ _VIEWER_HTML = r"""<!doctype html>
     if (txt) setTimeout(function(){ if (statusEl.textContent === txt) statusEl.textContent = ''; }, 3500);
   }
 
+  function clamp(v, lo, hi) {
+    return Math.max(lo, Math.min(hi, v));
+  }
+
+  function getViewport() {
+    var srcW = vw / viewZoom;
+    var srcH = vh / viewZoom;
+    var maxX = Math.max(0, vw - srcW);
+    var maxY = Math.max(0, vh - srcH);
+    viewPanX = clamp(viewPanX, 0, maxX);
+    viewPanY = clamp(viewPanY, 0, maxY);
+    return {x:viewPanX, y:viewPanY, w:srcW, h:srcH};
+  }
+
+  function setZoom(nextZoom) {
+    nextZoom = clamp(nextZoom, 1.0, 3.0);
+    var oldVp = getViewport();
+    var cx = oldVp.x + oldVp.w / 2;
+    var cy = oldVp.y + oldVp.h / 2;
+    viewZoom = nextZoom;
+    viewPanX = cx - (vw / viewZoom) / 2;
+    viewPanY = cy - (vh / viewZoom) / 2;
+    getViewport();
+    updateZoomUi();
+  }
+
+  function updateZoomUi() {
+    if (viewZoom <= 1.0001) {
+      viewZoom = 1.0;
+      panMode = false;
+      viewPanX = 0;
+      viewPanY = 0;
+    }
+    zoomBtn.textContent = 'zoom ' + viewZoom.toFixed(1) + 'x';
+    modeBtn.textContent = panMode ? 'pan on' : 'pan off';
+    modeBtn.disabled = viewZoom <= 1.0001;
+  }
+
+  function clearPadLong() {
+    if (padLongTimer) {
+      clearTimeout(padLongTimer);
+      padLongTimer = null;
+    }
+  }
+
+  function updateMouseUi() {
+    mouseBtn.textContent = mouseMode ? 'mouse on' : 'mouse off';
+    if (mouseMode) {
+      trackpadWrap.classList.add('show');
+      stage.style.bottom = '170px';
+    } else {
+      trackpadWrap.classList.remove('show');
+      stage.style.bottom = '0';
+      padTouch = null;
+      padMouseDrag = null;
+      clearPadLong();
+    }
+    resize();
+  }
+
   // ── Video WebSocket ──────────────────────────────────────────────
+  function drawFrameImage(image) {
+    vw = image.naturalWidth || image.width || vw;
+    vh = image.naturalHeight || image.height || vh;
+    if (canvas.width !== vw || canvas.height !== vh) {
+      canvas.width = vw;
+      canvas.height = vh;
+    }
+    var vp = getViewport();
+    resize();
+    ctx.drawImage(image, vp.x, vp.y, vp.w, vp.h, 0, 0, vw, vh);
+    frameCount++;
+    var now = Date.now();
+    if (now - frameWindow >= 1000) {
+      fpsEl.textContent = frameCount + ' fps';
+      frameCount = 0; frameWindow = now;
+    }
+  }
+
+  function drawFrameBlob(blob, done) {
+    if (window.createImageBitmap) {
+      createImageBitmap(blob).then(
+        function(bitmap){
+          drawFrameImage(bitmap);
+          if (bitmap.close) bitmap.close();
+          done();
+        },
+        function(){
+          showStatus('Frame decode failed');
+          done();
+        }
+      );
+      return;
+    }
+
+    var url = URL.createObjectURL(blob);
+    var tmp = new Image();
+    tmp.onload = function() {
+      drawFrameImage(tmp);
+      URL.revokeObjectURL(url);
+      done();
+    };
+    tmp.onerror = function() {
+      URL.revokeObjectURL(url);
+      showStatus('Frame decode failed');
+      done();
+    };
+    tmp.src = url;
+  }
+
+  function pumpFrames() {
+    if (renderBusy || !queuedData) return;
+    renderBusy = true;
+    var data = queuedData;
+    queuedData = null;
+    var blob = new Blob([data], {type:'image/jpeg'});
+    drawFrameBlob(blob, function(){
+      renderBusy = false;
+      if (queuedData) pumpFrames();
+    });
+  }
+
   var videoWs;
   function connectVideo() {
     var proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -319,23 +496,8 @@ _VIEWER_HTML = r"""<!doctype html>
     videoWs.onclose = function(){ connEl.textContent = 'offline'; setTimeout(connectVideo, 2000); };
     videoWs.onerror = function(){ connEl.textContent = 'error'; };
     videoWs.onmessage = function(ev) {
-      var blob = new Blob([ev.data], {type:'image/jpeg'});
-      if (lastUrl) URL.revokeObjectURL(lastUrl);
-      lastUrl = URL.createObjectURL(blob);
-      var tmp = new Image();
-      tmp.onload = function() {
-        vw = tmp.naturalWidth; vh = tmp.naturalHeight;
-        canvas.width = vw; canvas.height = vh;
-        ctx.drawImage(tmp, 0, 0, vw, vh);
-        resize();
-        frameCount++;
-        var now = Date.now();
-        if (now - frameWindow >= 1000) {
-          fpsEl.textContent = frameCount + ' fps';
-          frameCount = 0; frameWindow = now;
-        }
-      };
-      tmp.src = lastUrl;
+      queuedData = ev.data;
+      pumpFrames();
     };
   }
   connectVideo();
@@ -351,7 +513,7 @@ _VIEWER_HTML = r"""<!doctype html>
       try {
         var data = JSON.parse(ev.data);
         if (data && data.type === 'status' && data.message === 'failsafe') {
-          showStatus('pyautogui fail-safe — move cursor away from corner');
+          showStatus('pyautogui fail-safe - move cursor away from corner');
         }
       } catch (e) {}
     };
@@ -378,6 +540,14 @@ _VIEWER_HTML = r"""<!doctype html>
     return {x:x, y:y};
   }
 
+  function remoteNormalized(evt) {
+    var n = normalized(evt);
+    var vp = getViewport();
+    var x = clamp((vp.x + (n.x * vp.w)) / vw, 0, 1);
+    var y = clamp((vp.y + (n.y * vp.h)) / vh, 0, 1);
+    return {x:x, y:y};
+  }
+
   var touchStart = null;
   var longPressTimer = null;
   var dragging = false;
@@ -387,6 +557,25 @@ _VIEWER_HTML = r"""<!doctype html>
   var DRAG_THRESHOLD = 8; // px
 
   canvas.addEventListener('touchstart', function(e){
+    if (panMode) {
+      e.preventDefault();
+      if (e.touches.length === 1) {
+        var rect = canvas.getBoundingClientRect();
+        var vp = getViewport();
+        panDrag = {
+          cx: e.touches[0].clientX,
+          cy: e.touches[0].clientY,
+          panX: viewPanX,
+          panY: viewPanY,
+          srcW: vp.w,
+          srcH: vp.h,
+          rectW: Math.max(1, rect.width),
+          rectH: Math.max(1, rect.height),
+        };
+      }
+      return;
+    }
+
     e.preventDefault();
     if (e.touches.length === 2) {
       twoFinger = true;
@@ -395,7 +584,7 @@ _VIEWER_HTML = r"""<!doctype html>
       return;
     }
     twoFinger = false;
-    var n = normalized(e);
+    var n = remoteNormalized(e);
     touchStart = {x:n.x, y:n.y, raw:{cx:e.touches[0].clientX, cy:e.touches[0].clientY}, t:Date.now()};
     dragging = false;
     send({type:'move', x:n.x, y:n.y});
@@ -408,6 +597,18 @@ _VIEWER_HTML = r"""<!doctype html>
   }, {passive:false});
 
   canvas.addEventListener('touchmove', function(e){
+    if (panMode) {
+      e.preventDefault();
+      if (panDrag && e.touches.length === 1) {
+        var dx = e.touches[0].clientX - panDrag.cx;
+        var dy = e.touches[0].clientY - panDrag.cy;
+        viewPanX = panDrag.panX - (dx / panDrag.rectW) * panDrag.srcW;
+        viewPanY = panDrag.panY - (dy / panDrag.rectH) * panDrag.srcH;
+        getViewport();
+      }
+      return;
+    }
+
     e.preventDefault();
     if (e.touches.length === 2) {
       twoFinger = true;
@@ -420,7 +621,7 @@ _VIEWER_HTML = r"""<!doctype html>
       return;
     }
     if (!touchStart) return;
-    var n = normalized(e);
+    var n = remoteNormalized(e);
     if (!dragging) {
       var dx = e.touches[0].clientX - touchStart.raw.cx;
       var dy2 = e.touches[0].clientY - touchStart.raw.cy;
@@ -436,17 +637,23 @@ _VIEWER_HTML = r"""<!doctype html>
   }, {passive:false});
 
   canvas.addEventListener('touchend', function(e){
+    if (panMode) {
+      e.preventDefault();
+      panDrag = null;
+      return;
+    }
+
     e.preventDefault();
     clearTimeout(longPressTimer);
     if (twoFinger) { twoFinger = false; return; }
     if (!touchStart) return;
-    var n = normalized(e);
+    var n = remoteNormalized(e);
     if (dragging) {
       send({type:'up', x:n.x, y:n.y, button:'left'});
     } else {
       var btn = rightClickMode ? 'right' : 'left';
       send({type:'click', x:touchStart.x, y:touchStart.y, button:btn});
-      if (rightClickMode) { rightClickMode = false; rcBtn.textContent = '↗ right'; }
+      if (rightClickMode) { rightClickMode = false; rcBtn.textContent = 'right'; }
     }
     touchStart = null;
     dragging = false;
@@ -454,16 +661,16 @@ _VIEWER_HTML = r"""<!doctype html>
 
   // ── Mouse fallback (desktop browsers) ───────────────────────────
   canvas.addEventListener('mousemove', function(e){
-    var n = normalized(e);
+    var n = remoteNormalized(e);
     send({type:'move', x:n.x, y:n.y});
   });
   canvas.addEventListener('mousedown', function(e){
-    var n = normalized(e);
+    var n = remoteNormalized(e);
     var btn = e.button === 2 ? 'right' : (e.button === 1 ? 'middle' : 'left');
     send({type:'down', x:n.x, y:n.y, button:btn});
   });
   canvas.addEventListener('mouseup', function(e){
-    var n = normalized(e);
+    var n = remoteNormalized(e);
     var btn = e.button === 2 ? 'right' : (e.button === 1 ? 'middle' : 'left');
     send({type:'up', x:n.x, y:n.y, button:btn});
   });
@@ -509,8 +716,126 @@ _VIEWER_HTML = r"""<!doctype html>
   // ── Right-click one-shot button ─────────────────────────────────
   rcBtn.addEventListener('click', function(){
     rightClickMode = !rightClickMode;
-    rcBtn.textContent = rightClickMode ? '● right' : '↗ right';
+    rcBtn.textContent = rightClickMode ? 'right-once' : 'right';
   });
+
+  mouseBtn.addEventListener('click', function(){
+    mouseMode = !mouseMode;
+    updateMouseUi();
+  });
+
+  trackpad.addEventListener('touchstart', function(e){
+    e.preventDefault();
+    clearPadLong();
+    if (e.touches.length === 1) {
+      padTouch = {
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY,
+        moved: false,
+      };
+      padLongTimer = setTimeout(function(){
+        if (padTouch && !padTouch.moved) {
+          send({type:'pointer_click', button:'right'});
+          padTouch = null;
+        }
+      }, 500);
+    } else if (e.touches.length === 2) {
+      padTouch = null;
+      padTwoFingerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    }
+  }, {passive:false});
+
+  trackpad.addEventListener('touchmove', function(e){
+    e.preventDefault();
+    if (e.touches.length === 2) {
+      clearPadLong();
+      var midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      var dy = midY - padTwoFingerY;
+      if (Math.abs(dy) > 6) {
+        send({type:'scroll', dy: dy < 0 ? -3 : 3});
+        padTwoFingerY = midY;
+      }
+      return;
+    }
+
+    if (!padTouch || e.touches.length !== 1) return;
+    var t = e.touches[0];
+    var dx = t.clientX - padTouch.x;
+    var dy2 = t.clientY - padTouch.y;
+    if (Math.abs(dx) > 0.5 || Math.abs(dy2) > 0.5) {
+      send({type:'relmove', dx: dx, dy: dy2, gain: PAD_GAIN});
+      padTouch.x = t.clientX;
+      padTouch.y = t.clientY;
+      if (Math.hypot(dx, dy2) > 2) {
+        padTouch.moved = true;
+        clearPadLong();
+      }
+    }
+  }, {passive:false});
+
+  trackpad.addEventListener('touchend', function(e){
+    e.preventDefault();
+    clearPadLong();
+    if (padTouch && !padTouch.moved) {
+      send({type:'pointer_click', button:'left'});
+    }
+    padTouch = null;
+  }, {passive:false});
+
+  trackpad.addEventListener('mousedown', function(e){
+    e.preventDefault();
+    padMouseDrag = {x:e.clientX, y:e.clientY, moved:false};
+  });
+
+  trackpad.addEventListener('mousemove', function(e){
+    if (!padMouseDrag) return;
+    e.preventDefault();
+    var dx = e.clientX - padMouseDrag.x;
+    var dy = e.clientY - padMouseDrag.y;
+    if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+      send({type:'relmove', dx: dx, dy: dy, gain: PAD_GAIN});
+      padMouseDrag.x = e.clientX;
+      padMouseDrag.y = e.clientY;
+      padMouseDrag.moved = true;
+    }
+  });
+
+  trackpad.addEventListener('mouseup', function(e){
+    if (!padMouseDrag) return;
+    e.preventDefault();
+    if (!padMouseDrag.moved) {
+      send({type:'pointer_click', button:'left'});
+    }
+    padMouseDrag = null;
+  });
+
+  trackpad.addEventListener('mouseleave', function(){
+    padMouseDrag = null;
+  });
+
+  zoomBtn.addEventListener('click', function(){
+    var current = viewZoom;
+    var next = ZOOM_STEPS[0];
+    for (var i = 0; i < ZOOM_STEPS.length; i++) {
+      if (ZOOM_STEPS[i] > current + 0.01) {
+        next = ZOOM_STEPS[i];
+        break;
+      }
+    }
+    if (next <= current + 0.01) next = ZOOM_STEPS[0];
+    setZoom(next);
+  });
+
+  modeBtn.addEventListener('click', function(){
+    if (viewZoom <= 1.0001) {
+      panMode = false;
+    } else {
+      panMode = !panMode;
+    }
+    updateZoomUi();
+  });
+  updateZoomUi();
+  updateMouseUi();
 
   // ── Quality slider (debounced) ──────────────────────────────────
   var qTimer = null;

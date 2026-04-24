@@ -257,6 +257,11 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer(f"Error: {str(e)}", show_alert=True)
             logger.error(f"Error in openfolder callback: {e}", exc_info=True)
 
+    # Handle cloudflared auto-install approval from /remote
+    elif query.data in ("install_cf_yes", "install_cf_no"):
+        from pocket_desk_agent.handlers.remote import handle_install_cloudflared_callback
+        await handle_install_cloudflared_callback(update, context)
+
     # Handle browser open selection
     elif query.data.startswith("browser_"):
         browser_key = query.data.replace("browser_", "")

@@ -24,13 +24,13 @@ import logging
 import socket
 import time
 from typing import Optional
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 from pocket_desk_agent.config import Config
 from pocket_desk_agent.handlers._shared import safe_command
-from pocket_desk_agent.remote import session as _session_mod
 from pocket_desk_agent.remote.session import (
     ACTIVE_SESSIONS,
     RemoteSession,
@@ -49,6 +49,59 @@ _CLOUDFLARED_INSTALL_HINT = (
     "and set `CLOUDFLARED_PATH` in `~/.pdagent/config` to the binary path.\n\n"
     "See docs/REMOTE.md for details."
 )
+
+# Pending auto-install approval: {user_id: {"chat_id": int, "created_at": float}}
+# Populated when /remote detects a missing cloudflared binary and asks the
+# user for install approval. Consumed by the callback handler.
+pending_cloudflared_install: dict[int, dict] = {}
+_INSTALL_PROMPT_TTL_SECS = 600
+
+
+def _is_missing_cloudflared_message(message: str) -> bool:
+    """Best-effort classifier for missing-cloudflared user-facing errors."""
+    text = message.lower()
+    return "cloudflared" in text and (
+        "not found" in text
+        or "could not locate" in text
+        or "required for the remote tunnel" in text
+        or "set `cloudflared_path`" in text
+    )
+
+
+def _hydrate_cloudflared_path_from_installs() -> bool:
+    """Try to discover an existing cloudflared install and cache it in Config."""
+    try:
+        from pocket_desk_agent.remote.install import find_installed_binary
+
+        resolved = find_installed_binary()
+        if not resolved:
+            return False
+        Config.CLOUDFLARED_PATH = resolved
+        return True
+    except Exception:
+        return False
+
+
+def _build_viewer_url(tunnel_url: str, token: str) -> str:
+    """Return ``tunnel_url`` with the required ``t=<token>`` query parameter."""
+    parts = urlsplit(tunnel_url)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query["t"] = token
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+
+
+def _has_viewer_token(url: str) -> bool:
+    """Return True when ``url`` already includes a ``t`` query parameter."""
+    return "t" in dict(parse_qsl(urlsplit(url).query, keep_blank_values=True))
+
+
+def _session_is_healthy(session: RemoteSession) -> bool:
+    """Return True if an existing session still has a live tunnel process."""
+    if session.torn_down:
+        return False
+    if session.tunnel_proc is None:
+        return False
+    return session.tunnel_proc.returncode is None
 
 
 def _pick_free_port() -> int:
@@ -113,11 +166,16 @@ async def start_remote_session(user_id: int, chat_id: int, bot) -> tuple[bool, s
 
     existing = get_for_user(user_id)
     if existing:
-        return (
-            True,
-            f"A remote session is already running.\n\nOpen: {existing.tunnel_url}\n\n"
-            f"Use /stopremote to end it.",
-        )
+        if _session_is_healthy(existing):
+            if not _has_viewer_token(existing.tunnel_url):
+                existing.tunnel_url = _build_viewer_url(existing.tunnel_url, existing.token)
+            return (
+                True,
+                f"A remote session is already running.\n\nOpen: {existing.tunnel_url}\n\n"
+                f"Use /stopremote to end it.",
+            )
+        logger.info("[remote] existing session for user %s is stale; recycling", user_id)
+        await _rollback_partial_start(existing)
 
     try:
         from pocket_desk_agent.remote import tunnel as _tunnel_mod
@@ -177,11 +235,12 @@ async def start_remote_session(user_id: int, chat_id: int, bot) -> tuple[bool, s
             return False, f"Tunnel process failed: {exc}"
 
         session.tunnel_proc = proc
-        session.tunnel_url = url
+        viewer_url = _build_viewer_url(url, session.token)
+        session.tunnel_url = viewer_url
 
         session.watchdog_task = asyncio.create_task(_idle_watchdog(session, bot))
 
-        qr_png = await asyncio.to_thread(_build_qr_png, url)
+        qr_png = await asyncio.to_thread(_build_qr_png, viewer_url)
         if qr_png is not None:
             try:
                 await bot.send_photo(
@@ -196,12 +255,13 @@ async def start_remote_session(user_id: int, chat_id: int, bot) -> tuple[bool, s
         return (
             True,
             (
-                f"✅ Remote desktop ready.\n\n"
-                f"Open: {url}\n\n"
-                f"• Mobile-first viewer (tap=click, drag=move, long-press=right-click,\n"
-                f"  two-finger scroll, ⌨︎ for keyboard).\n"
-                f"• Session ends after {Config.REMOTE_IDLE_TIMEOUT_SECS // 60} min idle or via /stopremote.\n"
-                f"• Only the first browser that opens the URL is bound to the session."
+                f"Remote desktop ready.\n\n"
+                f"Open: {viewer_url}\n\n"
+                f"- Mobile-first viewer (tap=click, drag=move, long-press=right-click,\n"
+                f"  two-finger scroll, keyboard button for typing).\n"
+                f"- Session ends after {Config.REMOTE_IDLE_TIMEOUT_SECS // 60} min idle or via /stopremote.\n"
+                f"- Access is protected by the one-time URL token and secure session cookie.\n"
+                f"- If the page does not open instantly, wait 2-3 seconds and refresh once."
             ),
         )
     except Exception as exc:
@@ -228,6 +288,7 @@ async def stop_remote_session(user_id: int, bot=None, reason: str = "stopped") -
             await bot.send_message(chat_id=chat_id, text=f"Remote session ended ({reason}).")
         except Exception:
             pass
+    logger.info("[remote] session stopped for user %s (reason=%s)", user_id, reason)
     return True, "Remote session ended."
 
 
@@ -266,6 +327,77 @@ async def teardown_all_sessions(bot=None) -> None:
             logger.debug("[remote] shutdown teardown failed for user %s: %s", session.user_id, exc)
 
 
+async def _prompt_cloudflared_install(update: Update, user_id: int, chat_id: int) -> None:
+    """Ask the user for approval to auto-install cloudflared via winget."""
+    pending_cloudflared_install[user_id] = {
+        "chat_id": chat_id,
+        "created_at": time.time(),
+    }
+    keyboard = InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("Install cloudflared", callback_data="install_cf_yes"),
+                InlineKeyboardButton("Cancel", callback_data="install_cf_no"),
+            ]
+        ]
+    )
+    text = (
+        "cloudflared is not installed - the remote tunnel needs it.\n\n"
+        "I can install it for you by running:\n"
+        "`winget install Cloudflare.cloudflared`\n\n"
+        "Windows may show a UAC prompt on your PC. Proceed?"
+    )
+    try:
+        await update.message.reply_text(text, parse_mode="Markdown", reply_markup=keyboard)
+    except Exception:
+        await update.message.reply_text(text, reply_markup=keyboard)
+
+
+async def handle_install_cloudflared_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Callback target for the Install/Cancel inline buttons."""
+    query = update.callback_query
+    if not query or not query.data or not update.effective_user:
+        return
+    user_id = update.effective_user.id
+
+    pending = pending_cloudflared_install.pop(user_id, None)
+    if not pending:
+        await query.edit_message_text("This install prompt has expired. Run /remote again.")
+        return
+    if time.time() - pending["created_at"] > _INSTALL_PROMPT_TTL_SECS:
+        await query.edit_message_text("Install prompt expired. Run /remote again.")
+        return
+
+    chat_id = pending["chat_id"]
+
+    if query.data == "install_cf_no":
+        await query.edit_message_text("Install cancelled. Remote tunnel not started.")
+        return
+
+    from pocket_desk_agent.remote.install import winget_install_cloudflared
+
+    await query.edit_message_text("Installing cloudflared via winget... this can take 1-2 minutes.")
+    ok, detail = await winget_install_cloudflared()
+    if not ok:
+        await context.bot.send_message(chat_id=chat_id, text=f"Install failed.\n\n{detail}")
+        logger.info("[remote] cloudflared auto-install failed for user %s: %s", user_id, detail)
+        return
+
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text=f"cloudflared installed at: {detail}\nStarting remote tunnel...",
+    )
+
+    success, message = await start_remote_session(user_id, chat_id, context.bot)
+    await context.bot.send_message(chat_id=chat_id, text=message)
+    if not success:
+        logger.info(
+            "[remote] post-install /remote start failed for user %s: %s",
+            user_id,
+            message.splitlines()[0],
+        )
+
+
 @safe_command
 async def remote_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """``/remote`` — start a live remote-desktop session and return the URL."""
@@ -281,13 +413,42 @@ async def remote_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
 
-    await update.message.reply_text("Opening remote tunnel… this usually takes 5–10 seconds.")
+    from pocket_desk_agent.remote import tunnel as _tunnel_mod
+
+    try:
+        _tunnel_mod.resolve_binary()
+    except _tunnel_mod.CloudflaredMissingError:
+        if _hydrate_cloudflared_path_from_installs():
+            logger.info("[remote] recovered cloudflared path from local install")
+        else:
+            await _prompt_cloudflared_install(update, user_id, chat_id)
+            return
+    except Exception as exc:
+        # Older environments may not raise CloudflaredMissingError consistently.
+        if _is_missing_cloudflared_message(str(exc)) and _hydrate_cloudflared_path_from_installs():
+            logger.info("[remote] recovered cloudflared path after preflight error")
+        elif _is_missing_cloudflared_message(str(exc)):
+            await _prompt_cloudflared_install(update, user_id, chat_id)
+            return
+        else:
+            # Non-missing errors fall through to start_remote_session's own handling.
+            logger.debug("[remote] preflight resolve_binary raised non-missing error: %s", exc)
+    # Re-validate if we populated Config.CLOUDFLARED_PATH from local install.
+    try:
+        _tunnel_mod.resolve_binary()
+    except _tunnel_mod.CloudflaredMissingError:
+        await _prompt_cloudflared_install(update, user_id, chat_id)
+        return
+    except Exception as exc:
+        logger.debug("[remote] preflight re-validation raised: %s", exc)
+
+    await update.message.reply_text("Opening remote tunnel... this usually takes 5-10 seconds.")
 
     success, message = await start_remote_session(user_id, chat_id, context.bot)
-    try:
-        await update.message.reply_text(message, parse_mode="Markdown")
-    except Exception:
-        await update.message.reply_text(message)
+    if not success and _is_missing_cloudflared_message(message):
+        await _prompt_cloudflared_install(update, user_id, chat_id)
+        return
+    await update.message.reply_text(message)
     if not success:
         logger.info("[remote] /remote start failed for user %s: %s", user_id, message.splitlines()[0])
 
