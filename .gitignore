@@ -86,5 +86,10 @@ reports/
 temp/
 tmp/
 
+# Graphify
+graphify-out/cache/
+graphify-out/manifest.json
+graphify-out/cost.json
+
 # External / Sub-projects (if applicable)
 # Agile AI Engineer/
