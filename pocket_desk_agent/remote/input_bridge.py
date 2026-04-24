@@ -4,6 +4,9 @@ Events are JSON dicts emitted by the viewer on ``/ws/input``. Coordinates
 arrive normalized (0..1); we multiply by the live screen size so window
 resolution changes mid-session are handled.
 
+Viewer "mouse pad" gestures send relative motion events so mobile users can
+drive the pointer like a laptop touchpad without aiming at tiny UI targets.
+
 Exceptions are swallowed: a bad event must never kill the input loop. A
 rate limiter caps at 200 events/sec to defeat a spammy client. pyautogui
 fail-safe (cursor in corner) is caught and surfaced via ``last_failsafe``
@@ -83,6 +86,14 @@ class InputDispatcher:
             if etype == "move":
                 x, y = self._coords(event)
                 pyautogui.moveTo(x, y, _pause=False)
+            elif etype == "relmove":
+                gain = float(event.get("gain", 1.0))
+                dx = float(event.get("dx", 0.0)) * gain
+                dy = float(event.get("dy", 0.0)) * gain
+                # Clamp large jumps from noisy touch hardware.
+                dx = max(-300.0, min(300.0, dx))
+                dy = max(-300.0, min(300.0, dy))
+                pyautogui.moveRel(int(dx), int(dy), _pause=False)
             elif etype == "down":
                 x, y = self._coords(event)
                 button = self._button(event)
@@ -95,6 +106,9 @@ class InputDispatcher:
                 x, y = self._coords(event)
                 button = self._button(event)
                 pyautogui.click(x, y, button=button, _pause=False)
+            elif etype == "pointer_click":
+                button = self._button(event)
+                pyautogui.click(button=button, _pause=False)
             elif etype == "scroll":
                 delta = int(event.get("dy", 0))
                 pyautogui.scroll(delta)
