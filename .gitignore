@@ -1,5 +1,6 @@
 # Environment and Secrets
 .env
+.env.dev
 .env.local
 .env.*.local
 tokens.json
