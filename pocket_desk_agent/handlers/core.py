@@ -36,16 +36,17 @@ def _get_gemini_auth_context(user_id: int) -> tuple[str, Any | None]:
         return auth_mode, None
     return auth_mode, auth_client._get_oauth_instance(user_id, auth_mode=auth_mode)
 
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command."""
     if not update.effective_user or not update.message:
         return
-    
+
     user_id = update.effective_user.id
 
     # Check if authenticated with antigravity
     authenticated = auth_client.is_authenticated(user_id)
-    
+
     if authenticated:
         user_info = auth_client.get_user_info(user_id)
         await update.message.reply_text(
@@ -82,17 +83,20 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
-
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /help command."""
     if not update.message:
         return
-    
+
     user_id = update.effective_user.id
     is_authenticated = auth_client.is_authenticated(user_id)
-    
-    auth_note = "" if is_authenticated else "\n\n⚠️ Note: Gemini AI commands require authentication. Use /login to enable."
-    
+
+    auth_note = (
+        ""
+        if is_authenticated
+        else "\n\n⚠️ Note: Gemini AI commands require authentication. Use /login to enable."
+    )
+
     await update.message.reply_text(
         "Available commands:\n\n"
         "🤖 Gemini AI (requires /login):\n"
@@ -178,6 +182,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "  → No rebuild required\n\n"
         "🕒 Task Scheduling:\n"
         "/schedule <time> - Record automation commands to run at a time\n"
+        "/scheduleshutdown <time> - Schedule a confirmed one-shot system shutdown\n"
         "/repeatschedule every <interval> for <duration> - Repeat a recorded automation\n"
         "/watchperm <target> every <interval> for <duration> - Auto-click app approval prompts\n"
         "/watchscreen <text> every <interval> press <hotkey> - Watch screen/app text and send a hotkey\n"
@@ -195,10 +200,10 @@ async def new_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /new command - start a new conversation."""
     if not update.message:
         return
-    
+
     user_id = update.effective_user.id
     gemini_client.clear_session(user_id)
-    
+
     await update.message.reply_text(
         "Started a new conversation. Previous chat history has been cleared."
     )
@@ -208,45 +213,43 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /status command."""
     if not update.message:
         return
-    
+
     user_id = update.effective_user.id
     is_auth = auth_client.is_authenticated(user_id)
     has_session = user_id in gemini_client.sessions
-    
+
     user_info = auth_client.get_user_info(user_id)
-    
+
     status_text = f"📊 *Bot Status*\n\n"
     status_text += f"📦 Version: `{get_version_string()}`\n\n"
     status_text += f"• Authenticated: {'✅' if is_auth else '❌'}\n"
-    
+
     if user_info:
         status_text += f"• Email: {user_info.get('email', 'Unknown')}\n"
         status_text += f"• Project ID: {user_info.get('project_id', 'Unknown')}\n"
-    
+
     status_text += f"• Active chat session: {'✅' if has_session else '❌'}\n"
     status_text += f"• User ID: `{user_id}`"
-    
+
     try:
         await update.message.reply_text(status_text, parse_mode="Markdown")
     except Exception:
         # Fallback to plain text if Markdown fails
-        await update.message.reply_text(status_text.replace('*', '').replace('`', ''))
-
-
+        await update.message.reply_text(status_text.replace("*", "").replace("`", ""))
 
 
 async def enhance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /enhance command - enhance text prompts using Gemini."""
     if not update.message:
         return
-    
+
     user_id = update.effective_user.id
-    
+
     # Check authentication
     if not auth_client.is_authenticated(user_id):
         await update.message.reply_text("Please authenticate first using /start")
         return
-    
+
     # Get text to enhance
     if not context.args:
         await update.message.reply_text(
@@ -259,11 +262,13 @@ async def enhance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "The AI will make your prompt more detailed, clear, and effective."
         )
         return
-    
+
     original_text = " ".join(context.args)
-    
-    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-    
+
+    await context.bot.send_chat_action(
+        chat_id=update.effective_chat.id, action="typing"
+    )
+
     # Create enhancement prompt
     enhancement_prompt = f"""You are a prompt enhancement expert. Your task is to take the user's brief prompt and enhance it to be more detailed, clear, and effective.
 
@@ -287,36 +292,39 @@ Provide ONLY the enhanced prompt, without any explanations or meta-commentary.""
             auth_mode=auth_mode,
             oauth=oauth,
         )
-        
+
         # Send enhanced prompt
         await update.message.reply_text(
             f"✨ Enhanced Prompt:\n\n{response}\n\n"
             f"━━━━━━━━━━━━━━━━\n"
             f"Original: {original_text}"
         )
-        
+
         # Copy to PC clipboard if on Windows
         if platform.system() == "Windows":
             try:
                 import pyperclip
+
                 pyperclip.copy(response)
-                await update.message.reply_text("📋 Copied enhanced prompt to PC clipboard.")
-                
+                await update.message.reply_text(
+                    "📋 Copied enhanced prompt to PC clipboard."
+                )
+
                 # Also record for custom command if active
                 record_action_if_active(user_id, "clipboard", [response])
-                
+
             except ImportError:
-                logger.warning("pyperclip not installed. Cannot copy enhanced prompt to clipboard.")
+                logger.warning(
+                    "pyperclip not installed. Cannot copy enhanced prompt to clipboard."
+                )
             except Exception as e:
                 logger.error(f"Failed to copy to clipboard: {e}")
-        
+
         logger.info(f"Enhanced prompt for user {user_id}")
-        
+
     except Exception as e:
         await update.message.reply_text(f"❌ Error enhancing prompt: {str(e)}")
         logger.error(f"Error in enhance_command: {e}")
-
-
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -328,15 +336,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Check authentication
     if not auth_client.is_authenticated(user_id):
-        await update.message.reply_text(
-            "Please authenticate first using /start"
-        )
+        await update.message.reply_text("Please authenticate first using /start")
         return
-    
+
     # Check if this is a repo selection (before Gemini processing)
     # Deferred imports to avoid circular dependencies between handler modules.
     from pocket_desk_agent.handlers.claude import check_repo_selection
-    from pocket_desk_agent.handlers.build import check_build_selection, check_apk_retrieval_selection
+    from pocket_desk_agent.handlers.build import (
+        check_build_selection,
+        check_apk_retrieval_selection,
+    )
     from pocket_desk_agent.handlers.custom_commands import execute_custom_command
 
     if await check_repo_selection(update, context):
@@ -352,19 +361,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Check if this is a custom command (starts with /)
     user_message = update.message.text
-    if user_message.startswith('/'):
+    if user_message.startswith("/"):
         command_name = user_message[1:].split()[0]  # Remove / and get first word
 
         # Check if it's a saved custom command
         from pocket_desk_agent.command_registry import get_registry
+
         registry = get_registry()
 
         if registry.command_exists(command_name):
             await execute_custom_command(update, context, command_name)
             return
-    
+
     # Show typing indicator
-    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    await context.bot.send_chat_action(
+        chat_id=update.effective_chat.id, action="typing"
+    )
 
     auth_mode, oauth = _get_gemini_auth_context(user_id)
 
@@ -377,7 +389,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         auth_mode=auth_mode,
         oauth=oauth,
     )
-    
+
     # Send response
     await update.message.reply_text(response)
 
@@ -392,16 +404,18 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not auth_client.is_authenticated(user_id):
         await update.message.reply_text("Please authenticate first using /start")
         return
-    
+
     # Get the largest photo
     photo = update.message.photo[-1]
     photo_file = await photo.get_file()
     photo_bytes = await photo_file.download_as_bytearray()
-    
+
     # Get caption or default message
     caption = update.message.caption or "What's in this image?"
-    
-    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+
+    await context.bot.send_chat_action(
+        chat_id=update.effective_chat.id, action="typing"
+    )
 
     auth_mode, oauth = _get_gemini_auth_context(user_id)
 
@@ -413,31 +427,32 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         auth_mode=auth_mode,
         oauth=oauth,
     )
-    
+
     await update.message.reply_text(response)
-
-
 
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     """Global fallback handler for any exception that escapes a handler.
-    
+
     safe_command catches errors in registered handlers first.
     This handler covers edge cases: polling errors, network blips, etc.
     """
     import traceback
-    
+
     error = context.error
     logger.error(f"Global error_handler caught: {error}", exc_info=error)
-    
-    tb_list = traceback.format_exception(None, error, error.__traceback__ if error else None)
+
+    tb_list = traceback.format_exception(
+        None, error, error.__traceback__ if error else None
+    )
     tb_string = "".join(tb_list)
     short_error = f"{type(error).__name__}: {str(error)}"
-    
+
     # Resolve chat id
     chat_id = None
 
     from telegram import Update as _Update
+
     if isinstance(update, _Update):
         if update.effective_message:
             chat_id = update.effective_message.chat_id
@@ -445,7 +460,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
             chat_id = update.effective_chat.id
     if not chat_id:
         return  # Nothing we can do without a destination
-    
+
     # --- Notify user (Markdown, then plain-text fallback) ---
     md_msg = (
         f"\U0001f6a8 *An unexpected error occurred!*\n\n"
@@ -453,25 +468,25 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
         f"_The bot is still running and ready for your next command._"
     )
     try:
-        await context.bot.send_message(chat_id=chat_id, text=md_msg, parse_mode="Markdown")
+        await context.bot.send_message(
+            chat_id=chat_id, text=md_msg, parse_mode="Markdown"
+        )
     except Exception:
         try:
             await context.bot.send_message(
                 chat_id=chat_id,
-                text=f"\U0001f6a8 Unexpected error: {short_error[:500]}\n\nThe bot is still running."
+                text=f"\U0001f6a8 Unexpected error: {short_error[:500]}\n\nThe bot is still running.",
             )
         except Exception as last_err:
             logger.error(f"error_handler: could not notify user: {last_err}")
             return
-    
+
     # Tracebacks are logged locally only — never sent to external services
     # as they may contain file paths, env values, or token fragments.
     logger.debug(f"Full traceback for error_handler:\n{tb_string}")
 
 
-
 # File System Commands
-
 
 
 async def sync_commands_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -484,7 +499,9 @@ async def sync_commands_command(update: Update, context: ContextTypes.DEFAULT_TY
     try:
         commands = get_bot_commands()
         await context.bot.set_my_commands(commands)
-        await update.message.reply_text("✅ Successfully synced commands with Telegram!")
+        await update.message.reply_text(
+            "✅ Successfully synced commands with Telegram!"
+        )
         logger.info(f"Bot commands manually synced by user {update.effective_user.id}")
     except Exception as e:
         await update.message.reply_text(f"❌ Error syncing commands: {str(e)}")
@@ -526,15 +543,11 @@ async def update_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         asyncio.create_task(_restart_bot_after_delay())
 
 
-
-
-
 def get_bot_commands():
     """Return a list of BotCommand objects for the Telegram menu."""
     from pocket_desk_agent.command_map import COMMAND_REGISTRY
+
     return [BotCommand(cmd, desc) for cmd, _, desc in COMMAND_REGISTRY]
 
 
 # Antigravity Automation Commands
-
-

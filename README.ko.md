@@ -42,6 +42,7 @@ AI 설정 없이 즉시 사용 가능한 기능:
 - **작업 예약** — 재시작 후에도 유지
 - **Android APK 빌드 및 전달** — React Native 프로젝트에서 Telegram으로
 
+- **Scheduled shutdown** — Use `/scheduleshutdown <HH:MM>` to schedule a one-time shutdown (confirmation only when scheduling).
 **Google Gemini 2.0 Flash** 자격 증명 추가 시 해제되는 기능:
 - **대화형 AI 채팅** — 멀티턴 기억과 이미지 분석
 - **에이전트 컴퓨터 제어** — Gemini가 파일 탐색, 스크린샷, 클릭, 입력, 자연어로 PC 자동화 수행. 파괴적 작업에는 인간 확인 필요

@@ -77,6 +77,7 @@ rate_limiter = RateLimiter(default_calls=10, default_window=60)
 # Stricter limits for expensive / dangerous commands
 rate_limiter.set_limit("screenshot", calls=5, window=60)
 rate_limiter.set_limit("shutdown", calls=1, window=300)
+rate_limiter.set_limit("scheduleshutdown", calls=2, window=300)
 rate_limiter.set_limit("sleep", calls=2, window=120)
 rate_limiter.set_limit("stopbot", calls=2, window=120)
 rate_limiter.set_limit("restart", calls=2, window=120)

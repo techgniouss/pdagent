@@ -42,6 +42,7 @@ AIの設定なしで、すぐに使える機能：
 - **タスクスケジューリング** — 再起動後も保持
 - **AndroidのAPKをビルド・配信** — TelegramでReact Nativeプロジェクトから
 
+- **Scheduled shutdown** — Use `/scheduleshutdown <HH:MM>` to schedule a one-time shutdown (confirmation only when scheduling).
 **Google Gemini 2.0 Flash**の認証情報を追加すると解放される機能：
 - **会話型AIチャット** — マルチターン記憶と画像分析
 - **エージェント型コンピュータ制御** — Geminiがファイル閲覧、スクリーンショット、クリック、入力、自然言語によるPC操作を行い、破壊的な操作は人間が確認

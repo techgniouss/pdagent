@@ -42,6 +42,7 @@ Sofort einsatzbereit, ohne KI-Konfiguration:
 - **Aufgaben planen** für einen späteren Zeitpunkt — überleben Neustarts
 - **Android-APKs erstellen und liefern** aus React-Native-Projekten über Telegram
 
+- **Scheduled shutdown** — Use `/scheduleshutdown <HH:MM>` to schedule a one-time shutdown (confirmation only when scheduling).
 **Google Gemini 2.0 Flash**-Zugangsdaten hinzufügen für:
 - **Konversationellen KI-Chat** mit Mehrfach-Gesprächsgedächtnis und Bildanalyse
 - **Agentische Computersteuerung** — Gemini kann Dateien durchsuchen, Screenshots machen, klicken, tippen und deinen PC auf natürliche Sprache hin automatisieren, mit menschlicher Bestätigung für destruktive Aktionen
