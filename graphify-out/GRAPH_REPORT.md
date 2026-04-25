@@ -1,12 +1,12 @@
-# Graph Report - pdagent  (2026-04-24)
+# Graph Report - pdagent  (2026-04-25)
 
 ## Corpus Check
-- 55 files · ~100,200 words
+- 56 files · ~100,318 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2822 nodes · 5991 edges · 82 communities detected
-- Extraction: 72% EXTRACTED · 28% INFERRED · 0% AMBIGUOUS · INFERRED: 1651 edges (avg confidence: 0.63)
+- 2969 nodes · 6253 edges · 97 communities detected
+- Extraction: 71% EXTRACTED · 29% INFERRED · 0% AMBIGUOUS · INFERRED: 1797 edges (avg confidence: 0.63)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
@@ -92,30 +92,45 @@
 - [[_COMMUNITY_Community 79|Community 79]]
 - [[_COMMUNITY_Community 80|Community 80]]
 - [[_COMMUNITY_Community 81|Community 81]]
+- [[_COMMUNITY_Community 82|Community 82]]
+- [[_COMMUNITY_Community 83|Community 83]]
+- [[_COMMUNITY_Community 84|Community 84]]
+- [[_COMMUNITY_Community 85|Community 85]]
+- [[_COMMUNITY_Community 86|Community 86]]
+- [[_COMMUNITY_Community 87|Community 87]]
+- [[_COMMUNITY_Community 88|Community 88]]
+- [[_COMMUNITY_Community 89|Community 89]]
+- [[_COMMUNITY_Community 90|Community 90]]
+- [[_COMMUNITY_Community 91|Community 91]]
+- [[_COMMUNITY_Community 92|Community 92]]
+- [[_COMMUNITY_Community 93|Community 93]]
+- [[_COMMUNITY_Community 94|Community 94]]
+- [[_COMMUNITY_Community 95|Community 95]]
+- [[_COMMUNITY_Community 96|Community 96]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `Config` - 253 edges
+1. `Config` - 293 edges
 2. `GeminiCLIOAuth` - 112 edges
 3. `AntigravityOAuth` - 108 edges
-4. `pocket_desk_agent.handlers.scheduling` - 76 edges
-5. `StartupManager` - 72 edges
-6. `ScheduledTask` - 63 edges
+4. `ScheduledTask` - 82 edges
+5. `pocket_desk_agent.handlers.scheduling` - 76 edges
+6. `StartupManager` - 72 edges
 7. `get_for_user` - 55 edges
 8. `pocket_desk_agent.handlers.system` - 52 edges
 9. `CommandAction` - 48 edges
 10. `perform_system_shutdown` - 43 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `Config` --uses--> `Main bot entry point.`  [INFERRED]
+- `Config` --uses--> `Background task to check and execute scheduled tasks.`  [INFERRED]
   pocket_desk_agent\config.py → pocket_desk_agent\main.py
-- `Config` --uses--> `Enable live reload only for interactive dev sessions.`  [INFERRED]
-  pocket_desk_agent\config.py → pocket_desk_agent\main.py
-- `Config` --uses--> `Ensure only one bot instance runs at a time.`  [INFERRED]
-  pocket_desk_agent\config.py → pocket_desk_agent\main.py
-- `Config` --uses--> `Return True if the Tesseract binary is installed and reachable.`  [INFERRED]
-  pocket_desk_agent\config.py → pocket_desk_agent\main.py
-- `Config` --uses--> `Sync commands with Telegram on startup and launch background tasks.`  [INFERRED]
-  pocket_desk_agent\config.py → pocket_desk_agent\main.py
+- `Config` --uses--> `Antigravity and VS Code integration command handlers.`  [INFERRED]
+  pocket_desk_agent\config.py → pocket_desk_agent\handlers\antigravity.py
+- `Config` --uses--> `Load Windows UI automation modules on first use (cached after that).`  [INFERRED]
+  pocket_desk_agent\config.py → pocket_desk_agent\handlers\antigravity.py
+- `Config` --uses--> `Return the first visible VS Code window, if any.`  [INFERRED]
+  pocket_desk_agent\config.py → pocket_desk_agent\handlers\antigravity.py
+- `Config` --uses--> `Focus VS Code and execute a command palette entry.`  [INFERRED]
+  pocket_desk_agent\config.py → pocket_desk_agent\handlers\antigravity.py
 
 ## Hyperedges (group relationships)
 - **Multilingual README Documentation Bundle** — file_readme_md, file_readme_de_md, file_readme_es_md, file_readme_fr_md, file_readme_ja_md, file_readme_ko_md, file_readme_pt_br_md, file_readme_ru_md, file_readme_tr_md, file_readme_uk_md, file_readme_zh_cn_md [EXTRACTED 1.00]
@@ -158,330 +173,390 @@
 ## Communities
 
 ### Community 0 - "Community 0"
-Cohesion: 0.01
-Nodes (431): antigravitychat_command(), antigravityclaudecodeopen_command(), antigravitymode_command(), antigravitymodel_command(), antigravityopenfolder_command(), claudecli_command(), claudeclisend_command(), _discover_candidate_folders() (+423 more)
+Cohesion: 0.02
+Nodes (256): AntigravityOAuth, generate(), OAuthCallbackHandler, PKCEGenerator, Antigravity OAuth authentication implementation., HTTP handler for OAuth callback.      Class-level state is used because HTTPSe, Suppress HTTP server logs, Handle GET request for OAuth callback (+248 more)
 
 ### Community 1 - "Community 1"
-Cohesion: 0.02
-Nodes (308): class:pocket_desk_agent.gemini_actions.GeminiToolResult, class:pocket_desk_agent.gemini_actions.PendingGeminiAction, class:pocket_desk_agent.gemini_actions._MessageCollector, class:pocket_desk_agent.gemini_client.ResolvedModel, class:pocket_desk_agent.rate_limiter.RateLimiter, class:pocket_desk_agent.scheduler_registry.ScheduledTask, class:pocket_desk_agent.startup_manager.StartupStatus, class:pocket_desk_agent.updater.UpdateInfo (+300 more)
+Cohesion: 0.01
+Nodes (322): class:pocket_desk_agent.gemini_actions.GeminiToolResult, class:pocket_desk_agent.gemini_actions.PendingGeminiAction, class:pocket_desk_agent.gemini_actions._MessageCollector, class:pocket_desk_agent.rate_limiter.RateLimiter, class:pocket_desk_agent.scheduler_registry.ScheduledTask, class:pocket_desk_agent.scheduler_registry.SchedulerRegistry, class:pocket_desk_agent.startup_manager.StartupStatus, class:pocket_desk_agent.updater.UpdateInfo (+314 more)
 
 ### Community 2 - "Community 2"
 Cohesion: 0.02
-Nodes (223): AntigravityOAuth, generate(), OAuthCallbackHandler, PKCEGenerator, Antigravity OAuth authentication implementation., HTTP handler for OAuth callback.      Class-level state is used because HTTPSe, Suppress HTTP server logs, Handle GET request for OAuth callback (+215 more)
+Nodes (254): antigravityclaudecodeopen_command(), antigravityopenfolder_command(), claudecli_command(), claudeclisend_command(), _discover_candidate_folders(), _find_vscode_window(), launch_browser(), launch_claude_cli() (+246 more)
 
 ### Community 3 - "Community 3"
 Cohesion: 0.01
-Nodes (209): AUTHENTICATION_REQUIREMENTS.md, config/antigravity-chatbot/tokens.json, config/pdagent-gemini/tokens.json, /accounts, /antigravitychat, /antigravityclaudecodeopen, /antigravitymode, /antigravitymodel (+201 more)
+Nodes (234): Handle /claudeclisend - type a followup prompt into the open Claude CLI window., Handle /claudeclisend - type a followup prompt into the open Claude CLI window., Handle /antigravityopenfolder - list folders and open selected one in VS Code., Handle /antigravityopenfolder - list folders and open selected one in VS Code., Handle /openbrowser - show browser options and open selected one maximized., Handle /openbrowser - show browser options and open selected one maximized., Return the saved-token file mtime, or 0 when unavailable., build_command() (+226 more)
 
 ### Community 4 - "Community 4"
 Cohesion: 0.02
-Nodes (198): Management scripts for Pocket Desk Agent., PIL, PIL.Image, __future__, __future__.annotations, aiohttp, aiohttp.WSMsgType, aiohttp.web (+190 more)
+Nodes (203): antigravitychat_command(), antigravitymode_command(), antigravitymodel_command(), find_antigravity_window(), _load_win_deps(), openantigravity_command(), Load Windows UI automation modules on first use (cached after that)., Find Antigravity desktop window and restore if minimized. (+195 more)
 
 ### Community 5 - "Community 5"
+Cohesion: 0.01
+Nodes (209): AUTHENTICATION_REQUIREMENTS.md, config/antigravity-chatbot/tokens.json, config/pdagent-gemini/tokens.json, /accounts, /antigravitychat, /antigravityclaudecodeopen, /antigravitymode, /antigravitymodel (+201 more)
+
+### Community 6 - "Community 6"
+Cohesion: 0.03
+Nodes (152): Management scripts for Pocket Desk Agent., PIL, PIL.Image, __future__, __future__.annotations, aiohttp, aiohttp.WSMsgType, aiohttp.web (+144 more)
+
+### Community 7 - "Community 7"
 Cohesion: 0.02
 Nodes (144): Event, getLogger, exists, home, joinpath, mkdir, tuple, getLogger (+136 more)
 
-### Community 6 - "Community 6"
+### Community 8 - "Community 8"
 Cohesion: 0.02
 Nodes (143): main, Path, append, encode, exists, exit, get_encoding, glob (+135 more)
 
-### Community 7 - "Community 7"
-Cohesion: 0.03
-Nodes (104): _encode_jpeg(), frame_iter(), _pil_from_screen(), JPEG frame generator for the live remote-desktop stream.  Captures the screen at, Grab the primary monitor and return a PIL Image.      Prefer pyautogui first bec, Yield JPEG bytes forever until the session is torn down.      Emits ``b""`` as a, _try_import_mss(), InputDispatcher (+96 more)
-
-### Community 8 - "Community 8"
+### Community 9 - "Community 9"
 Cohesion: 0.03
 Nodes (118): Canny, CloseDesktop, Draw, GaussianBlur, GetUserObjectInformationW, ImportError, OpenInputDesktop, RuntimeError (+110 more)
 
-### Community 9 - "Community 9"
+### Community 10 - "Community 10"
 Cohesion: 0.02
 Nodes (115): Path, ValueError, append, dotenv_path_candidates, expanduser, expandvars, getenv, home (+107 more)
 
-### Community 10 - "Community 10"
-Cohesion: 0.06
-Nodes (85): AntigravityOAuth, ConfigParser, GeminiCLIOAuth, Path, StartupManager, app_path, app_path_candidates, append (+77 more)
-
 ### Community 11 - "Community 11"
-Cohesion: 0.04
-Nodes (80): HTTPServer, Thread, app_path, bool, chmod, clear, decode, digest (+72 more)
+Cohesion: 0.05
+Nodes (73): _encode_jpeg(), frame_iter(), _pil_from_screen(), JPEG frame generator for the live remote-desktop stream.  Captures the screen at, Grab the primary monitor and return a PIL Image.      Prefer pyautogui first bec, Yield JPEG bytes forever until the session is torn down.      Emits ``b""`` as a, _try_import_mss(), InputDispatcher (+65 more)
 
 ### Community 12 - "Community 12"
 Cohesion: 0.06
-Nodes (48): Multi-mode Authentication, React Native APK Build Workflow, Claude and Antigravity Integration, Central Command Registry, Telegram Command Surface, Config.load Class Pattern, Runtime Dependency Stack, Large APK Upload via Dropbox (+40 more)
+Nodes (85): AntigravityOAuth, ConfigParser, GeminiCLIOAuth, Path, StartupManager, app_path, app_path_candidates, append (+77 more)
 
 ### Community 13 - "Community 13"
-Cohesion: 0.03
-Nodes (60): CLAUDE.md, FILE.original.md, SKILL.md, config.yaml, directory_containing_this_SKILL.md, original.md, /caveman, /caveman lite|full|ultra (+52 more)
+Cohesion: 0.04
+Nodes (80): HTTPServer, Thread, app_path, bool, chmod, clear, decode, digest (+72 more)
 
 ### Community 14 - "Community 14"
 Cohesion: 0.06
-Nodes (41): capture_window_screenshot(), Capture screenshot of a specific window., _list_schedules_text(), Background task to check and execute scheduled tasks., scheduler_loop(), from_dict(), get_scheduler_registry(), Registry for storing and managing scheduled tasks. (+33 more)
+Nodes (48): Multi-mode Authentication, React Native APK Build Workflow, Claude and Antigravity Integration, Central Command Registry, Telegram Command Surface, Config.load Class Pattern, Runtime Dependency Stack, Large APK Upload via Dropbox (+40 more)
 
 ### Community 15 - "Community 15"
+Cohesion: 0.03
+Nodes (60): CLAUDE.md, FILE.original.md, SKILL.md, config.yaml, directory_containing_this_SKILL.md, original.md, /caveman, /caveman lite|full|ultra (+52 more)
+
+### Community 16 - "Community 16"
 Cohesion: 0.06
 Nodes (45): benchmark_pair(), count_tokens(), main(), print_table(), main(), print_usage(), build_compress_prompt(), build_fix_prompt() (+37 more)
 
-### Community 16 - "Community 16"
-Cohesion: 0.07
-Nodes (45): acquire_lock(), main(), post_init(), post_shutdown(), Main bot entry point., Sync commands with Telegram on startup and launch background tasks., Tear down any active remote-desktop sessions cleanly on bot exit., Start a background thread to monitor file changes for live reloading. (+37 more)
-
 ### Community 17 - "Community 17"
-Cohesion: 0.08
-Nodes (46): class:pocket_desk_agent.gemini_cli_auth.GeminiCLIOAuth, class:pocket_desk_agent.gemini_client.GeminiClient, external_symbol:http.server.HTTPServer, external_symbol:pocket_desk_agent.antigravity_auth.AntigravityOAuth, external_symbol:pocket_desk_agent.antigravity_auth.TokenStorage, external_symbol:urllib.parse.urlencode, function:pocket_desk_agent.gemini_client._candidate_model_names, function:pocket_desk_agent.gemini_client._get_code_assist_endpoints (+38 more)
+Cohesion: 0.07
+Nodes (55): class:pocket_desk_agent.gemini_cli_auth.GeminiCLIOAuth, class:pocket_desk_agent.gemini_client.GeminiClient, class:pocket_desk_agent.gemini_client.ResolvedModel, external_module:uuid, external_symbol:http.server.HTTPServer, external_symbol:pocket_desk_agent.antigravity_auth.AntigravityOAuth, external_symbol:pocket_desk_agent.antigravity_auth.TokenStorage, external_symbol:urllib.parse.urlencode (+47 more)
 
 ### Community 18 - "Community 18"
 Cohesion: 0.14
 Nodes (37): class:pocket_desk_agent.file_manager.FileManager, class:pocket_desk_agent.startup_manager.StartupManager, external_symbol:pathlib.Path, external_symbol:pocket_desk_agent.app_paths.app_dir, method:pocket_desk_agent.file_manager.FileManager.__init__, method:pocket_desk_agent.file_manager.FileManager._format_size, method:pocket_desk_agent.file_manager.FileManager._is_safe_path, method:pocket_desk_agent.file_manager.FileManager.append_file (+29 more)
 
 ### Community 19 - "Community 19"
-Cohesion: 0.17
-Nodes (24): class:pocket_desk_agent.scheduler_registry.SchedulerRegistry, external_symbol:pocket_desk_agent.app_paths.existing_app_path, function:pocket_desk_agent.scheduling_utils.ensure_local_timezone, function:pocket_desk_agent.scheduling_utils.format_duration, function:pocket_desk_agent.scheduling_utils.format_eta, function:pocket_desk_agent.scheduling_utils.get_task_due_at, function:pocket_desk_agent.scheduling_utils.local_now, function:pocket_desk_agent.scheduling_utils.parse_duration_spec (+16 more)
-
-### Community 20 - "Community 20"
 Cohesion: 0.15
 Nodes (23): AntigravityOAuth, GeminiCLIOAuth, append, bool, get, getattr, info, isinstance (+15 more)
 
-### Community 21 - "Community 21"
+### Community 20 - "Community 20"
 Cohesion: 0.15
 Nodes (17): _activate_window_with_pygetwindow(), build_window_inventory(), format_window_inventory(), _is_switchable_window(), list_open_windows(), _nudge_foreground_lock(), Helpers for listing and activating desktop windows on Windows., Best-effort extraction of a platform window handle. (+9 more)
 
-### Community 22 - "Community 22"
+### Community 21 - "Community 21"
 Cohesion: 0.62
 Nodes (7): Caveman, Rounded square background, Brow or hairline arc, Brow or hairline arc, Left eye, Mouth arc, Right eye
 
-### Community 23 - "Community 23"
+### Community 22 - "Community 22"
 Cohesion: 0.67
 Nodes (6): brow or hairline, head, left eye, mouth, right eye, Caveman icon
 
-### Community 24 - "Community 24"
+### Community 23 - "Community 23"
 Cohesion: 0.4
 Nodes (6): Background circle, Caveman, Hairline/forehead stroke, Left eye, Mouth arc, Right eye
 
-### Community 25 - "Community 25"
+### Community 24 - "Community 24"
 Cohesion: 1.0
 Nodes (1): Centralized command registry for the bot.
 
-### Community 26 - "Community 26"
+### Community 25 - "Community 25"
 Cohesion: 1.0
 Nodes (1): Shared constants for Pocket Desk Agent.  Single source of truth for API endpoi
 
-### Community 27 - "Community 27"
+### Community 26 - "Community 26"
 Cohesion: 1.0
 Nodes (2): plugins/caveman/skills/compress/scripts/__init__.py, plugins.caveman.skills.compress.scripts
 
-### Community 28 - "Community 28"
+### Community 27 - "Community 27"
 Cohesion: 1.0
 Nodes (1): Generate PKCE verifier and challenge
 
-### Community 29 - "Community 29"
+### Community 28 - "Community 28"
 Cohesion: 1.0
 Nodes (1): Clear state for a new login flow.
 
-### Community 30 - "Community 30"
+### Community 29 - "Community 29"
 Cohesion: 1.0
 Nodes (1): Create from dictionary.
 
-### Community 31 - "Community 31"
+### Community 30 - "Community 30"
 Cohesion: 1.0
 Nodes (1): (Re-)read every config value from ``os.environ``.
 
-### Community 32 - "Community 32"
+### Community 31 - "Community 31"
 Cohesion: 1.0
 Nodes (1): Validate required configuration.
 
-### Community 33 - "Community 33"
+### Community 32 - "Community 32"
 Cohesion: 1.0
 Nodes (1): Create an instance from persisted data.
 
-### Community 34 - "Community 34"
+### Community 33 - "Community 33"
 Cohesion: 1.0
 Nodes (1): Escape values inserted into Task Scheduler XML.
 
-### Community 35 - "Community 35"
+### Community 34 - "Community 34"
 Cohesion: 1.0
 Nodes (1): Combine stdout and stderr for error reporting.
 
-### Community 36 - "Community 36"
+### Community 35 - "Community 35"
 Cohesion: 1.0
 Nodes (1): Return True when schtasks reports that the task does not exist.
 
-### Community 37 - "Community 37"
+### Community 36 - "Community 36"
 Cohesion: 1.0
 Nodes (1): Run a subprocess command and capture output as text.
 
-### Community 38 - "Community 38"
+### Community 37 - "Community 37"
 Cohesion: 1.0
 Nodes (1): scripts.install.ps1
 
-### Community 39 - "Community 39"
+### Community 38 - "Community 38"
 Cohesion: 1.0
 Nodes (1): scripts
 
+### Community 39 - "Community 39"
+Cohesion: 1.0
+Nodes (1): Format an UpdateInfo into a user-friendly Telegram message.
+
 ### Community 40 - "Community 40"
 Cohesion: 1.0
-Nodes (1): Handle Dropbox file deletion request.
+Nodes (1): Run an update check at startup and log the result.      This is meant to be ca
 
 ### Community 41 - "Community 41"
 Cohesion: 1.0
-Nodes (1): Delete file from Dropbox.      Returns:         dict with 'success' and 'error'
+Nodes (1): Background coroutine that periodically checks for updates.      Args:
 
 ### Community 42 - "Community 42"
 Cohesion: 1.0
-Nodes (1): Handle user's choice for large file upload.
+Nodes (1): Run an update check at startup and log the result.      This is meant to be ca
 
 ### Community 43 - "Community 43"
 Cohesion: 1.0
-Nodes (1): File system command handlers.
+Nodes (1): Result of a check-for-updates query.
 
 ### Community 44 - "Community 44"
 Cohesion: 1.0
-Nodes (1): Handle /pwd command - show current directory.
+Nodes (1): Run a git sub-command and return the completed process.
 
 ### Community 45 - "Community 45"
 Cohesion: 1.0
-Nodes (1): Handle /cd command - change directory.
+Nodes (1): Return the current local HEAD commit SHA (full).
 
 ### Community 46 - "Community 46"
 Cohesion: 1.0
-Nodes (1): Handle /ls command - list directory.
+Nodes (1): Return the current local HEAD commit SHA (short 7-char).
 
 ### Community 47 - "Community 47"
 Cohesion: 1.0
-Nodes (1): Handle /cat command - read file.
+Nodes (1): Human-readable version string: v1.0.0 (abc1234) for git, v1.0.0 for PyPI.
 
 ### Community 48 - "Community 48"
 Cohesion: 1.0
-Nodes (1): Handle /find command - search files.
+Nodes (1): Return the date of the local HEAD commit.
 
 ### Community 49 - "Community 49"
 Cohesion: 1.0
-Nodes (1): Handle /info command - get file info.
+Nodes (1): Query PyPI for the latest published version of pocket-desk-agent.      Returns
 
 ### Community 50 - "Community 50"
 Cohesion: 1.0
-Nodes (1): System control command handlers.
+Nodes (1): Check for updates. For PyPI installs, queries PyPI for the latest version.
 
 ### Community 51 - "Community 51"
 Cohesion: 1.0
-Nodes (1): Track the last privacy-mode state requested by the bot.
+Nodes (1): Return the cached result and timestamp of the last update check.
 
 ### Community 52 - "Community 52"
 Cohesion: 1.0
-Nodes (1): Render a human-readable timestamp for privacy mode status.
+Nodes (1): Pull latest changes from GitHub and re-install requirements.      Returns (suc
 
 ### Community 53 - "Community 53"
 Cohesion: 1.0
-Nodes (1): Return a status summary for privacy mode.
+Nodes (1): Background coroutine that periodically checks for updates.      Args:
 
 ### Community 54 - "Community 54"
 Cohesion: 1.0
-Nodes (1): Turn the display off or wake it without locking the Windows session.
+Nodes (1): Format an UpdateInfo into a user-friendly Telegram message.
 
 ### Community 55 - "Community 55"
 Cohesion: 1.0
-Nodes (1): Normalize privacy-mode command arguments into a supported action.
+Nodes (1): Handle Dropbox file deletion request.
 
 ### Community 56 - "Community 56"
 Cohesion: 1.0
-Nodes (1): Handle /stopbot command - stop the bot process with confirmation.
+Nodes (1): Delete file from Dropbox.      Returns:         dict with 'success' and 'error'
 
 ### Community 57 - "Community 57"
 Cohesion: 1.0
-Nodes (1): Handle /shutdown command - shutdown laptop with confirmation.
+Nodes (1): Handle user's choice for large file upload.
 
 ### Community 58 - "Community 58"
 Cohesion: 1.0
-Nodes (1): Shutdown the host machine using the same OS-specific behavior as /shutdown.
+Nodes (1): File system command handlers.
 
 ### Community 59 - "Community 59"
 Cohesion: 1.0
-Nodes (1): Put the host to sleep and return a user-facing status message.
+Nodes (1): Handle /pwd command - show current directory.
 
 ### Community 60 - "Community 60"
 Cohesion: 1.0
-Nodes (1): Handle /battery command - check battery status.
+Nodes (1): Handle /cd command - change directory.
 
 ### Community 61 - "Community 61"
 Cohesion: 1.0
-Nodes (1): Handle /screenshot command - capture current screen.
+Nodes (1): Handle /ls command - list directory.
 
 ### Community 62 - "Community 62"
 Cohesion: 1.0
-Nodes (1): Handle /sleep command - put PC to sleep.
+Nodes (1): Handle /cat command - read file.
 
 ### Community 63 - "Community 63"
 Cohesion: 1.0
-Nodes (1): Handle /wakeup command - wake up PC (requires Wake-on-LAN setup).
+Nodes (1): Handle /find command - search files.
 
 ### Community 64 - "Community 64"
 Cohesion: 1.0
-Nodes (1): Handle /privacy command - blank or wake the display without locking.
+Nodes (1): Handle /info command - get file info.
 
 ### Community 65 - "Community 65"
 Cohesion: 1.0
-Nodes (1): Handle /hotkey command - execute keyboard shortcuts.
+Nodes (1): System control command handlers.
 
 ### Community 66 - "Community 66"
 Cohesion: 1.0
-Nodes (1): Handle /windows command - list switchable desktop windows.
+Nodes (1): Track the last privacy-mode state requested by the bot.
 
 ### Community 67 - "Community 67"
 Cohesion: 1.0
-Nodes (1): Handle /focuswindow command - activate a previously listed window.
+Nodes (1): Render a human-readable timestamp for privacy mode status.
 
 ### Community 68 - "Community 68"
 Cohesion: 1.0
-Nodes (1): Handle /clipboard command - set clipboard content.
+Nodes (1): Return a status summary for privacy mode.
 
 ### Community 69 - "Community 69"
 Cohesion: 1.0
-Nodes (1): Handle /viewclipboard command - get current clipboard content.
+Nodes (1): Turn the display off or wake it without locking the Windows session.
 
 ### Community 70 - "Community 70"
 Cohesion: 1.0
-Nodes (1): Grab the primary monitor and return a PIL Image.
+Nodes (1): Normalize privacy-mode command arguments into a supported action.
 
 ### Community 71 - "Community 71"
 Cohesion: 1.0
-Nodes (1): Yield JPEG bytes forever until the session is torn down.      Emits ``b""`` as a
+Nodes (1): Handle /stopbot command - stop the bot process with confirmation.
 
 ### Community 72 - "Community 72"
 Cohesion: 1.0
-Nodes (1): Per-session input dispatcher with rate limit and fail-safe tracking.
+Nodes (1): Handle /shutdown command - shutdown laptop with confirmation.
 
 ### Community 73 - "Community 73"
 Cohesion: 1.0
-Nodes (1): Apply a single event. Returns an optional status string.
+Nodes (1): Shutdown the host machine using the same OS-specific behavior as /shutdown.
 
 ### Community 74 - "Community 74"
 Cohesion: 1.0
-Nodes (1): RemoteSession state container.  Holds the per-user live remote-desktop session:
+Nodes (1): Put the host to sleep and return a user-facing status message.
 
 ### Community 75 - "Community 75"
 Cohesion: 1.0
-Nodes (1): Idempotent teardown: stop WS, server, tunnel; drop from registry.      Each step
+Nodes (1): Handle /battery command - check battery status.
 
 ### Community 76 - "Community 76"
 Cohesion: 1.0
-Nodes (1): Process management utility for Pocket Desk Agent. Handles stopping and status ch
+Nodes (1): Handle /screenshot command - capture current screen.
 
 ### Community 77 - "Community 77"
 Cohesion: 1.0
-Nodes (1): Check if process is running on Windows.
+Nodes (1): Handle /sleep command - put PC to sleep.
 
 ### Community 78 - "Community 78"
 Cohesion: 1.0
-Nodes (1): Return the canonical PID file, falling back to the legacy location.
+Nodes (1): Handle /wakeup command - wake up PC (requires Wake-on-LAN setup).
 
 ### Community 79 - "Community 79"
 Cohesion: 1.0
-Nodes (1): Terminate the bot process.
+Nodes (1): Handle /privacy command - blank or wake the display without locking.
 
 ### Community 80 - "Community 80"
 Cohesion: 1.0
-Nodes (1): Check and print bot status.
+Nodes (1): Handle /hotkey command - execute keyboard shortcuts.
 
 ### Community 81 - "Community 81"
+Cohesion: 1.0
+Nodes (1): Handle /windows command - list switchable desktop windows.
+
+### Community 82 - "Community 82"
+Cohesion: 1.0
+Nodes (1): Handle /focuswindow command - activate a previously listed window.
+
+### Community 83 - "Community 83"
+Cohesion: 1.0
+Nodes (1): Handle /clipboard command - set clipboard content.
+
+### Community 84 - "Community 84"
+Cohesion: 1.0
+Nodes (1): Handle /viewclipboard command - get current clipboard content.
+
+### Community 85 - "Community 85"
+Cohesion: 1.0
+Nodes (1): Grab the primary monitor and return a PIL Image.
+
+### Community 86 - "Community 86"
+Cohesion: 1.0
+Nodes (1): Yield JPEG bytes forever until the session is torn down.      Emits ``b""`` as a
+
+### Community 87 - "Community 87"
+Cohesion: 1.0
+Nodes (1): Per-session input dispatcher with rate limit and fail-safe tracking.
+
+### Community 88 - "Community 88"
+Cohesion: 1.0
+Nodes (1): Apply a single event. Returns an optional status string.
+
+### Community 89 - "Community 89"
+Cohesion: 1.0
+Nodes (1): RemoteSession state container.  Holds the per-user live remote-desktop session:
+
+### Community 90 - "Community 90"
+Cohesion: 1.0
+Nodes (1): Idempotent teardown: stop WS, server, tunnel; drop from registry.      Each step
+
+### Community 91 - "Community 91"
+Cohesion: 1.0
+Nodes (1): Process management utility for Pocket Desk Agent. Handles stopping and status ch
+
+### Community 92 - "Community 92"
+Cohesion: 1.0
+Nodes (1): Check if process is running on Windows.
+
+### Community 93 - "Community 93"
+Cohesion: 1.0
+Nodes (1): Return the canonical PID file, falling back to the legacy location.
+
+### Community 94 - "Community 94"
+Cohesion: 1.0
+Nodes (1): Terminate the bot process.
+
+### Community 95 - "Community 95"
+Cohesion: 1.0
+Nodes (1): Check and print bot status.
+
+### Community 96 - "Community 96"
 Cohesion: 1.0
 Nodes (1): Restart the bot process.
 
@@ -492,121 +567,153 @@ Nodes (1): Restart the bot process.
   docs/AUTHENTICATION_REQUIREMENTS.md · relation: conceptually_related_to
 
 ## Knowledge Gaps
-- **291 isolated node(s):** `Heuristic denylist for files that must never be shipped to a third-party API.`, `Strip outer ```markdown ... ``` fence when it wraps the entire output.`, `Check if a line looks like code.`, `Check if content is valid JSON.`, `Heuristic: check if content looks like YAML.` (+286 more)
+- **398 isolated node(s):** `Heuristic denylist for files that must never be shipped to a third-party API.`, `Strip outer ```markdown ... ``` fence when it wraps the entire output.`, `Check if a line looks like code.`, `Check if content is valid JSON.`, `Heuristic: check if content looks like YAML.` (+393 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **Thin community `Community 25`** (2 nodes): `Centralized command registry for the bot.`, `command_map.py`
+- **Thin community `Community 24`** (2 nodes): `Centralized command registry for the bot.`, `command_map.py`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 26`** (2 nodes): `Shared constants for Pocket Desk Agent.  Single source of truth for API endpoi`, `constants.py`
+- **Thin community `Community 25`** (2 nodes): `Shared constants for Pocket Desk Agent.  Single source of truth for API endpoi`, `constants.py`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 27`** (2 nodes): `plugins/caveman/skills/compress/scripts/__init__.py`, `plugins.caveman.skills.compress.scripts`
+- **Thin community `Community 26`** (2 nodes): `plugins/caveman/skills/compress/scripts/__init__.py`, `plugins.caveman.skills.compress.scripts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 28`** (1 nodes): `Generate PKCE verifier and challenge`
+- **Thin community `Community 27`** (1 nodes): `Generate PKCE verifier and challenge`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 29`** (1 nodes): `Clear state for a new login flow.`
+- **Thin community `Community 28`** (1 nodes): `Clear state for a new login flow.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 30`** (1 nodes): `Create from dictionary.`
+- **Thin community `Community 29`** (1 nodes): `Create from dictionary.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 31`** (1 nodes): `(Re-)read every config value from ``os.environ``.`
+- **Thin community `Community 30`** (1 nodes): `(Re-)read every config value from ``os.environ``.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 32`** (1 nodes): `Validate required configuration.`
+- **Thin community `Community 31`** (1 nodes): `Validate required configuration.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 33`** (1 nodes): `Create an instance from persisted data.`
+- **Thin community `Community 32`** (1 nodes): `Create an instance from persisted data.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 34`** (1 nodes): `Escape values inserted into Task Scheduler XML.`
+- **Thin community `Community 33`** (1 nodes): `Escape values inserted into Task Scheduler XML.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 35`** (1 nodes): `Combine stdout and stderr for error reporting.`
+- **Thin community `Community 34`** (1 nodes): `Combine stdout and stderr for error reporting.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 36`** (1 nodes): `Return True when schtasks reports that the task does not exist.`
+- **Thin community `Community 35`** (1 nodes): `Return True when schtasks reports that the task does not exist.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 37`** (1 nodes): `Run a subprocess command and capture output as text.`
+- **Thin community `Community 36`** (1 nodes): `Run a subprocess command and capture output as text.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 38`** (1 nodes): `scripts.install.ps1`
+- **Thin community `Community 37`** (1 nodes): `scripts.install.ps1`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 39`** (1 nodes): `scripts`
+- **Thin community `Community 38`** (1 nodes): `scripts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 40`** (1 nodes): `Handle Dropbox file deletion request.`
+- **Thin community `Community 39`** (1 nodes): `Format an UpdateInfo into a user-friendly Telegram message.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 41`** (1 nodes): `Delete file from Dropbox.      Returns:         dict with 'success' and 'error'`
+- **Thin community `Community 40`** (1 nodes): `Run an update check at startup and log the result.      This is meant to be ca`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 42`** (1 nodes): `Handle user's choice for large file upload.`
+- **Thin community `Community 41`** (1 nodes): `Background coroutine that periodically checks for updates.      Args:`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 43`** (1 nodes): `File system command handlers.`
+- **Thin community `Community 42`** (1 nodes): `Run an update check at startup and log the result.      This is meant to be ca`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 44`** (1 nodes): `Handle /pwd command - show current directory.`
+- **Thin community `Community 43`** (1 nodes): `Result of a check-for-updates query.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 45`** (1 nodes): `Handle /cd command - change directory.`
+- **Thin community `Community 44`** (1 nodes): `Run a git sub-command and return the completed process.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 46`** (1 nodes): `Handle /ls command - list directory.`
+- **Thin community `Community 45`** (1 nodes): `Return the current local HEAD commit SHA (full).`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 47`** (1 nodes): `Handle /cat command - read file.`
+- **Thin community `Community 46`** (1 nodes): `Return the current local HEAD commit SHA (short 7-char).`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 48`** (1 nodes): `Handle /find command - search files.`
+- **Thin community `Community 47`** (1 nodes): `Human-readable version string: v1.0.0 (abc1234) for git, v1.0.0 for PyPI.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 49`** (1 nodes): `Handle /info command - get file info.`
+- **Thin community `Community 48`** (1 nodes): `Return the date of the local HEAD commit.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 50`** (1 nodes): `System control command handlers.`
+- **Thin community `Community 49`** (1 nodes): `Query PyPI for the latest published version of pocket-desk-agent.      Returns`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 51`** (1 nodes): `Track the last privacy-mode state requested by the bot.`
+- **Thin community `Community 50`** (1 nodes): `Check for updates. For PyPI installs, queries PyPI for the latest version.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 52`** (1 nodes): `Render a human-readable timestamp for privacy mode status.`
+- **Thin community `Community 51`** (1 nodes): `Return the cached result and timestamp of the last update check.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 53`** (1 nodes): `Return a status summary for privacy mode.`
+- **Thin community `Community 52`** (1 nodes): `Pull latest changes from GitHub and re-install requirements.      Returns (suc`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 54`** (1 nodes): `Turn the display off or wake it without locking the Windows session.`
+- **Thin community `Community 53`** (1 nodes): `Background coroutine that periodically checks for updates.      Args:`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 55`** (1 nodes): `Normalize privacy-mode command arguments into a supported action.`
+- **Thin community `Community 54`** (1 nodes): `Format an UpdateInfo into a user-friendly Telegram message.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 56`** (1 nodes): `Handle /stopbot command - stop the bot process with confirmation.`
+- **Thin community `Community 55`** (1 nodes): `Handle Dropbox file deletion request.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 57`** (1 nodes): `Handle /shutdown command - shutdown laptop with confirmation.`
+- **Thin community `Community 56`** (1 nodes): `Delete file from Dropbox.      Returns:         dict with 'success' and 'error'`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 58`** (1 nodes): `Shutdown the host machine using the same OS-specific behavior as /shutdown.`
+- **Thin community `Community 57`** (1 nodes): `Handle user's choice for large file upload.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 59`** (1 nodes): `Put the host to sleep and return a user-facing status message.`
+- **Thin community `Community 58`** (1 nodes): `File system command handlers.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 60`** (1 nodes): `Handle /battery command - check battery status.`
+- **Thin community `Community 59`** (1 nodes): `Handle /pwd command - show current directory.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 61`** (1 nodes): `Handle /screenshot command - capture current screen.`
+- **Thin community `Community 60`** (1 nodes): `Handle /cd command - change directory.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 62`** (1 nodes): `Handle /sleep command - put PC to sleep.`
+- **Thin community `Community 61`** (1 nodes): `Handle /ls command - list directory.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 63`** (1 nodes): `Handle /wakeup command - wake up PC (requires Wake-on-LAN setup).`
+- **Thin community `Community 62`** (1 nodes): `Handle /cat command - read file.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 64`** (1 nodes): `Handle /privacy command - blank or wake the display without locking.`
+- **Thin community `Community 63`** (1 nodes): `Handle /find command - search files.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 65`** (1 nodes): `Handle /hotkey command - execute keyboard shortcuts.`
+- **Thin community `Community 64`** (1 nodes): `Handle /info command - get file info.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 66`** (1 nodes): `Handle /windows command - list switchable desktop windows.`
+- **Thin community `Community 65`** (1 nodes): `System control command handlers.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 67`** (1 nodes): `Handle /focuswindow command - activate a previously listed window.`
+- **Thin community `Community 66`** (1 nodes): `Track the last privacy-mode state requested by the bot.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 68`** (1 nodes): `Handle /clipboard command - set clipboard content.`
+- **Thin community `Community 67`** (1 nodes): `Render a human-readable timestamp for privacy mode status.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 69`** (1 nodes): `Handle /viewclipboard command - get current clipboard content.`
+- **Thin community `Community 68`** (1 nodes): `Return a status summary for privacy mode.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 70`** (1 nodes): `Grab the primary monitor and return a PIL Image.`
+- **Thin community `Community 69`** (1 nodes): `Turn the display off or wake it without locking the Windows session.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 71`** (1 nodes): `Yield JPEG bytes forever until the session is torn down.      Emits ``b""`` as a`
+- **Thin community `Community 70`** (1 nodes): `Normalize privacy-mode command arguments into a supported action.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 72`** (1 nodes): `Per-session input dispatcher with rate limit and fail-safe tracking.`
+- **Thin community `Community 71`** (1 nodes): `Handle /stopbot command - stop the bot process with confirmation.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 73`** (1 nodes): `Apply a single event. Returns an optional status string.`
+- **Thin community `Community 72`** (1 nodes): `Handle /shutdown command - shutdown laptop with confirmation.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 74`** (1 nodes): `RemoteSession state container.  Holds the per-user live remote-desktop session:`
+- **Thin community `Community 73`** (1 nodes): `Shutdown the host machine using the same OS-specific behavior as /shutdown.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 75`** (1 nodes): `Idempotent teardown: stop WS, server, tunnel; drop from registry.      Each step`
+- **Thin community `Community 74`** (1 nodes): `Put the host to sleep and return a user-facing status message.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 76`** (1 nodes): `Process management utility for Pocket Desk Agent. Handles stopping and status ch`
+- **Thin community `Community 75`** (1 nodes): `Handle /battery command - check battery status.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 77`** (1 nodes): `Check if process is running on Windows.`
+- **Thin community `Community 76`** (1 nodes): `Handle /screenshot command - capture current screen.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 78`** (1 nodes): `Return the canonical PID file, falling back to the legacy location.`
+- **Thin community `Community 77`** (1 nodes): `Handle /sleep command - put PC to sleep.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 79`** (1 nodes): `Terminate the bot process.`
+- **Thin community `Community 78`** (1 nodes): `Handle /wakeup command - wake up PC (requires Wake-on-LAN setup).`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 80`** (1 nodes): `Check and print bot status.`
+- **Thin community `Community 79`** (1 nodes): `Handle /privacy command - blank or wake the display without locking.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 81`** (1 nodes): `Restart the bot process.`
+- **Thin community `Community 80`** (1 nodes): `Handle /hotkey command - execute keyboard shortcuts.`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 81`** (1 nodes): `Handle /windows command - list switchable desktop windows.`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 82`** (1 nodes): `Handle /focuswindow command - activate a previously listed window.`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 83`** (1 nodes): `Handle /clipboard command - set clipboard content.`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 84`** (1 nodes): `Handle /viewclipboard command - get current clipboard content.`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 85`** (1 nodes): `Grab the primary monitor and return a PIL Image.`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 86`** (1 nodes): `Yield JPEG bytes forever until the session is torn down.      Emits ``b""`` as a`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 87`** (1 nodes): `Per-session input dispatcher with rate limit and fail-safe tracking.`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 88`** (1 nodes): `Apply a single event. Returns an optional status string.`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 89`** (1 nodes): `RemoteSession state container.  Holds the per-user live remote-desktop session:`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 90`** (1 nodes): `Idempotent teardown: stop WS, server, tunnel; drop from registry.      Each step`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 91`** (1 nodes): `Process management utility for Pocket Desk Agent. Handles stopping and status ch`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 92`** (1 nodes): `Check if process is running on Windows.`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 93`** (1 nodes): `Return the canonical PID file, falling back to the legacy location.`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 94`** (1 nodes): `Terminate the bot process.`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 95`** (1 nodes): `Check and print bot status.`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 96`** (1 nodes): `Restart the bot process.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 
 ## Suggested Questions
@@ -616,13 +723,13 @@ _Questions this graph is uniquely positioned to answer:_
   _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
 - **What is the exact relationship between `docs/AUTHENTICATION_REQUIREMENTS.md` and `docs/COMMANDS.md`?**
   _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
-- **Why does `Config` connect `Community 0` to `Community 2`, `Community 7`, `Community 14`, `Community 15`, `Community 16`?**
-  _High betweenness centrality (0.219) - this node is a cross-community bridge._
-- **Why does `pocket_desk_agent.handlers.scheduling` connect `Community 4` to `Community 0`, `Community 1`, `Community 5`, `Community 8`, `Community 14`, `Community 19`?**
-  _High betweenness centrality (0.197) - this node is a cross-community bridge._
-- **Why does `scripts.manage_auth` connect `Community 4` to `Community 9`, `Community 2`, `Community 5`, `Community 1`?**
-  _High betweenness centrality (0.168) - this node is a cross-community bridge._
-- **Are the 251 inferred relationships involving `Config` (e.g. with `AntigravityAuth` and `Authentication command handlers (login, authcode, checkauth, logout).  /login`) actually correct?**
-  _`Config` has 251 INFERRED edges - model-reasoned connections that need verification._
+- **Why does `pocket_desk_agent.handlers.scheduling` connect `Community 2` to `Community 9`, `Community 1`, `Community 6`, `Community 7`?**
+  _High betweenness centrality (0.245) - this node is a cross-community bridge._
+- **Why does `Config` connect `Community 3` to `Community 0`, `Community 2`, `Community 4`, `Community 11`, `Community 16`?**
+  _High betweenness centrality (0.191) - this node is a cross-community bridge._
+- **Why does `scripts.manage_auth` connect `Community 6` to `Community 0`, `Community 1`, `Community 10`, `Community 7`?**
+  _High betweenness centrality (0.119) - this node is a cross-community bridge._
+- **Are the 291 inferred relationships involving `Config` (e.g. with `AntigravityAuth` and `Authentication command handlers (login, authcode, checkauth, logout).  /login`) actually correct?**
+  _`Config` has 291 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 92 inferred relationships involving `GeminiCLIOAuth` (e.g. with `AntigravityAuth` and `Authentication command handlers (login, authcode, checkauth, logout).  /login`) actually correct?**
   _`GeminiCLIOAuth` has 92 INFERRED edges - model-reasoned connections that need verification._

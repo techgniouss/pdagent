@@ -61,6 +61,7 @@ Aşağıdakilerin tümü yapay zeka yapılandırması olmadan çalışır:
 - **VS Code / Antigravity Entegrasyonu**: Klasörler açın, yapay zeka modeli değiştirin, Antigravity uzantısını kontrol edin.
 - **Görev Zamanlayıcı**: Belirli bir zamanda otomasyon veya Claude istemleri çalıştırın. Görevler yeniden başlatmalar sonrasında da devam eder.
 - **Derleme Otomasyonu**: React Native Android derlemelerini tetikleyin ve APK'ları Telegram ile alın.
+- **Canlı Uzak Masaüstü**: Masaüstünüzü güvenli HTTPS tüneli üzerinden herhangi bir tarayıcıya canlı yayınlayın — port yönlendirmesi gerekmez. Telefondan tam fare ve klavye kontrolü, zoom, trackpad modu ve cloudflared otomatik kurulum. Bkz. [docs/REMOTE.md](docs/REMOTE.md).
 - **Otomatik Güncelleme**: Bot güncellemeleri kontrol edip uygulayabilir.
 - **Hafif**: Boşta ~55-70 MB RAM, <0.5% CPU. Ağır bağımlılıklar yalnızca ihtiyaç duyulduğunda yüklenir.
 
@@ -87,7 +88,7 @@ Telefonunuz → Telegram Sunucuları → (giden polling) → Pocket Desk Agent (
 | `GeminiClient` | Gemini API oturumları ve konuşma geçmişi |
 | `FileManager` | Korumalı dosya G/Ç — yol doğrulama |
 | `AuthManager` | Antigravity, Gemini CLI ve API anahtarı için OAuth |
-| `SchedulerRegistry` | Görevler diske kalıcı olarak kaydedilir, 60 sn'de bir kontrol |
+| `SchedulerRegistry` | Görevler diske kalıcı olarak kaydedilir, 5 sn'de bir kontrol |
 | `RateLimiter` | Komut başına kullanıcı başına token kova hız sınırlayıcısı |
 
 ---
@@ -107,6 +108,7 @@ Telefonunuz → Telegram Sunucuları → (giden polling) → Pocket Desk Agent (
 | Claude Desktop entegrasyonu | ✅ | ❌ |
 | VS Code entegrasyonu | ✅ | ❌ |
 | APK derlemesi | ✅ | ❌ |
+| Canlı uzak masaüstü (`/remote`) | ✅ | ❌ |
 | Oturum açma sonrası otomatik başlatma | ✅ | ❌ |
 
 ---

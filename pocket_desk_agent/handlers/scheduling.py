@@ -40,6 +40,24 @@ def parse_schedule_time(time_str: str) -> Optional[dt.datetime]:
     return _parse_schedule_time(time_str)
 
 
+def _parse_schedule_args(args: list[str]) -> tuple[Optional[dt.datetime], int]:
+    """Parse command args and return (execute_at, consumed_arg_count)."""
+    if not args:
+        return None, 0
+
+    if len(args) >= 2:
+        combined = f"{args[0]} {args[1]}"
+        parsed_combined = parse_schedule_time(combined)
+        if parsed_combined:
+            return parsed_combined, 2
+
+    parsed_single = parse_schedule_time(args[0])
+    if parsed_single:
+        return parsed_single, 1
+
+    return None, 0
+
+
 def describe_task(task: ScheduledTask) -> str:
     """Return a compact human-readable summary of a scheduled task."""
     if task.task_type == "screen_watch":
@@ -241,21 +259,30 @@ async def claudeschedule_command(update: Update, context: ContextTypes.DEFAULT_T
     if not update.message:
         return
 
-    if len(context.args) < 2:
+    if not context.args:
         await update.message.reply_text(
             "Usage: /claudeschedule <HH:MM> <prompt>\n"
+            "   or: /claudeschedule <YYYY-MM-DD HH:MM> <prompt>\n"
             "Example: /claudeschedule 18:30 run the build script"
         )
         return
 
-    execute_at = parse_schedule_time(context.args[0])
+    execute_at, consumed = _parse_schedule_args(context.args)
     if not execute_at:
         await update.message.reply_text(
             "Invalid time format. Use HH:MM or YYYY-MM-DD HH:MM."
         )
         return
 
-    prompt = " ".join(context.args[1:])
+    prompt_parts = context.args[consumed:]
+    if not prompt_parts:
+        await update.message.reply_text(
+            "Please include a prompt to send.\n"
+            "Example: /claudeschedule 18:30 run the build script"
+        )
+        return
+
+    prompt = " ".join(prompt_parts)
     task = ScheduledTask(
         id=f"claude_{int(time.time())}",
         user_id=update.effective_user.id,
@@ -286,10 +313,16 @@ async def schedule_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         )
         return
 
-    execute_at = parse_schedule_time(context.args[0])
+    execute_at, consumed = _parse_schedule_args(context.args)
     if not execute_at:
         await update.message.reply_text(
             "Invalid time format. Use HH:MM or YYYY-MM-DD HH:MM."
+        )
+        return
+    if consumed != len(context.args):
+        await update.message.reply_text(
+            "/schedule only accepts a time value.\n"
+            "Examples: /schedule 21:00 or /schedule 2026-05-01 09:30"
         )
         return
 
@@ -714,7 +747,7 @@ async def _execute_scheduled_claude_prompt(task: ScheduledTask, bot) -> tuple[bo
         text=f"Executing scheduled Claude prompt:\n{prompt}",
     )
 
-    from pocket_desk_agent.handlers.claude import ensure_claude_open
+    from pocket_desk_agent.handlers.claude import ensure_claude_open, send_prompt_to_claude
 
     window = ensure_claude_open()
     if not window:
@@ -726,75 +759,7 @@ async def _execute_scheduled_claude_prompt(task: ScheduledTask, bot) -> tuple[bo
         pass
     await asyncio.sleep(1.5)
 
-    import pyautogui
-    import pyperclip
-
-    input_clicked = False
-    try:
-        import pytesseract
-
-        if platform.system() == "Windows":
-            for candidate in (
-                r"C:\Program Files\Tesseract-OCR\tesseract.exe",
-                r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
-                os.path.expandvars(r"%LOCALAPPDATA%\Programs\Tesseract-OCR\tesseract.exe"),
-            ):
-                if candidate and os.path.exists(candidate):
-                    pytesseract.pytesseract.tesseract_cmd = candidate
-                    break
-
-        bottom_height = 200
-        screenshot = pyautogui.screenshot(
-            region=(
-                window.left,
-                window.top + window.height - bottom_height,
-                window.width,
-                bottom_height,
-            )
-        )
-        text_data = pytesseract.image_to_data(
-            screenshot,
-            output_type=pytesseract.Output.DICT,
-        )
-        for index, word in enumerate(text_data["text"]):
-            if word and any(term in word.lower() for term in ("reply", "find", "todo", "ask", "type", "message", "chat")):
-                x = text_data["left"][index] + (text_data["width"][index] // 2) + window.left
-                y = (
-                    text_data["top"][index]
-                    + (text_data["height"][index] // 2)
-                    + window.top
-                    + window.height
-                    - bottom_height
-                )
-                pyautogui.click(x, y)
-                await asyncio.sleep(0.5)
-                input_clicked = True
-                break
-    except Exception as exc:
-        logger.warning("Scheduled Claude OCR input detection failed: %s", exc)
-
-    if not input_clicked:
-        try:
-            from pywinauto import Application
-
-            app = Application(backend="uia").connect(title_re=".*Claude.*")
-            claude_window = app.window(title_re=".*Claude.*")
-            input_box = claude_window.child_window(control_type="Edit", found_index=0)
-            input_box.click_input()
-            await asyncio.sleep(0.5)
-            input_clicked = True
-        except Exception as exc:
-            logger.warning("Scheduled Claude pywinauto input detection failed: %s", exc)
-
-    if not input_clicked:
-        pyautogui.click(window.left + (window.width // 2), window.top + window.height - 35)
-        await asyncio.sleep(0.5)
-
-    pyperclip.copy(prompt)
-    await asyncio.sleep(0.3)
-    pyautogui.hotkey("ctrl", "v")
-    await asyncio.sleep(0.5)
-    pyautogui.press("enter")
+    send_prompt_to_claude(window, prompt)
 
     await bot.send_message(
         chat_id=task.user_id,

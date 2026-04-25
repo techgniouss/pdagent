@@ -276,21 +276,23 @@ _VIEWER_HTML = r"""<!doctype html>
 <title>Pocket Desk Remote</title>
 <style>
   :root { color-scheme: dark; }
-  html, body { margin:0; padding:0; height:100%; background:#000; overflow:hidden; touch-action:none; }
+  html, body { margin:0; padding:0; height:100%; background:#000; overflow:hidden; }
   #stage { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; }
   canvas { max-width:100vw; max-height:100vh; background:#000; display:block; touch-action:none; }
   #hud { position:fixed; top:env(safe-area-inset-top,0); left:0; right:0; display:flex; justify-content:space-between; align-items:center; padding:6px 10px; pointer-events:none; font:12px/1.2 system-ui, -apple-system, sans-serif; color:#bbb; }
   #hud .pill { background:rgba(0,0,0,.55); border:1px solid #333; border-radius:999px; padding:4px 10px; pointer-events:auto; }
-  #toolbar { position:fixed; bottom:calc(env(safe-area-inset-bottom,0) + 8px); left:0; right:0; display:flex; justify-content:center; gap:8px; pointer-events:none; }
-  #toolbar button { pointer-events:auto; background:rgba(0,0,0,.65); color:#fff; border:1px solid #555; border-radius:999px; padding:8px 14px; font:14px system-ui; }
+  #toolbar { position:fixed; bottom:calc(env(safe-area-inset-bottom,0) + 8px); left:0; right:0; display:flex; align-items:center; gap:8px; padding:0 10px; overflow-x:auto; overflow-y:hidden; white-space:nowrap; pointer-events:auto; -webkit-overflow-scrolling:touch; }
+  #toolbar::-webkit-scrollbar { height:4px; }
+  #toolbar::-webkit-scrollbar-thumb { background:#3f3f3f; border-radius:999px; }
+  #toolbar button { flex:0 0 auto; background:rgba(0,0,0,.65); color:#fff; border:1px solid #555; border-radius:999px; padding:8px 14px; font:14px system-ui; }
   #toolbar button:active { background:#222; }
   #ime { position:fixed; bottom:-40px; left:0; width:100%; opacity:0.01; font-size:16px; padding:4px; border:none; }
   #status { position:fixed; left:0; right:0; bottom:56px; text-align:center; color:#fbbf24; font:13px system-ui; pointer-events:none; text-shadow:0 1px 3px #000; }
   #slider { width:120px; }
-  #trackpadWrap { position:fixed; left:8px; right:8px; bottom:calc(env(safe-area-inset-bottom,0) + 56px); height:110px; display:none; z-index:6; }
+  #trackpadWrap { position:fixed; left:8px; right:8px; bottom:calc(env(safe-area-inset-bottom,0) + 56px); height:160px; display:none; z-index:6; }
   #trackpadWrap.show { display:block; }
   #trackpadLabel { color:#bdbdbd; font:12px/1.1 system-ui; margin:0 0 6px 6px; }
-  #trackpad { height:86px; border:1px solid #3a3a3a; border-radius:12px; background:rgba(0,0,0,.65); touch-action:none; }
+  #trackpad { height:136px; border:1px solid #3a3a3a; border-radius:12px; background:rgba(0,0,0,.65); touch-action:none; }
 </style>
 </head>
 <body>
@@ -301,11 +303,11 @@ _VIEWER_HTML = r"""<!doctype html>
   </div>
   <div id="status"></div>
   <div id="toolbar">
-    <button id="kbBtn">keys</button>
-    <button id="rcBtn">right</button>
-    <button id="mouseBtn">mouse off</button>
+    <button id="kbBtn" title="Open keyboard input">keys</button>
+    <button id="rcBtn" title="Use right click on next tap">right click</button>
+    <button id="mouseBtn" title="Toggle mouse pad mode">mouse pad off</button>
     <button id="zoomBtn">zoom 1.0x</button>
-    <button id="modeBtn">pan off</button>
+    <button id="modeBtn" title="When zoomed, drag to move viewport">view pan off</button>
     <input id="slider" type="range" min="30" max="85" value="60" />
     <button id="stopBtn">end</button>
   </div>
@@ -349,7 +351,11 @@ _VIEWER_HTML = r"""<!doctype html>
   var padMouseDrag = null;
   var padTwoFingerY = 0;
   var padLongTimer = null;
-  var PAD_GAIN = 1.6;
+  var PAD_GAIN = 1.35;
+  var PAD_MAX_STEP = 24;
+  var padDeltaX = 0;
+  var padDeltaY = 0;
+  var padFlushQueued = false;
 
   function resize() {
     var ar = vw / vh;
@@ -399,7 +405,7 @@ _VIEWER_HTML = r"""<!doctype html>
       viewPanY = 0;
     }
     zoomBtn.textContent = 'zoom ' + viewZoom.toFixed(1) + 'x';
-    modeBtn.textContent = panMode ? 'pan on' : 'pan off';
+    modeBtn.textContent = panMode ? 'view pan on' : 'view pan off';
     modeBtn.disabled = viewZoom <= 1.0001;
   }
 
@@ -411,18 +417,46 @@ _VIEWER_HTML = r"""<!doctype html>
   }
 
   function updateMouseUi() {
-    mouseBtn.textContent = mouseMode ? 'mouse on' : 'mouse off';
+    mouseBtn.textContent = mouseMode ? 'mouse pad on' : 'mouse pad off';
     if (mouseMode) {
       trackpadWrap.classList.add('show');
-      stage.style.bottom = '170px';
+      stage.style.bottom = '220px';
     } else {
       trackpadWrap.classList.remove('show');
       stage.style.bottom = '0';
       padTouch = null;
       padMouseDrag = null;
+      padDeltaX = 0;
+      padDeltaY = 0;
+      padFlushQueued = false;
       clearPadLong();
     }
     resize();
+  }
+
+  function queuePadMove(dx, dy) {
+    padDeltaX += dx;
+    padDeltaY += dy;
+    if (padFlushQueued) return;
+    padFlushQueued = true;
+
+    var flush = function() {
+      padFlushQueued = false;
+      var outDx = padDeltaX;
+      var outDy = padDeltaY;
+      padDeltaX = 0;
+      padDeltaY = 0;
+      if (Math.abs(outDx) < 0.05 && Math.abs(outDy) < 0.05) return;
+      outDx = clamp(outDx, -PAD_MAX_STEP, PAD_MAX_STEP);
+      outDy = clamp(outDy, -PAD_MAX_STEP, PAD_MAX_STEP);
+      send({type:'relmove', dx: outDx, dy: outDy, gain: PAD_GAIN});
+      if (Math.abs(padDeltaX) >= 0.05 || Math.abs(padDeltaY) >= 0.05) {
+        queuePadMove(0, 0);
+      }
+    };
+
+    if (window.requestAnimationFrame) window.requestAnimationFrame(flush);
+    else setTimeout(flush, 16);
   }
 
   // ── Video WebSocket ──────────────────────────────────────────────
@@ -653,7 +687,7 @@ _VIEWER_HTML = r"""<!doctype html>
     } else {
       var btn = rightClickMode ? 'right' : 'left';
       send({type:'click', x:touchStart.x, y:touchStart.y, button:btn});
-      if (rightClickMode) { rightClickMode = false; rcBtn.textContent = 'right'; }
+      if (rightClickMode) { rightClickMode = false; rcBtn.textContent = 'right click'; }
     }
     touchStart = null;
     dragging = false;
@@ -716,12 +750,14 @@ _VIEWER_HTML = r"""<!doctype html>
   // ── Right-click one-shot button ─────────────────────────────────
   rcBtn.addEventListener('click', function(){
     rightClickMode = !rightClickMode;
-    rcBtn.textContent = rightClickMode ? 'right-once' : 'right';
+    rcBtn.textContent = rightClickMode ? 'right click: next tap' : 'right click';
+    showStatus(rightClickMode ? 'Next tap will right-click' : 'Right-click mode off');
   });
 
   mouseBtn.addEventListener('click', function(){
     mouseMode = !mouseMode;
     updateMouseUi();
+    showStatus(mouseMode ? 'Mouse pad on' : 'Mouse pad off');
   });
 
   trackpad.addEventListener('touchstart', function(e){
@@ -763,7 +799,7 @@ _VIEWER_HTML = r"""<!doctype html>
     var dx = t.clientX - padTouch.x;
     var dy2 = t.clientY - padTouch.y;
     if (Math.abs(dx) > 0.5 || Math.abs(dy2) > 0.5) {
-      send({type:'relmove', dx: dx, dy: dy2, gain: PAD_GAIN});
+      queuePadMove(dx, dy2);
       padTouch.x = t.clientX;
       padTouch.y = t.clientY;
       if (Math.hypot(dx, dy2) > 2) {
@@ -793,7 +829,7 @@ _VIEWER_HTML = r"""<!doctype html>
     var dx = e.clientX - padMouseDrag.x;
     var dy = e.clientY - padMouseDrag.y;
     if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
-      send({type:'relmove', dx: dx, dy: dy, gain: PAD_GAIN});
+      queuePadMove(dx, dy);
       padMouseDrag.x = e.clientX;
       padMouseDrag.y = e.clientY;
       padMouseDrag.moved = true;
@@ -829,8 +865,10 @@ _VIEWER_HTML = r"""<!doctype html>
   modeBtn.addEventListener('click', function(){
     if (viewZoom <= 1.0001) {
       panMode = false;
+      showStatus('Zoom in first to use pan mode');
     } else {
       panMode = !panMode;
+      showStatus(panMode ? 'Pan mode on: drag screen to move view' : 'Pan mode off');
     }
     updateZoomUi();
   });

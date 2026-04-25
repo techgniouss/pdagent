@@ -766,7 +766,7 @@ async def openclaudeinvscode_command(update: Update, context: ContextTypes.DEFAU
 
 
 async def claudecli_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /claudecli - list folders and open Claude CLI in the selected one."""
+    """Handle /claudecli - open directly when a folder arg resolves, else show picker."""
     if not update.message:
         return
 
@@ -776,6 +776,29 @@ async def claudecli_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Scanning folders for Claude CLI...")
 
     try:
+        if context.args:
+            folder_query = context.args[0].strip()
+            if folder_query:
+                resolved, payload = resolve_workspace_folder(folder_query)
+                normalized_query = folder_query.lower()
+                resolved_name = os.path.basename(payload).lower() if resolved else ""
+                is_explicit_dir = Path(os.path.expandvars(folder_query)).expanduser().is_dir()
+                if resolved and (
+                    is_explicit_dir
+                    or normalized_query == resolved_name
+                    or normalized_query == payload.lower()
+                ):
+                    direct_prompt = " ".join(context.args[1:]).strip()
+                    await update.message.reply_text(
+                        f"Opening Claude CLI in `{payload}`...",
+                        parse_mode="Markdown",
+                    )
+                    success, message = launch_claude_cli(payload, direct_prompt)
+                    await update.message.reply_text(message, parse_mode="Markdown")
+                    if not success:
+                        logger.warning("claudecli direct launch failed: %s", message)
+                    return
+
         folders = _discover_candidate_folders(limit=_FOLDER_SCAN_LIMIT)
         if not folders:
             await update.message.reply_text(
@@ -830,7 +853,7 @@ async def claudeclisend_command(update: Update, context: ContextTypes.DEFAULT_TY
         logger.warning("claudeclisend failed: %s", message)
 
 async def antigravityopenfolder_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /antigravityopenfolder - list folders and open selected one in VS Code."""
+    """Handle /antigravityopenfolder - open a provided path or show folder picker."""
     if not update.message:
         return
 
@@ -838,6 +861,23 @@ async def antigravityopenfolder_command(update: Update, context: ContextTypes.DE
     await update.message.reply_text("Scanning folders...")
 
     try:
+        if context.args:
+            query = " ".join(context.args).strip()
+            resolved, payload = resolve_workspace_folder(query)
+            if not resolved:
+                await update.message.reply_text(payload)
+                return
+
+            await update.message.reply_text(
+                f"Opening `{payload}` in VS Code...",
+                parse_mode="Markdown",
+            )
+            success, message = open_folder_in_vscode(payload)
+            await update.message.reply_text(message, parse_mode="Markdown")
+            if not success:
+                logger.warning("antigravityopenfolder direct launch failed: %s", message)
+            return
+
         folders = _discover_candidate_folders(limit=_FOLDER_SCAN_LIMIT)
         if not folders:
             await update.message.reply_text(
@@ -864,8 +904,15 @@ async def antigravityopenfolder_command(update: Update, context: ContextTypes.DE
         logger.error("Error in antigravityopenfolder_command: %s", exc, exc_info=True)
 
 async def openbrowser_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /openbrowser - show browser options and open selected one maximized."""
+    """Handle /openbrowser - open requested browser directly or show picker keyboard."""
     if not update.message:
+        return
+
+    if context.args:
+        success, message = launch_browser(context.args[0])
+        await update.message.reply_text(message)
+        if not success:
+            logger.warning("openbrowser direct launch failed: %s", message)
         return
 
     keyboard = []

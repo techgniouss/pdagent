@@ -31,6 +31,7 @@ from pocket_desk_agent.handlers.core import (  # noqa: F401
     new_command,
     status_command,
     enhance_command,
+    update_command,
     handle_message,
     handle_photo,
     error_handler,

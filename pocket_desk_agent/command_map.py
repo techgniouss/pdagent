@@ -72,7 +72,7 @@ COMMAND_REGISTRY = [
     ("claudescreen", handlers.claudescreen_command, "Claude app screenshot"),
     ("claudechat", handlers.claudechat_command, "Automated Claude chat"),
     ("clauderemote", handlers.clauderemote_command, "Run claude remote-control in repo"),
-    ("stopclaude", handlers.stopclaude_command, "Kill Claude app"),
+    ("stopclaude", handlers.stopclaude_command, "Stop claude remote-control session"),
     ("openclaude", handlers.openclaude_command, "Open Claude app"),
     
     # Antigravity Commands
@@ -82,9 +82,9 @@ COMMAND_REGISTRY = [
     ("antigravitymodel", handlers.antigravitymodel_command, "Switch Antigravity model"),
     ("antigravityclaudecodeopen", handlers.antigravityclaudecodeopen_command, "Open Claude Code panel in VS Code"),
     ("openclaudeinvscode", handlers.openclaudeinvscode_command, "Run Claude Code: Open in VS Code"),
-    ("claudecli", handlers.claudecli_command, "Open Claude CLI in a specific folder"),
+    ("claudecli", handlers.claudecli_command, "Open Claude CLI in folder or from picker"),
     ("claudeclisend", handlers.claudeclisend_command, "Send a prompt to active Claude CLI"),
-    ("antigravityopenfolder", handlers.antigravityopenfolder_command, "Open a folder in VS Code"),
+    ("antigravityopenfolder", handlers.antigravityopenfolder_command, "Open a VS Code folder directly or from picker"),
     ("openbrowser", handlers.openbrowser_command, "Open a browser (Edge/Chrome/Firefox/Brave)"),
 
     
