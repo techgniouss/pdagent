@@ -30,6 +30,50 @@ logger = logging.getLogger(__name__)
 
 OAuthProvider = AntigravityOAuth | GeminiCLIOAuth
 
+_TOOL_NAME_ALIASES: dict[str, str] = {
+    "remote": "request_remote_session",
+    "open_remote": "request_remote_session",
+    "start_remote": "request_remote_session",
+    "start_remote_session": "request_remote_session",
+    "remote_desktop_start": "request_remote_session",
+    "open_remote_session": "request_remote_session",
+    "stop_remote": "request_stop_remote_session",
+    "end_remote": "request_stop_remote_session",
+    "close_remote": "request_stop_remote_session",
+    "stop_remote_session": "request_stop_remote_session",
+    "end_remote_session": "request_stop_remote_session",
+    "remote_status": "get_remote_session_status",
+    "get_remote_status": "get_remote_session_status",
+    "remote_session_status": "get_remote_session_status",
+    "check_remote_status": "get_remote_session_status",
+    "build": "start_build_workflow",
+    "start_build": "start_build_workflow",
+    "build_workflow": "start_build_workflow",
+    "build_project": "start_build_workflow",
+    "run_build": "start_build_workflow",
+    "get_apk": "start_apk_retrieval_workflow",
+    "retrieve_apk": "start_apk_retrieval_workflow",
+    "apk_retrieval": "start_apk_retrieval_workflow",
+    "apk_workflow": "start_apk_retrieval_workflow",
+    "watch_screen": "start_screen_watch",
+    "screen_watch": "start_screen_watch",
+    "start_watch_screen": "start_screen_watch",
+    "stop_watch_screen": "stop_screen_watch",
+    "end_screen_watch": "stop_screen_watch",
+    "stop_screen_watcher": "stop_screen_watch",
+    "schedule_claude": "schedule_claude_prompt",
+    "claude_schedule": "schedule_claude_prompt",
+    "schedule_macro": "schedule_desktop_sequence",
+    "schedule_command": "schedule_desktop_sequence",
+    "schedule_custom_command": "schedule_desktop_sequence",
+    "schedule_actions": "schedule_desktop_sequence",
+    "launch_browser": "open_browser",
+    "open_folder_vscode": "open_vscode_folder",
+    "vscode_open_folder": "open_vscode_folder",
+    "launch_claude_cli": "open_claude_cli",
+    "send_claude_cli_message": "claude_cli_send_message",
+}
+
 # ============================================================================
 # SYSTEM INSTRUCTION
 # ============================================================================
@@ -55,6 +99,7 @@ You have access to comprehensive tools for files, desktop context, and automatio
 - open_browser: Open a supported browser in a maximized window
 - open_vscode_folder: Open a specific approved folder in VS Code
 - open_claude_cli / claude_cli_send_message: Launch Claude CLI in a folder or send it a follow-up prompt
+- get_remote_session_status: Read-only status of the live remote-desktop session (URL, fps, idle time)
 
 **Confirmed Action Tools**:
 - write_file / append_file / delete_file / create_directory
@@ -63,6 +108,7 @@ You have access to comprehensive tools for files, desktop context, and automatio
 - open_claude / claude_new_chat / claude_send_message
 - open_antigravity / focus_antigravity_chat
 - schedule_claude_prompt / schedule_desktop_sequence
+- request_remote_session / request_stop_remote_session (confirmation-gated live remote-desktop)
 
 These tools send an approval prompt to the user before any risky action happens.
 
@@ -80,8 +126,11 @@ These tools send an approval prompt to the user before any risky action happens.
    - "open chrome" -> open_browser
    - "open emploi folder in vscode" -> open_vscode_folder
    - "open claude cli in emploi and ask it to run tests" -> open_claude_cli
+   - "open remote" / "control my pc from my phone" / "share my screen" -> request_remote_session
+   - "stop remote" / "end remote session" -> request_stop_remote_session
    - "show current folder" -> get_current_directory or list_directory
    - "open/read/find file" -> use the filesystem tools above
+7. Users may phrase commands naturally (aliases like "start remote", "get apk", "watch screen", "at 22:30", "every 1m"). Map those to the canonical tool names and expected arguments.
 
 Use these tools proactively to understand context and complete tasks efficiently!
 """
@@ -173,6 +222,157 @@ def _is_model_not_found_error(response_data: dict) -> bool:
     if not isinstance(error_text, str):
         return False
     return "HTTP 404" in error_text and "Requested entity was not found" in error_text
+
+
+def _normalize_tool_name(func_name: Any) -> str:
+    """Normalize a tool name for alias resolution."""
+    if not isinstance(func_name, str):
+        return ""
+    normalized = func_name.strip().lstrip("/").lower()
+    normalized = re.sub(r"[\s\-]+", "_", normalized)
+    return normalized
+
+
+def _first_string(args: dict[str, Any], *keys: str, default: str = "") -> str:
+    """Return the first non-empty string value from ``keys``."""
+    for key in keys:
+        value = args.get(key)
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text:
+            return text
+    return default
+
+
+def _first_value(args: dict[str, Any], *keys: str) -> Any:
+    """Return the first present value for ``keys``."""
+    for key in keys:
+        if key in args:
+            return args[key]
+    return None
+
+
+def _as_int(value: Any, default: int = 0) -> int:
+    """Best-effort integer parsing used for tool arguments."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _normalize_tool_args(func_name: str, args: dict[str, Any]) -> dict[str, Any]:
+    """Normalize aliased argument keys to each tool's canonical schema."""
+    if func_name in {
+        "get_current_directory",
+        "get_battery_status",
+        "capture_screenshot",
+        "list_open_windows",
+        "view_clipboard",
+        "shutdown_computer",
+        "sleep_computer",
+        "list_custom_commands",
+        "list_schedules",
+        "scan_ui_elements",
+        "open_claude",
+        "open_antigravity",
+        "focus_antigravity_chat",
+        "request_remote_session",
+        "request_stop_remote_session",
+        "get_remote_session_status",
+    }:
+        return {}
+    if func_name == "change_directory":
+        return {"path": _first_string(args, "path", "directory", "dir", "folder")}
+    if func_name == "focus_window":
+        selection = _first_value(args, "selection", "index", "window", "number")
+        return {"selection": _as_int(selection, default=0)}
+    if func_name == "set_privacy_mode":
+        mode = _first_string(args, "mode", "action", "state", default="status").lower()
+        return {"mode": mode}
+    if func_name in {"start_build_workflow", "start_apk_retrieval_workflow"}:
+        return {"project": _first_string(args, "project", "repo", "folder", "name", "target")}
+    if func_name == "run_saved_command":
+        return {"name": _first_string(args, "name", "command", "custom", "macro").lstrip("/")}
+    if func_name in {"find_text_on_screen", "smart_click_text"}:
+        return {"text": _first_string(args, "text", "query", "target", "search", "phrase")}
+    if func_name == "click_ui_element":
+        selection = _first_value(args, "selection", "index", "number", "element", "id")
+        return {"selection": _as_int(selection, default=0)}
+    if func_name == "set_clipboard":
+        return {"text": _first_string(args, "text", "content", "value", "message")}
+    if func_name == "press_hotkey":
+        keys = _first_string(args, "keys", "hotkey", "shortcut", "key", "press")
+        text = _first_string(args, "text", "content", "value", "message")
+        return {"keys": keys, "text": text or None}
+    if func_name == "click_coordinates":
+        x = _as_int(_first_value(args, "x", "left", "column"), default=0)
+        y = _as_int(_first_value(args, "y", "top", "row"), default=0)
+        return {"x": x, "y": y}
+    if func_name == "start_screen_watch":
+        text = _first_string(args, "text", "query", "target", "search", "phrase")
+        interval = _first_string(args, "interval", "every", "frequency")
+        hotkey = _first_string(args, "hotkey", "shortcut", "key", "keys", "press")
+        scope = _first_string(args, "scope", "app", "window", "context", "target", default="screen").lower()
+        cooldown = _first_string(args, "cooldown", "throttle", "debounce")
+        scope_aliases = {
+            "desktop": "screen",
+            "display": "screen",
+            "fullscreen": "screen",
+            "full": "screen",
+            "claude_app": "claude",
+            "claude desktop": "claude",
+            "antigravity_app": "antigravity",
+            "antigravity desktop": "antigravity",
+        }
+        scope = scope_aliases.get(scope, scope)
+        return {
+            "text": text,
+            "interval": interval,
+            "hotkey": hotkey,
+            "scope": scope,
+            "cooldown": cooldown,
+        }
+    if func_name == "stop_screen_watch":
+        task_id = _first_string(args, "task_id", "id", "watch_id", "schedule_id", "target")
+        if task_id.lower() in {"all", "*"}:
+            task_id = ""
+        return {"task_id": task_id}
+    if func_name == "open_browser":
+        browser = _first_string(args, "browser", "name", "app", "target", default="edge").lower()
+        return {"browser": browser}
+    if func_name in {"open_vscode_folder", "open_claude_cli"}:
+        folder = _first_string(args, "folder", "path", "repo", "project", "name", "directory")
+        normalized = {"folder": folder}
+        if func_name == "open_claude_cli":
+            normalized["prompt"] = _first_string(args, "prompt", "message", "text", "query")
+        return normalized
+    if func_name in {"claude_send_message", "claude_cli_send_message", "claude_new_chat"}:
+        message = _first_string(args, "message", "prompt", "text", "query", "content")
+        return {"message": message}
+    if func_name == "schedule_claude_prompt":
+        execute_at = _first_string(args, "execute_at", "time", "when", "at", "run_at")
+        prompt = _first_string(args, "prompt", "message", "text", "query", "content")
+        return {"execute_at": execute_at, "prompt": prompt}
+    if func_name == "schedule_desktop_sequence":
+        execute_at = _first_string(args, "execute_at", "time", "when", "at", "run_at")
+        name = _first_string(args, "name", "title", "label", "command")
+        actions = _first_value(args, "actions", "steps", "sequence", "commands")
+        if isinstance(actions, dict):
+            actions = [actions]
+        if not isinstance(actions, list):
+            actions = []
+        return {"execute_at": execute_at, "name": name, "actions": actions}
+    return args
+
+
+def _normalize_tool_call(func_name: Any, args: Any) -> tuple[str, dict[str, Any]]:
+    """Normalize tool names and argument aliases before allowlist enforcement."""
+    normalized_name = _normalize_tool_name(func_name)
+    canonical_name = _TOOL_NAME_ALIASES.get(normalized_name, normalized_name)
+    raw_args = args if isinstance(args, dict) else {}
+    normalized_args = _normalize_tool_args(canonical_name, raw_args)
+    return canonical_name, normalized_args
 
 def _get_code_assist_headers(_auth_mode: str, access_token: str) -> dict:
     """Build headers for the shared internal Code Assist backend."""
@@ -395,6 +595,9 @@ _ALLOWED_TOOLS = frozenset({
     "claude_cli_send_message",
     "schedule_claude_prompt",
     "schedule_desktop_sequence",
+    "request_remote_session",
+    "request_stop_remote_session",
+    "get_remote_session_status",
 })
 
 def _build_wrapped_body_with_tools(project_id: str, model: str, history: list, message: Optional[str] = None) -> Tuple[dict, ResolvedModel]:
@@ -646,15 +849,24 @@ class GeminiClient:
                     self.sessions[user_id] = _trim_history(history)
                     return response_text or "(The model returned an empty message.)"
 
-                func_name = tool_call.get('name')
-                args = tool_call.get('args', {}) or {}
+                raw_func_name = tool_call.get('name')
+                raw_args = tool_call.get('args', {}) or {}
+                func_name, args = _normalize_tool_call(raw_func_name, raw_args)
+                normalized_tool_call = {"name": func_name, "args": args}
+                if func_name != raw_func_name or args != raw_args:
+                    logger.info(
+                        "Normalized tool call '%s' -> '%s' with args %s",
+                        raw_func_name,
+                        func_name,
+                        args,
+                    )
 
                 if func_name not in _ALLOWED_TOOLS:
                     logger.warning(
                         f"AI requested disallowed tool '{func_name}' — "
                         f"ignoring (possible prompt injection)"
                     )
-                    history.append({"role": "model", "parts": [{"functionCall": tool_call}]})
+                    history.append({"role": "model", "parts": [{"functionCall": normalized_tool_call}]})
                     history.append({
                         "role": "user",
                         "parts": [{
@@ -705,7 +917,7 @@ class GeminiClient:
 
                 logger.info(f"Tool {func_name} result: {str(result_text)[:100]}")
 
-                history.append({"role": "model", "parts": [{"functionCall": tool_call}]})
+                history.append({"role": "model", "parts": [{"functionCall": normalized_tool_call}]})
                 history.append({
                     "role": "user",
                     "parts": [{

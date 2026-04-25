@@ -42,6 +42,7 @@ AI 설정 없이 즉시 사용 가능한 기능:
 - **작업 예약** — 재시작 후에도 유지
 - **Android APK 빌드 및 전달** — React Native 프로젝트에서 Telegram으로
 
+- **Scheduled shutdown** — Use `/scheduleshutdown <HH:MM>` to schedule a one-time shutdown (confirmation only when scheduling).
 **Google Gemini 2.0 Flash** 자격 증명 추가 시 해제되는 기능:
 - **대화형 AI 채팅** — 멀티턴 기억과 이미지 분석
 - **에이전트 컴퓨터 제어** — Gemini가 파일 탐색, 스크린샷, 클릭, 입력, 자연어로 PC 자동화 수행. 파괴적 작업에는 인간 확인 필요
@@ -61,6 +62,7 @@ AI 설정 없이 즉시 사용 가능한 기능:
 - **VS Code / Antigravity 연동**: 폴더 열기, AI 모델 전환, Antigravity 확장 제어.
 - **작업 스케줄러**: 지정된 시간에 자동화 또는 Claude 프롬프트 실행. 재시작 후에도 유지.
 - **빌드 자동화**: React Native Android 빌드 트리거 및 Telegram으로 APK 수신.
+- **라이브 원격 데스크톱**: 보안 HTTPS 터널을 통해 모든 브라우저로 데스크톱 실시간 스트리밍 — 포트 포워딩 불필요. 휴대폰에서 마우스·키보드 완전 제어, 줌, 트랙패드 모드, cloudflared 자동 설치 지원. [docs/REMOTE.md](docs/REMOTE.md) 참조.
 - **자동 업데이트**: 봇이 업데이트를 확인하고 적용 가능.
 - **경량**: 유휴 시 RAM ~55-70 MB, CPU <0.5%. 무거운 의존성은 필요할 때만 로드.
 
@@ -87,7 +89,7 @@ Pocket Desk Agent는 Windows PC의 로컬 프로세스로 실행되며 Long-Poll
 | `GeminiClient` | Gemini API 세션 및 대화 기록 관리 |
 | `FileManager` | 샌드박스 파일 I/O — 경로 검증 |
 | `AuthManager` | Antigravity, Gemini CLI, API 키용 멀티 프로바이더 OAuth |
-| `SchedulerRegistry` | 디스크에 작업 영속화, 60초마다 확인 |
+| `SchedulerRegistry` | 디스크에 작업 영속화, 5초마다 확인 |
 | `RateLimiter` | 명령어당 사용자별 토큰 버킷 속도 제한기 |
 
 ---
@@ -107,6 +109,7 @@ Pocket Desk Agent는 Windows PC의 로컬 프로세스로 실행되며 Long-Poll
 | Claude Desktop 연동 | ✅ | ❌ |
 | VS Code 연동 | ✅ | ❌ |
 | APK 빌드 | ✅ | ❌ |
+| 라이브 원격 데스크톱 (`/remote`) | ✅ | ❌ |
 | 로그인 후 자동 시작 | ✅ | ❌ |
 
 ---

@@ -67,6 +67,16 @@ class Config:
     AUTO_UPDATE_INTERVAL_MINUTES: int = 60
     LOG_LEVEL: str = "INFO"
 
+    # ── Remote desktop (/remote) ────────────────────────────────────
+    REMOTE_ENABLED: bool = True
+    REMOTE_AI_TOOLS_ENABLED: bool = True
+    REMOTE_BIND_HOST: str = "127.0.0.1"
+    REMOTE_IDLE_TIMEOUT_SECS: int = 900
+    REMOTE_DEFAULT_FPS: int = 10
+    REMOTE_JPEG_QUALITY: int = 60
+    REMOTE_MAX_WIDTH: int = 1280
+    CLOUDFLARED_PATH: str = ""
+
     @classmethod
     def load(cls) -> None:
         """(Re-)read every config value from ``os.environ``."""
@@ -158,6 +168,40 @@ class Config:
         )
 
         cls.LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+
+        # ── Remote desktop ──────────────────────────────────────────
+        cls.REMOTE_ENABLED = (
+            os.getenv("REMOTE_ENABLED", "true").strip().lower() == "true"
+        )
+        cls.REMOTE_AI_TOOLS_ENABLED = (
+            os.getenv("REMOTE_AI_TOOLS_ENABLED", "true").strip().lower() == "true"
+        )
+        cls.REMOTE_BIND_HOST = os.getenv("REMOTE_BIND_HOST", "127.0.0.1").strip() or "127.0.0.1"
+        try:
+            cls.REMOTE_IDLE_TIMEOUT_SECS = max(
+                60, int(os.getenv("REMOTE_IDLE_TIMEOUT_SECS", "900"))
+            )
+        except ValueError:
+            cls.REMOTE_IDLE_TIMEOUT_SECS = 900
+        try:
+            cls.REMOTE_DEFAULT_FPS = max(
+                2, min(20, int(os.getenv("REMOTE_DEFAULT_FPS", "10")))
+            )
+        except ValueError:
+            cls.REMOTE_DEFAULT_FPS = 10
+        try:
+            cls.REMOTE_JPEG_QUALITY = max(
+                30, min(85, int(os.getenv("REMOTE_JPEG_QUALITY", "60")))
+            )
+        except ValueError:
+            cls.REMOTE_JPEG_QUALITY = 60
+        try:
+            cls.REMOTE_MAX_WIDTH = max(
+                640, min(1920, int(os.getenv("REMOTE_MAX_WIDTH", "1280")))
+            )
+        except ValueError:
+            cls.REMOTE_MAX_WIDTH = 1280
+        cls.CLOUDFLARED_PATH = os.getenv("CLOUDFLARED_PATH", "").strip()
 
     @classmethod
     def validate(cls) -> list[str]:

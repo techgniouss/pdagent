@@ -42,6 +42,7 @@ Yapay zeka ayarı olmadan, kullanıma hazır:
 - **Görevleri zamanlayın** — yeniden başlatmalar sonrasında da devam eder
 - **Android APK'ları derleyin ve teslim edin** — React Native projelerinden Telegram üzerinden
 
+- **Scheduled shutdown** — Use `/scheduleshutdown <HH:MM>` to schedule a one-time shutdown (confirmation only when scheduling).
 **Google Gemini 2.0 Flash** kimlik bilgilerini ekleyerek açılacak özellikler:
 - **Konuşmalı yapay zeka sohbeti** — çok turlu bellek ve görüntü analizi
 - **Ajanlı bilgisayar kontrolü** — Gemini dosyaları gezebilir, ekran görüntüsü alabilir, tıklayabilir, yazabilir ve doğal dil ile PC'nizi otomatikleştirebilir. Yıkıcı işlemler için insan onayı gerekir
@@ -61,6 +62,7 @@ Aşağıdakilerin tümü yapay zeka yapılandırması olmadan çalışır:
 - **VS Code / Antigravity Entegrasyonu**: Klasörler açın, yapay zeka modeli değiştirin, Antigravity uzantısını kontrol edin.
 - **Görev Zamanlayıcı**: Belirli bir zamanda otomasyon veya Claude istemleri çalıştırın. Görevler yeniden başlatmalar sonrasında da devam eder.
 - **Derleme Otomasyonu**: React Native Android derlemelerini tetikleyin ve APK'ları Telegram ile alın.
+- **Canlı Uzak Masaüstü**: Masaüstünüzü güvenli HTTPS tüneli üzerinden herhangi bir tarayıcıya canlı yayınlayın — port yönlendirmesi gerekmez. Telefondan tam fare ve klavye kontrolü, zoom, trackpad modu ve cloudflared otomatik kurulum. Bkz. [docs/REMOTE.md](docs/REMOTE.md).
 - **Otomatik Güncelleme**: Bot güncellemeleri kontrol edip uygulayabilir.
 - **Hafif**: Boşta ~55-70 MB RAM, <0.5% CPU. Ağır bağımlılıklar yalnızca ihtiyaç duyulduğunda yüklenir.
 
@@ -87,7 +89,7 @@ Telefonunuz → Telegram Sunucuları → (giden polling) → Pocket Desk Agent (
 | `GeminiClient` | Gemini API oturumları ve konuşma geçmişi |
 | `FileManager` | Korumalı dosya G/Ç — yol doğrulama |
 | `AuthManager` | Antigravity, Gemini CLI ve API anahtarı için OAuth |
-| `SchedulerRegistry` | Görevler diske kalıcı olarak kaydedilir, 60 sn'de bir kontrol |
+| `SchedulerRegistry` | Görevler diske kalıcı olarak kaydedilir, 5 sn'de bir kontrol |
 | `RateLimiter` | Komut başına kullanıcı başına token kova hız sınırlayıcısı |
 
 ---
@@ -107,6 +109,7 @@ Telefonunuz → Telegram Sunucuları → (giden polling) → Pocket Desk Agent (
 | Claude Desktop entegrasyonu | ✅ | ❌ |
 | VS Code entegrasyonu | ✅ | ❌ |
 | APK derlemesi | ✅ | ❌ |
+| Canlı uzak masaüstü (`/remote`) | ✅ | ❌ |
 | Oturum açma sonrası otomatik başlatma | ✅ | ❌ |
 
 ---

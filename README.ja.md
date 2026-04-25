@@ -42,6 +42,7 @@ AIの設定なしで、すぐに使える機能：
 - **タスクスケジューリング** — 再起動後も保持
 - **AndroidのAPKをビルド・配信** — TelegramでReact Nativeプロジェクトから
 
+- **Scheduled shutdown** — Use `/scheduleshutdown <HH:MM>` to schedule a one-time shutdown (confirmation only when scheduling).
 **Google Gemini 2.0 Flash**の認証情報を追加すると解放される機能：
 - **会話型AIチャット** — マルチターン記憶と画像分析
 - **エージェント型コンピュータ制御** — Geminiがファイル閲覧、スクリーンショット、クリック、入力、自然言語によるPC操作を行い、破壊的な操作は人間が確認
@@ -61,6 +62,7 @@ AIの設定なしで、すぐに使える機能：
 - **VS Code / Antigravity連携**：フォルダを開く、AIモデル切り替え、Antigravity拡張機能の操作。
 - **タスクスケジューラー**：指定した時間に自動化フローやClaudeプロンプトを実行。再起動後も保持。
 - **ビルド自動化**：React Native AndroidビルドをトリガーしてTelegramでAPKを受け取る。
+- **ライブリモートデスクトップ**：セキュアなHTTPSトンネル経由でデスクトップを任意のブラウザにリアルタイムストリーミング — ポート転送不要。スマートフォンからのマウス・キーボード完全制御、ズーム、トラックパッドモード、cloudflared自動インストール対応。[docs/REMOTE.md](docs/REMOTE.md)参照。
 - **自動更新**：ボットが更新を確認・適用可能。
 - **軽量**：アイドル時約55-70 MB RAM、CPU <0.5%。重い依存関係はコマンド使用時のみ読み込み。
 
@@ -87,7 +89,7 @@ Pocket Desk AgentはWindows PCのローカルプロセスとして動作し、Lo
 | `GeminiClient` | Gemini APIセッションと会話履歴の管理 |
 | `FileManager` | サンドボックス化されたファイルI/O — パス検証 |
 | `AuthManager` | Antigravity、Gemini CLI、APIキー用マルチプロバイダーOAuth |
-| `SchedulerRegistry` | ディスクへのタスク永続化、60秒ごとに確認 |
+| `SchedulerRegistry` | ディスクへのタスク永続化、5秒ごとに確認 |
 | `RateLimiter` | コマンドごとのユーザー別トークンバケット |
 
 ---
@@ -107,6 +109,7 @@ Pocket Desk AgentはWindows PCのローカルプロセスとして動作し、Lo
 | Claude Desktop連携 | ✅ | ❌ |
 | VS Code連携 | ✅ | ❌ |
 | APKビルド | ✅ | ❌ |
+| ライブリモートデスクトップ (`/remote`) | ✅ | ❌ |
 | ログイン後の自動起動 | ✅ | ❌ |
 
 ---

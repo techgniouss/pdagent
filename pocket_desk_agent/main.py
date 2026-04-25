@@ -21,9 +21,15 @@ from pocket_desk_agent.handlers import (
     describe_task,
     execute_scheduled_task,
     safe_command,
+    teardown_all_sessions,
 )
 from pocket_desk_agent.scheduler_registry import get_scheduler_registry
-from pocket_desk_agent.updater import get_version_string, startup_update_check, format_update_notification
+from pocket_desk_agent.updater import (
+    get_version_string,
+    startup_update_check,
+    update_checker_loop,
+    format_update_notification,
+)
 import asyncio
 
 # Ensure user config directory exists
@@ -145,7 +151,7 @@ async def post_init(application: Application):
 
     # ── Update check (run in thread so the event loop is never blocked) ─────
     try:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         update_info = await loop.run_in_executor(None, startup_update_check)
         if not update_info.up_to_date and not update_info.error:
             msg = format_update_notification(update_info)
@@ -163,6 +169,30 @@ async def post_init(application: Application):
 
     # ── Background tasks (running inside the Application's event loop) ────
     asyncio.create_task(scheduler_loop(application))
+
+    if Config.AUTO_UPDATE_ENABLED:
+        async def _notify_update(info):
+            msg = format_update_notification(info)
+            for user_id in Config.AUTHORIZED_USER_IDS:
+                try:
+                    await application.bot.send_message(
+                        chat_id=user_id,
+                        text=msg,
+                        parse_mode="Markdown",
+                    )
+                except Exception:
+                    pass
+
+        interval = Config.AUTO_UPDATE_INTERVAL_MINUTES * 60
+        asyncio.create_task(update_checker_loop(interval, _notify_update))
+
+
+async def post_shutdown(application: Application):
+    """Tear down any active remote-desktop sessions cleanly on bot exit."""
+    try:
+        await teardown_all_sessions(application.bot)
+    except Exception as exc:
+        logger.warning(f"[remote] shutdown teardown raised: {exc}")
 
 
 def start_reloader():
@@ -317,6 +347,7 @@ def main():
         Application.builder()
         .token(Config.TELEGRAM_BOT_TOKEN)
         .post_init(post_init)
+        .post_shutdown(post_shutdown)
         .build()
     )
     

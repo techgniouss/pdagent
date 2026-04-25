@@ -61,6 +61,7 @@ Everything below works with no AI configuration required:
 - **VS Code / Antigravity Integration**: Open folders, switch AI models, and drive the Antigravity VS Code extension remotely.
 - **Task Scheduler**: Schedule one-shot or repeating automation flows, Claude prompts, temporary Claude/Antigravity permission watchers, and recurring screen watchers that react to visible text. Tasks survive restarts.
 - **Build Automation**: Trigger React Native Android builds and retrieve APKs through Telegram or large-file upload links when needed.
+- **Live Remote Desktop**: Stream your desktop live to any browser over a secure HTTPS tunnel — no port forwarding, no account, no idle cost. Full mouse and keyboard control from your phone, including tap-to-click, drag, right-click, two-finger scroll, on-screen keyboard, trackpad panel, pinch-zoom levels (1×–3×), view panning, and JPEG quality control. The bot auto-installs `cloudflared` via winget if missing. See [docs/REMOTE.md](docs/REMOTE.md).
 - **Auto-Update**: The bot can check for and apply updates on demand.
 - **Lightweight**: ~55-70 MB idle RAM, <0.5% idle CPU. Heavy dependencies (OpenCV, NumPy, Dropbox) load on-demand only when their commands are used.
 
@@ -91,8 +92,9 @@ When you send a message from your phone, Telegram holds it until the bot's polli
 | `AuthManager` | Multi-provider OAuth wrapper for Antigravity, Gemini CLI, and API key modes |
 | `SchedulerRegistry` | Persists scheduled tasks to disk and checks every 5 s; survives restarts |
 | `RateLimiter` | Per-user token-bucket rate limiter applied automatically to every command |
+| `RemoteSession` | Per-session state: MJPEG capture, cloudflared tunnel, aiohttp WebSocket server, idle watchdog |
 
-All 76 command handlers are registered centrally in `command_map.py`. Every handler is wrapped by `@safe_command`, which enforces authorization, rate limiting, and error reporting in a single place — no manual auth checks are needed in individual handlers.
+All command handlers are registered centrally in `command_map.py`. Every handler is wrapped by `@safe_command`, which enforces authorization, rate limiting, and error reporting in a single place — no manual auth checks are needed in individual handlers.
 
 ---
 
@@ -114,6 +116,7 @@ All 76 command handlers are registered centrally in `command_map.py`. Every hand
 | Claude Desktop integration | ✅ | ❌ |
 | VS Code / Antigravity integration | ✅ | ❌ |
 | React Native build automation | ✅ | ❌ |
+| Live remote desktop (`/remote`) | ✅ | ❌ |
 | Automatic startup after login | ✅ | ❌ |
 
 > macOS/Linux users can run the bot for file system access, Gemini AI chat, and scheduling. UI automation features require Windows and, for OCR commands, Tesseract.
@@ -318,7 +321,7 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 
 ## Commands Quick Reference
 
-> For the complete reference with all 76 built-in commands, see **[docs/COMMANDS.md](docs/COMMANDS.md)**.
+> For the complete reference with all 79 built-in commands, see **[docs/COMMANDS.md](docs/COMMANDS.md)**.
 
 <details>
 <summary><strong>Expand cheat sheet</strong></summary>
@@ -398,8 +401,8 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 | Command | Description |
 | :--- | :--- |
 | `/openclaude` | Launch Claude Desktop |
-| `/stopclaude` | Kill Claude Desktop |
-| `/clauderemote` | Open cmd at default repo path and run `claude remote-control` |
+| `/stopclaude` | Stop the active `claude remote-control` terminal session |
+| `/clauderemote` | Open cmd in the current bot working directory and run `claude remote-control` |
 | `/claudeask <prompt>` | Send a detailed prompt to Claude Desktop |
 | `/claudechat <prompt>` | Automated Claude chat flow |
 | `/claudenew` | Start a new Claude chat session |
@@ -423,16 +426,17 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 | `/antigravitymodel` | Switch the Antigravity AI model |
 | `/antigravityclaudecodeopen` | Open the Claude Code panel in VS Code |
 | `/openclaudeinvscode` | Run `Claude Code: Open` in VS Code |
-| `/antigravityopenfolder <path>` | Open a folder in VS Code |
-| `/claudecli [path]` | Open Claude Code CLI in a folder |
+| `/antigravityopenfolder [path-or-name]` | Open a folder directly, or show picker buttons when no argument is provided |
+| `/claudecli [path-or-name] [optional prompt]` | Open Claude Code CLI directly when the first argument resolves to a folder; otherwise show picker buttons and treat text as an initial prompt |
 | `/claudeclisend <text>` | Send a prompt to an active Claude CLI session |
-| `/openbrowser [browser]` | Open Edge, Chrome, Firefox, or Brave |
+| `/openbrowser [browser]` | Open a browser directly (`edge`, `chrome`, `firefox`, `brave`) or show picker buttons with no argument |
 
 ### Scheduling
 
 | Command | Description |
 | :--- | :--- |
 | `/schedule <HH:MM>` | Start recording a scheduled automation sequence |
+| `/scheduleshutdown <HH:MM>` | Schedule a one-shot shutdown (confirm when scheduling, no prompt at trigger time) |
 | `/repeatschedule every <interval> for <duration>` | Record an automation sequence that repeats for a limited time |
 | `/watchperm <claude\|antigravity> every <interval> for <duration>` | Repeatedly scan Claude or Antigravity for approval buttons and click them when safe |
 | `/watchscreen <text> every <interval> press <hotkey>` | Repeatedly scan the full screen or a target app for text and send a hotkey until stopped |
@@ -447,6 +451,15 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 | :--- | :--- |
 | `/build` | Start a React Native Android build |
 | `/getapk` | Download the latest built APK |
+
+### Remote Desktop
+
+> Requires `cloudflared` on PATH. Install: `winget install Cloudflare.cloudflared`. See [docs/REMOTE.md](docs/REMOTE.md).
+
+| Command | Description |
+| :--- | :--- |
+| `/remote` | Start a live browser-based remote desktop session — returns an HTTPS URL and QR code |
+| `/stopremote` | Stop the active remote desktop session |
 
 </details>
 

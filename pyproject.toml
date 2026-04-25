@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pocket-desk-agent"
-version = "1.0.5"
+version = "2.0.0"
 description = "Pocket Desk Agent — a secure Telegram bot that gives you full remote control of your Windows PC, powered by Google Gemini AI."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -47,6 +47,11 @@ dependencies = [
     "dropbox>=11.36.0",
     "opencv-python>=4.8.0",
     "numpy>=1.24.0",
+    # Live remote desktop (/remote) — lazy-imported, see docs/REMOTE.md.
+    "aiohttp>=3.9.0",
+    "qrcode[pil]>=7.4.0",
+    "xxhash>=3.4.0",
+    'mss>=9.0.1; sys_platform == "win32"',
     # Windows-only UI automation deps — gated so the package can build and
     # install on non-Windows runners (e.g. the Linux GitHub Actions runner
     # that publishes to PyPI).

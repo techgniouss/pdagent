@@ -32,7 +32,7 @@ Key capabilities: AI chat (Gemini), file system browsing, desktop screenshots, k
 ```
 pocket-desk-agent/
 ├── pocket_desk_agent/          # Main Python package
-│   ├── handlers/               # Bot command handlers (13 modules)
+│   ├── handlers/               # Bot command handlers (14 modules)
 │   │   ├── _shared.py          # Singleton clients, safe_command decorator, global state
 │   │   ├── auth.py             # /login, /authcode, /checkauth, /logout
 │   │   ├── core.py             # /start, /help, /status, /new, /enhance, /sync, etc.
@@ -44,7 +44,15 @@ pocket-desk-agent/
 │   │   ├── antigravity.py      # /openantigravity, /antigravitychat, /claudecli, etc.
 │   │   ├── build.py            # /build, /getapk
 │   │   ├── scheduling.py       # /schedule, /claudeschedule, /listschedules, /cancelschedule
+│   │   ├── remote.py           # /remote, /stopremote, session lifecycle + auto-install flow
 │   │   └── callbacks.py        # Inline keyboard button handlers
+│   ├── remote/                 # Live remote-desktop subsystem
+│   │   ├── session.py          # RemoteSession dataclass + ACTIVE_SESSIONS registry
+│   │   ├── capture.py          # Async JPEG frame iterator (mss screen capture)
+│   │   ├── input_bridge.py     # InputDispatcher — translates JSON events to pyautogui calls
+│   │   ├── tunnel.py           # Cloudflared quick-tunnel supervisor (spawn + URL capture)
+│   │   ├── install.py          # Winget-based auto-installer for the cloudflared binary
+│   │   └── web_server.py       # aiohttp server: /ws/video, /ws/input, / (viewer HTML)
 │   ├── cli.py                  # Entry point for `pdagent` CLI
 │   ├── main.py                 # Application bootstrap, scheduler loop
 │   ├── config.py               # Config class — reads from os.environ
@@ -91,6 +99,7 @@ pocket-desk-agent/
 | UI Automation | pywinauto, pyautogui, pygetwindow (Windows only) |
 | Computer Vision | opencv-python, numpy (contour detection for /findelements) |
 | OCR | pytesseract (Tesseract engine) |
+| Remote Desktop | aiohttp (WebSocket server), mss (screen capture), cloudflared (HTTPS tunnel) |
 | File Uploads | Dropbox SDK |
 | Build Backend | hatchling (PEP 517) |
 | Packaging | PyPI (`pocket-desk-agent`) |
@@ -175,6 +184,7 @@ All values live in `pocket_desk_agent/config.py` → `Config` class.
 | `LOG_LEVEL` | No | `INFO` | Logging verbosity |
 | `MAX_TOKENS_PER_REQUEST` | No | `8000` | Gemini token limit |
 | `SYSTEM_PROMPT` | No | — | Custom Gemini system prompt |
+| `CLOUDFLARED_PATH` | No | auto-discovered | Override path to the `cloudflared` binary used by `/remote` |
 
 ### Secrets — never commit
 
@@ -226,7 +236,17 @@ file_manager  # FileManager — sandboxed file I/O
 
 ### 7. Scheduler loop
 
-`main.py` runs a background task that calls `scheduler_registry.check_due_tasks()` every 60 seconds. `SchedulerRegistry` persists tasks to `~/.pdagent/scheduled_tasks.json` and cleans up entries older than 7 days.
+`main.py` runs a background task (`scheduler_loop`) that polls for due tasks every **5 seconds** (`SCHEDULER_POLL_INTERVAL_SECONDS = 5`). `SchedulerRegistry` persists tasks to `~/.pdagent/scheduled_tasks.json` and cleans up entries older than 7 days. Task types: `custom_cmd`, `claude_prompt`, `permission_watch`, `screen_watch`.
+
+### 8. Remote desktop subsystem
+
+`pocket_desk_agent/remote/` is a self-contained subsystem:
+- `RemoteSession` (session.py) tracks per-user state: cloudflared process, aiohttp runner, JPEG capture queue, idle timer, session token, and browser fingerprint.
+- `capture.py` feeds JPEG frames via an async generator into `/ws/video` WebSocket clients.
+- `input_bridge.py` (`InputDispatcher`) translates JSON events (`click`, `move`, `down`, `up`, `scroll`, `key`, `hotkey`, `text`, `relmove`, `pointer_click`) into pyautogui calls.
+- `tunnel.py` spawns cloudflared, reads the `trycloudflare.com` URL from its stdout, and retries once on failure.
+- `install.py` can auto-install cloudflared via `winget` when the binary is missing; the handler prompts the user for approval before running.
+- `web_server.py` serves the mobile viewer (inline HTML — no static files) and enforces cookie + browser-fingerprint session binding on all WebSocket routes. Backpressure is applied when the write buffer exceeds 512 KB.
 
 ---
 
@@ -305,6 +325,9 @@ The bot is designed to be lightweight when running as a background daemon.
 Heavy dependencies are loaded **on-demand**, not at startup:
 
 - **opencv-python + numpy** (~60-80 MB) — loaded only when `/findelements` is used
+- **aiohttp** (~5 MB) — loaded only when `/remote` starts the WebSocket server
+- **mss** (~1 MB) — loaded only when `/remote` starts screen capture
+- **qrcode** (~1 MB) — loaded only when `/remote` generates a QR code
 - **dropbox** (~10 MB) — loaded only when `/getapk` uploads to Dropbox
 - **pytesseract** (~1 MB) — loaded only when `/findtext` or `/smartclick` is used
 - **pyautogui** (~3 MB) — loaded only when `/screenshot`, `/hotkey`, etc. are used
@@ -342,5 +365,9 @@ To bump the version, update `version` in `pyproject.toml`, commit, tag, and crea
 | Change auto-update logic | `updater.py` |
 | Change scheduling | `scheduler_registry.py` + `handlers/scheduling.py` |
 | Change OAuth flow | `antigravity_auth.py` + `gemini_cli_auth.py` |
-| See all 50+ commands | `docs/COMMANDS.md` |
+| Change remote desktop server | `remote/web_server.py` |
+| Change remote input handling | `remote/input_bridge.py` |
+| Change remote screen capture | `remote/capture.py` |
+| Change cloudflared tunnel | `remote/tunnel.py` |
+| See all commands | `docs/COMMANDS.md` |
 | See architecture notes | `PROJECT_STRUCTURE.md` |

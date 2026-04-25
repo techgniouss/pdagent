@@ -31,6 +31,7 @@ from pocket_desk_agent.handlers.core import (  # noqa: F401
     new_command,
     status_command,
     enhance_command,
+    update_command,
     handle_message,
     handle_photo,
     error_handler,
@@ -147,6 +148,7 @@ from pocket_desk_agent.handlers.build import (  # noqa: F401
 from pocket_desk_agent.handlers.scheduling import (  # noqa: F401
     parse_schedule_time,
     claudeschedule_command,
+    scheduleshutdown_command,
     schedule_command,
     repeatschedule_command,
     watchperm_command,
@@ -166,4 +168,13 @@ from pocket_desk_agent.handlers.callbacks import (  # noqa: F401
     handle_dropbox_delete,
     handle_upload_choice,
     delete_from_dropbox,
+)
+
+# ── Remote Desktop ─────────────────────────────────────────────────────────
+from pocket_desk_agent.handlers.remote import (  # noqa: F401
+    remote_command,
+    stopremote_command,
+    start_remote_session,
+    stop_remote_session,
+    teardown_all_sessions,
 )
