@@ -42,6 +42,7 @@
 - **定时任务**，在你睡觉时自动执行——重启后任务依然保留
 - **构建并传输 Android APK**，通过 Telegram 处理 React Native 项目
 
+- **Scheduled shutdown** — Use `/scheduleshutdown <HH:MM>` to schedule a one-time shutdown (confirmation only when scheduling).
 添加 **Google Gemini 2.0 Flash** 凭据以解锁：
 - **对话式 AI 聊天**，支持多轮记忆和图片分析
 - **AI 代理控制**——Gemini 可以浏览文件、截图、点击、输入，并通过自然语言自动化操作你的电脑，对任何破坏性操作都需要人工确认

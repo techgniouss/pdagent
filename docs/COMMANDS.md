@@ -235,6 +235,7 @@ Schedule one-shot or repeating automations, Claude prompts, and temporary permis
 | Command | Description | Example |
 | :--- | :--- | :--- |
 | `/schedule <HH:MM>` | Start recording an automation sequence to run at a specific time. | `/schedule 14:00` |
+| `/scheduleshutdown <HH:MM>` | Schedule a one-shot system shutdown. Confirmation is required when creating the schedule; due-time execution runs without another prompt. | `/scheduleshutdown 23:45` |
 | `/repeatschedule every <interval> for <duration>` | Record an automation sequence that starts immediately after `/done` and repeats for a limited time. | `/repeatschedule every 1m for 15m` |
 | `/watchperm <claude\|antigravity> every <interval> for <duration> [labels=...]` | Repeatedly scan the Claude or Antigravity window for approval buttons like `Allow` or `Run` and click them when there is exactly one strong match. | `/watchperm claude every 1m for 15m` |
 | `/watchscreen <text> every <interval> press <hotkey>` | Repeatedly scan the full screen or a target app for visible text and send a hotkey whenever it appears, until you stop the watcher. Optional suffixes: `in <screen\|claude\|antigravity>` and `cooldown <duration>`. | `/watchscreen Allow command every 1m press ctrl+enter in claude cooldown 30s` |

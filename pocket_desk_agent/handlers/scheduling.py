@@ -11,10 +11,13 @@ import re
 import time
 from typing import Iterable, Optional
 
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
-from pocket_desk_agent.handlers._shared import RECORDING_TIMEOUT_SECS, recording_sessions
+from pocket_desk_agent.handlers._shared import (
+    RECORDING_TIMEOUT_SECS,
+    recording_sessions,
+)
 from pocket_desk_agent.scheduler_registry import ScheduledTask, get_scheduler_registry
 from pocket_desk_agent.scheduling_utils import (
     format_duration,
@@ -60,6 +63,9 @@ def _parse_schedule_args(args: list[str]) -> tuple[Optional[dt.datetime], int]:
 
 def describe_task(task: ScheduledTask) -> str:
     """Return a compact human-readable summary of a scheduled task."""
+    if task.task_type == "system_shutdown" or task.command == "system_shutdown":
+        return "System shutdown"
+
     if task.task_type == "screen_watch":
         metadata = task.metadata or {}
         search_text = str(metadata.get("search_text", "")).strip() or "screen text"
@@ -113,7 +119,9 @@ def cleanup_scheduled_task_artifacts(task: ScheduledTask) -> None:
         )
 
 
-def parse_screen_watch_request(raw_text: str) -> Optional[tuple[str, int, str, str, int]]:
+def parse_screen_watch_request(
+    raw_text: str,
+) -> Optional[tuple[str, int, str, str, int]]:
     """Parse ``<text> every <interval> press <hotkey>`` with optional scope/cooldown."""
     normalized = " ".join(raw_text.strip().split())
     match = re.fullmatch(
@@ -131,28 +139,45 @@ def parse_screen_watch_request(raw_text: str) -> Optional[tuple[str, int, str, s
     cooldown_seconds = 0
 
     while hotkey:
-        cooldown_match = re.search(r"\s+cooldown\s+([^\s]+)\s*$", hotkey, flags=re.IGNORECASE)
+        cooldown_match = re.search(
+            r"\s+cooldown\s+([^\s]+)\s*$", hotkey, flags=re.IGNORECASE
+        )
         if cooldown_match:
             cooldown_delta = parse_duration_spec(cooldown_match.group(1).strip())
             if not cooldown_delta:
                 return None
             cooldown_seconds = int(cooldown_delta.total_seconds())
-            hotkey = hotkey[:cooldown_match.start()].strip()
+            hotkey = hotkey[: cooldown_match.start()].strip()
             continue
 
-        scope_match = re.search(r"\s+(?:in|within|on)\s+(screen|claude|antigravity)\s*$", hotkey, flags=re.IGNORECASE)
+        scope_match = re.search(
+            r"\s+(?:in|within|on)\s+(screen|claude|antigravity)\s*$",
+            hotkey,
+            flags=re.IGNORECASE,
+        )
         if scope_match:
             scope = scope_match.group(1).strip().lower()
-            hotkey = hotkey[:scope_match.start()].strip()
+            hotkey = hotkey[: scope_match.start()].strip()
             continue
 
         break
 
     interval_delta = parse_duration_spec(interval_spec)
-    if not search_text or not hotkey or not interval_delta or scope not in SCREEN_WATCH_SCOPES:
+    if (
+        not search_text
+        or not hotkey
+        or not interval_delta
+        or scope not in SCREEN_WATCH_SCOPES
+    ):
         return None
 
-    return search_text, int(interval_delta.total_seconds()), hotkey, scope, cooldown_seconds
+    return (
+        search_text,
+        int(interval_delta.total_seconds()),
+        hotkey,
+        scope,
+        cooldown_seconds,
+    )
 
 
 def start_screen_watch_task(
@@ -176,7 +201,10 @@ def start_screen_watch_task(
         supported = ", ".join(sorted(SCREEN_WATCH_SCOPES))
         return False, f"Scope must be one of: {supported}."
     if interval_seconds < REPEAT_MIN_INTERVAL_SECONDS:
-        return False, f"Repeat interval must be at least {REPEAT_MIN_INTERVAL_SECONDS} seconds."
+        return (
+            False,
+            f"Repeat interval must be at least {REPEAT_MIN_INTERVAL_SECONDS} seconds.",
+        )
     if cooldown_seconds < 0:
         return False, "Cooldown cannot be negative."
 
@@ -221,7 +249,9 @@ def start_screen_watch_task(
     )
 
 
-def stop_screen_watch_tasks(user_id: int, task_id: Optional[str] = None) -> tuple[bool, str]:
+def stop_screen_watch_tasks(
+    user_id: int, task_id: Optional[str] = None
+) -> tuple[bool, str]:
     """Stop one or more pending screen watchers for the current user."""
     registry = get_scheduler_registry()
     pending = [
@@ -254,7 +284,9 @@ def stop_screen_watch_tasks(user_id: int, task_id: Optional[str] = None) -> tupl
     return True, "Stopped screen watchers:\n" + "\n".join(stopped_ids)
 
 
-async def claudeschedule_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def claudeschedule_command(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
     """Handle /claudeschedule <time> <prompt>."""
     if not update.message:
         return
@@ -350,7 +382,69 @@ async def schedule_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     )
 
 
-async def repeatschedule_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def scheduleshutdown_command(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Handle /scheduleshutdown <time> with confirmation at schedule-time."""
+    if not update.message:
+        return
+
+    if not context.args:
+        await update.message.reply_text(
+            "Usage: /scheduleshutdown <HH:MM>\n"
+            "   or: /scheduleshutdown <YYYY-MM-DD HH:MM>\n"
+            "Example: /scheduleshutdown 23:45"
+        )
+        return
+
+    execute_at, consumed = _parse_schedule_args(context.args)
+    if not execute_at:
+        await update.message.reply_text(
+            "Invalid time format. Use HH:MM or YYYY-MM-DD HH:MM."
+        )
+        return
+    if consumed != len(context.args):
+        await update.message.reply_text(
+            "/scheduleshutdown only accepts a time value.\n"
+            "Examples: /scheduleshutdown 23:45 or /scheduleshutdown 2026-05-01 23:45"
+        )
+        return
+
+    if execute_at <= local_now():
+        await update.message.reply_text(
+            "Please provide a future time for shutdown scheduling."
+        )
+        return
+
+    user_id = update.effective_user.id
+    execute_at_iso = execute_at.isoformat()
+    keyboard = InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    "Yes, schedule shutdown",
+                    callback_data=f"confirm_sched_shutdown:{user_id}:{execute_at_iso}",
+                ),
+                InlineKeyboardButton(
+                    "Cancel",
+                    callback_data=f"cancel_sched_shutdown:{user_id}:{execute_at_iso}",
+                ),
+            ]
+        ]
+    )
+
+    await update.message.reply_text(
+        "Confirm scheduled shutdown.\n\n"
+        f"Time: {execute_at.strftime('%Y-%m-%d %H:%M:%S')}\n"
+        "At that time the bot will shut down the computer immediately.\n\n"
+        "You can still cancel later with /cancelschedule.",
+        reply_markup=keyboard,
+    )
+
+
+async def repeatschedule_command(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
     """Handle /repeatschedule every <interval> for <duration>."""
     if not update.message:
         return
@@ -415,9 +509,7 @@ async def watchperm_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         return
 
     if platform.system() != "Windows":
-        await update.message.reply_text(
-            "/watchperm is only available on Windows."
-        )
+        await update.message.reply_text("/watchperm is only available on Windows.")
         return
 
     if len(context.args) < 5:
@@ -481,13 +573,17 @@ async def watchperm_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     )
 
 
-async def watchscreen_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def watchscreen_command(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
     """Handle /watchscreen <text> every <interval> press <hotkey>."""
     if not update.message:
         return
 
     if platform.system() != "Windows":
-        await update.message.reply_text("/watchscreen is currently only available on Windows.")
+        await update.message.reply_text(
+            "/watchscreen is currently only available on Windows."
+        )
         return
 
     raw_text = update.message.text.partition(" ")[2].strip()
@@ -514,10 +610,14 @@ async def watchscreen_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     )
     await update.message.reply_text(message)
     if not success:
-        logger.warning("watchscreen rejected for user %s: %s", update.effective_user.id, message)
+        logger.warning(
+            "watchscreen rejected for user %s: %s", update.effective_user.id, message
+        )
 
 
-async def stopscreenwatch_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def stopscreenwatch_command(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
     """Handle /stopscreenwatch [task_id]."""
     if not update.message:
         return
@@ -532,10 +632,16 @@ async def stopscreenwatch_command(update: Update, context: ContextTypes.DEFAULT_
     )
     await update.message.reply_text(message)
     if not success:
-        logger.warning("stopscreenwatch returned no-op for user %s: %s", update.effective_user.id, message)
+        logger.warning(
+            "stopscreenwatch returned no-op for user %s: %s",
+            update.effective_user.id,
+            message,
+        )
 
 
-async def listschedules_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def listschedules_command(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
     """Handle /listschedules."""
     if not update.message:
         return
@@ -550,7 +656,7 @@ async def listschedules_command(update: Update, context: ContextTypes.DEFAULT_TY
     if not pending:
         await update.message.reply_text(
             "No pending scheduled tasks.\n\n"
-            "Use /schedule, /repeatschedule, /watchperm, or /claudeschedule."
+            "Use /schedule, /scheduleshutdown, /repeatschedule, /watchperm, or /claudeschedule."
         )
         return
 
@@ -584,7 +690,9 @@ async def listschedules_command(update: Update, context: ContextTypes.DEFAULT_TY
     await update.message.reply_text("\n".join(lines).strip())
 
 
-async def cancelschedule_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def cancelschedule_command(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
     """Handle /cancelschedule <task_id>."""
     if not update.message:
         return
@@ -608,9 +716,7 @@ async def cancelschedule_command(update: Update, context: ContextTypes.DEFAULT_T
     )
 
     if not existing:
-        await update.message.reply_text(
-            f"No pending task found with ID {task_id}."
-        )
+        await update.message.reply_text(f"No pending task found with ID {task_id}.")
         return
 
     if existing.user_id != update.effective_user.id:
@@ -624,18 +730,24 @@ async def cancelschedule_command(update: Update, context: ContextTypes.DEFAULT_T
 
     cleanup_scheduled_task_artifacts(removed)
     await update.message.reply_text(
-        "Scheduled task cancelled.\n\n"
-        f"Task: {describe_task(removed)}"
+        "Scheduled task cancelled.\n\n" f"Task: {describe_task(removed)}"
     )
 
 
-async def execute_scheduled_task(task: ScheduledTask, bot) -> tuple[bool, Optional[str]]:
+async def execute_scheduled_task(
+    task: ScheduledTask, bot
+) -> tuple[bool, Optional[str]]:
     """Execute a single scheduled task."""
     try:
+        if task.task_type == "system_shutdown" or task.command == "system_shutdown":
+            return await _execute_scheduled_shutdown(task, bot)
+
         if task.task_type == "screen_watch" or task.command == "screen_watch":
             return await _execute_screen_watch(task, bot)
 
-        if task.task_type == "permission_watch" or task.command.startswith("permission_watch:"):
+        if task.task_type == "permission_watch" or task.command.startswith(
+            "permission_watch:"
+        ):
             return await _execute_permission_watch(task, bot)
 
         if task.command.startswith("claude_msg:"):
@@ -646,7 +758,9 @@ async def execute_scheduled_task(task: ScheduledTask, bot) -> tuple[bool, Option
 
         return False, f"Unsupported scheduled task: {task.command}"
     except Exception as exc:
-        logger.error("Error executing scheduled task %s: %s", task.id, exc, exc_info=True)
+        logger.error(
+            "Error executing scheduled task %s: %s", task.id, exc, exc_info=True
+        )
         return False, str(exc)
 
 
@@ -668,7 +782,9 @@ async def run_custom_actions(actions: Iterable) -> None:
             if action.args:
                 keys = map_keys_to_pyautogui(action.args[0])
                 if not keys:
-                    logger.warning("Scheduled hotkey skipped because no keys were parsed")
+                    logger.warning(
+                        "Scheduled hotkey skipped because no keys were parsed"
+                    )
                 elif len(keys) == 1:
                     press_key(pyautogui, keys[0])
                 else:
@@ -707,7 +823,9 @@ async def run_custom_actions(actions: Iterable) -> None:
                             matches[0].y,
                         )
                     else:
-                        logger.info("[scheduler] smartclick '%s': not found", action.args[0])
+                        logger.info(
+                            "[scheduler] smartclick '%s': not found", action.args[0]
+                        )
                 except Exception as exc:
                     logger.warning("[scheduler] smartclick failed: %s", exc)
 
@@ -740,14 +858,19 @@ async def run_custom_actions(actions: Iterable) -> None:
         await asyncio.sleep(0.5)
 
 
-async def _execute_scheduled_claude_prompt(task: ScheduledTask, bot) -> tuple[bool, Optional[str]]:
+async def _execute_scheduled_claude_prompt(
+    task: ScheduledTask, bot
+) -> tuple[bool, Optional[str]]:
     prompt = task.command.replace("claude_msg:", "", 1)
     await bot.send_message(
         chat_id=task.user_id,
         text=f"Executing scheduled Claude prompt:\n{prompt}",
     )
 
-    from pocket_desk_agent.handlers.claude import ensure_claude_open, send_prompt_to_claude
+    from pocket_desk_agent.handlers.claude import (
+        ensure_claude_open,
+        send_prompt_to_claude,
+    )
 
     window = ensure_claude_open()
     if not window:
@@ -768,7 +891,9 @@ async def _execute_scheduled_claude_prompt(task: ScheduledTask, bot) -> tuple[bo
     return True, None
 
 
-async def _execute_scheduled_custom_command(task: ScheduledTask, bot) -> tuple[bool, Optional[str]]:
+async def _execute_scheduled_custom_command(
+    task: ScheduledTask, bot
+) -> tuple[bool, Optional[str]]:
     command_name = task.command.replace("custom_cmd:", "", 1)
     await bot.send_message(
         chat_id=task.user_id,
@@ -791,6 +916,25 @@ async def _execute_scheduled_custom_command(task: ScheduledTask, bot) -> tuple[b
     return True, None
 
 
+async def _execute_scheduled_shutdown(
+    task: ScheduledTask, bot
+) -> tuple[bool, Optional[str]]:
+    try:
+        await bot.send_message(
+            chat_id=task.user_id,
+            text="Scheduled shutdown is triggering now.",
+        )
+    except Exception as exc:
+        logger.warning(
+            "Failed to send pre-shutdown notification for task %s: %s", task.id, exc
+        )
+
+    from pocket_desk_agent.handlers.system import perform_system_shutdown
+
+    await asyncio.to_thread(perform_system_shutdown)
+    return True, None
+
+
 async def _execute_screen_watch(task: ScheduledTask, bot) -> tuple[bool, Optional[str]]:
     """Search the full screen for text and send a hotkey when it appears."""
     if platform.system() != "Windows":
@@ -804,7 +948,10 @@ async def _execute_screen_watch(task: ScheduledTask, bot) -> tuple[bool, Optiona
     if not search_text or not hotkey:
         return False, "Screen watcher metadata is missing search_text or hotkey."
     if scope not in SCREEN_WATCH_SCOPES:
-        return False, f"Screen watcher scope must be one of: {', '.join(sorted(SCREEN_WATCH_SCOPES))}."
+        return (
+            False,
+            f"Screen watcher scope must be one of: {', '.join(sorted(SCREEN_WATCH_SCOPES))}.",
+        )
 
     try:
         import pyautogui
@@ -827,7 +974,9 @@ async def _execute_screen_watch(task: ScheduledTask, bot) -> tuple[bool, Optiona
             return True, None
         region = _window_region(window)
         if not region:
-            logger.info("Screen watcher skipped because %s window bounds were invalid", scope)
+            logger.info(
+                "Screen watcher skipped because %s window bounds were invalid", scope
+            )
             return True, None
         screenshot = pyautogui.screenshot(region=region)
 
@@ -842,7 +991,9 @@ async def _execute_screen_watch(task: ScheduledTask, bot) -> tuple[bool, Optiona
         return True, None
 
     if cooldown_seconds > 0:
-        last_triggered_at = parse_iso_datetime(str(metadata.get("last_triggered_at") or ""))
+        last_triggered_at = parse_iso_datetime(
+            str(metadata.get("last_triggered_at") or "")
+        )
         if last_triggered_at:
             next_allowed = last_triggered_at + dt.timedelta(seconds=cooldown_seconds)
             if next_allowed > local_now():
@@ -885,7 +1036,9 @@ async def _execute_screen_watch(task: ScheduledTask, bot) -> tuple[bool, Optiona
     return True, None
 
 
-async def _execute_permission_watch(task: ScheduledTask, bot) -> tuple[bool, Optional[str]]:
+async def _execute_permission_watch(
+    task: ScheduledTask, bot
+) -> tuple[bool, Optional[str]]:
     if platform.system() != "Windows":
         return False, "Permission watcher is only available on Windows."
 
@@ -903,14 +1056,18 @@ async def _execute_permission_watch(task: ScheduledTask, bot) -> tuple[bool, Opt
 
     window = _find_permission_target_window(target)
     if not window:
-        logger.info("Permission watcher skipped because %s window was not found", target)
+        logger.info(
+            "Permission watcher skipped because %s window was not found", target
+        )
         return True, None
 
     await _activate_window(window)
 
     region = _window_region(window)
     if not region:
-        logger.info("Permission watcher skipped because %s window bounds were invalid", target)
+        logger.info(
+            "Permission watcher skipped because %s window bounds were invalid", target
+        )
         return True, None
 
     screenshot = pyautogui.screenshot(region=region)

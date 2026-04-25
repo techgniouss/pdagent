@@ -68,7 +68,7 @@ If you use any of these without authenticating first, the bot will reply with a 
 
 ### Scheduling
 
-- `/schedule`, `/claudeschedule`, `/listschedules`, `/cancelschedule`
+- `/schedule`, `/scheduleshutdown`, `/claudeschedule`, `/listschedules`, `/cancelschedule`
 
 ### Build & APK
 

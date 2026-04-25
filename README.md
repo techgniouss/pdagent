@@ -321,7 +321,7 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 
 ## Commands Quick Reference
 
-> For the complete reference with all 78 built-in commands, see **[docs/COMMANDS.md](docs/COMMANDS.md)**.
+> For the complete reference with all 79 built-in commands, see **[docs/COMMANDS.md](docs/COMMANDS.md)**.
 
 <details>
 <summary><strong>Expand cheat sheet</strong></summary>
@@ -436,6 +436,7 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 | Command | Description |
 | :--- | :--- |
 | `/schedule <HH:MM>` | Start recording a scheduled automation sequence |
+| `/scheduleshutdown <HH:MM>` | Schedule a one-shot shutdown (confirm when scheduling, no prompt at trigger time) |
 | `/repeatschedule every <interval> for <duration>` | Record an automation sequence that repeats for a limited time |
 | `/watchperm <claude\|antigravity> every <interval> for <duration>` | Repeatedly scan Claude or Antigravity for approval buttons and click them when safe |
 | `/watchscreen <text> every <interval> press <hotkey>` | Repeatedly scan the full screen or a target app for text and send a hotkey until stopped |

@@ -42,6 +42,7 @@ De fábrica, sin configuración de IA:
 - **Programa tareas** para que se ejecuten mientras duermes — sobreviven a los reinicios
 - **Compila y entrega APKs de Android** desde proyectos React Native vía Telegram
 
+- **Scheduled shutdown** — Use `/scheduleshutdown <HH:MM>` to schedule a one-time shutdown (confirmation only when scheduling).
 Agrega credenciales de **Google Gemini 2.0 Flash** para desbloquear:
 - **Chat conversacional con IA** con memoria de múltiples turnos y análisis de imágenes
 - **Control de computadora agentivo** — Gemini puede navegar archivos, tomar capturas, hacer clic, escribir y automatizar tu PC en lenguaje natural, con confirmación humana para acciones destructivas

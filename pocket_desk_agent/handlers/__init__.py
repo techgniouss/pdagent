@@ -148,6 +148,7 @@ from pocket_desk_agent.handlers.build import (  # noqa: F401
 from pocket_desk_agent.handlers.scheduling import (  # noqa: F401
     parse_schedule_time,
     claudeschedule_command,
+    scheduleshutdown_command,
     schedule_command,
     repeatschedule_command,
     watchperm_command,

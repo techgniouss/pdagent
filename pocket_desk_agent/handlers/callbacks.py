@@ -15,6 +15,8 @@ from pocket_desk_agent.handlers.antigravity import (
     open_folder_in_vscode,
 )
 from pocket_desk_agent.handlers.system import perform_system_shutdown
+from pocket_desk_agent.scheduler_registry import ScheduledTask, get_scheduler_registry
+from pocket_desk_agent.scheduling_utils import parse_iso_datetime
 from pocket_desk_agent.handlers._shared import (
     auth_client,
     recording_sessions,
@@ -26,17 +28,18 @@ from pocket_desk_agent.handlers._shared import (
 
 logger = logging.getLogger(__name__)
 
+
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle button callbacks for confirmations."""
     query = update.callback_query
     if not query or not query.data:
         return
-    
+
     await query.answer()
 
     if await handle_gemini_confirmation_callback(update, context):
         return
-    
+
     if query.data == "confirm_stopbot":
         await query.edit_message_text("Stopping bot... Goodbye!")
         logger.info("Bot stop requested via Telegram command")
@@ -44,10 +47,10 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await asyncio.sleep(1)
         # Stop the bot gracefully via the application's shutdown mechanism
         asyncio.get_event_loop().call_soon(lambda: sys.exit(0))
-    
+
     elif query.data == "cancel_stopbot":
         await query.edit_message_text("Bot stop cancelled. Bot is still running.")
-    
+
     elif query.data == "confirm_shutdown":
         await query.edit_message_text("Shutting down laptop... Goodbye!")
         logger.info("Laptop shutdown requested via Telegram command")
@@ -61,21 +64,81 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Try to notify user if possible (though connection might be lost)
             try:
                 await context.bot.send_message(
-                    chat_id=query.message.chat_id,
-                    text=f"Shutdown failed: {str(e)}"
+                    chat_id=query.message.chat_id, text=f"Shutdown failed: {str(e)}"
                 )
             except Exception:
                 pass
 
     elif query.data == "cancel_shutdown":
         await query.edit_message_text("Shutdown cancelled. Laptop is still running.")
-    
+
+    elif query.data.startswith("confirm_sched_shutdown:"):
+        try:
+            _, raw_user_id, raw_execute_at = query.data.split(":", 2)
+            requester_id = int(raw_user_id)
+        except (ValueError, TypeError):
+            await query.edit_message_text(
+                "Invalid shutdown schedule confirmation payload. Please run /scheduleshutdown again."
+            )
+            return
+        if update.effective_user.id != requester_id:
+            await query.answer(
+                "Only the user who requested this can confirm.", show_alert=True
+            )
+            return
+
+        execute_at = parse_iso_datetime(raw_execute_at)
+        if not execute_at:
+            await query.edit_message_text(
+                "Could not parse the scheduled time. Please run /scheduleshutdown again."
+            )
+            return
+
+        task = ScheduledTask(
+            id=f"shutdown_{int(time.time() * 1000)}",
+            user_id=requester_id,
+            command="system_shutdown",
+            execute_at=execute_at.isoformat(),
+            task_type="system_shutdown",
+        )
+        get_scheduler_registry().add_task(task)
+
+        await query.edit_message_text(
+            "Shutdown schedule saved.\n\n"
+            f"Runs at: {execute_at.strftime('%Y-%m-%d %H:%M:%S')}\n"
+            f"Task ID: {task.id}\n\n"
+            "Cancel it any time with /cancelschedule <task_id>."
+        )
+        logger.info(
+            "Scheduled shutdown task %s for user %s at %s",
+            task.id,
+            requester_id,
+            execute_at.isoformat(),
+        )
+
+    elif query.data.startswith("cancel_sched_shutdown:"):
+        try:
+            _, raw_user_id, _ = query.data.split(":", 2)
+            requester_id = int(raw_user_id)
+        except (ValueError, TypeError):
+            await query.edit_message_text(
+                "Invalid shutdown schedule cancellation payload. Please run /scheduleshutdown again."
+            )
+            return
+        if update.effective_user.id != requester_id:
+            await query.answer(
+                "Only the user who requested this can cancel.", show_alert=True
+            )
+            return
+        await query.edit_message_text(
+            "Shutdown schedule request cancelled. No task was created."
+        )
+
     # Handle smartclick selections
     elif query.data.startswith("smartclick_"):
         if query.data == "smartclick_cancel":
             await query.edit_message_caption(
-                caption="Smart click cancelled.",
-                reply_markup=None
+                caption="Smart click cancelled.", reply_markup=None
             )
             logger.info("Smart click cancelled by user")
         else:
@@ -86,14 +149,15 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     index = int(parts[1])
                     x = int(parts[2])
                     y = int(parts[3])
-                    
+
                     # Perform the click
                     import pyautogui
+
                     pyautogui.click(x, y)
-                    
+
                     await query.edit_message_caption(
                         caption=f"Clicked occurrence {index} at ({x}, {y})",
-                        reply_markup=None
+                        reply_markup=None,
                     )
                     logger.info(f"Smart click executed at ({x}, {y})")
                 else:
@@ -107,7 +171,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             selection = int(query.data.replace("windowfocus_", ""))
         except ValueError:
-            await query.edit_message_text("Invalid window selection. Run /windows again.")
+            await query.edit_message_text(
+                "Invalid window selection. Run /windows again."
+            )
             return
 
         selected = window_switch_options.get(user_id, {}).get(selection)
@@ -137,18 +203,20 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Error in windowfocus callback: {e}", exc_info=True)
 
     # Handle large file upload choices
-    elif query.data.startswith("upload_tempfile_") or query.data.startswith("upload_dropbox_"):
+    elif query.data.startswith("upload_tempfile_") or query.data.startswith(
+        "upload_dropbox_"
+    ):
         await handle_upload_choice(update, context, query)
-    
+
     # Handle Dropbox file deletion
     elif query.data.startswith("delete_dropbox_"):
         await handle_dropbox_delete(update, context, query)
-    
+
     # Handle command overwrite confirmation
     elif query.data.startswith("overwrite_cmd_"):
         command_name = query.data.replace("overwrite_cmd_", "")
         user_id = update.effective_user.id
-        
+
         # Initialize recording session - include all required fields so
         # record_action_if_active never hits a KeyError on 'started_at' / 'scheduled_at'
         recording_sessions[user_id] = {
@@ -157,7 +225,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "started_at": time.time(),
             "scheduled_at": None,
         }
-        
+
         await query.edit_message_text(
             f"Recording command: {command_name}\n\n"
             "Send automation commands to add to the sequence:\n"
@@ -170,20 +238,23 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "When done: /done\n"
             "To cancel: /cancelrecord"
         )
-        logger.info(f"Started recording session (overwrite) for user {user_id}, command: {command_name}")
-    
+        logger.info(
+            f"Started recording session (overwrite) for user {user_id}, command: {command_name}"
+        )
+
     elif query.data == "cancel_overwrite":
         await query.edit_message_text("Cancelled. Command was not overwritten.")
-    
+
     # Handle command deletion confirmation
     elif query.data.startswith("delete_cmd_"):
         command_name = query.data.replace("delete_cmd_", "")
-        
+
         from pocket_desk_agent.command_registry import get_registry
+
         registry = get_registry()
-        
+
         success = registry.delete_command(command_name)
-        
+
         if success:
             await query.edit_message_text(
                 f"Command '{command_name}' deleted successfully."
@@ -195,14 +266,17 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "Check bot logs for details."
             )
             logger.error(f"Failed to delete command: {command_name}")
-    
+
     elif query.data == "cancel_delete":
         await query.edit_message_text("Cancelled. Command was not deleted.")
-    
+
     # Handle logout confirmation and new login selections
-    elif query.data in ("confirm_logout", "cancel_logout") or query.data.startswith("login:"):
+    elif query.data in ("confirm_logout", "cancel_logout") or query.data.startswith(
+        "login:"
+    ):
         # Delegate to the newly consolidated auth callback handler
         from pocket_desk_agent.handlers.auth import login_button_callback
+
         await login_button_callback(update, context)
 
     # Handle Claude CLI selection
@@ -215,10 +289,14 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             initial_prompt = options_data.get("prompt", "")
 
             if not folder_path:
-                await query.answer("Selection expired. Run /claudecli again.", show_alert=True)
+                await query.answer(
+                    "Selection expired. Run /claudecli again.", show_alert=True
+                )
                 return
 
-            await query.edit_message_text(f"Opening Claude CLI in `{folder_path}`...", parse_mode="Markdown")
+            await query.edit_message_text(
+                f"Opening Claude CLI in `{folder_path}`...", parse_mode="Markdown"
+            )
             success, message = launch_claude_cli(folder_path, initial_prompt)
             await context.bot.send_message(
                 chat_id=query.message.chat_id,
@@ -240,10 +318,15 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             folder_path = options.get(idx)
 
             if not folder_path:
-                await query.answer("Selection expired. Run /antigravityopenfolder again.", show_alert=True)
+                await query.answer(
+                    "Selection expired. Run /antigravityopenfolder again.",
+                    show_alert=True,
+                )
                 return
 
-            await query.edit_message_text(f"Opening `{folder_path}` in VS Code...", parse_mode="Markdown")
+            await query.edit_message_text(
+                f"Opening `{folder_path}` in VS Code...", parse_mode="Markdown"
+            )
             success, message = open_folder_in_vscode(folder_path)
             await context.bot.send_message(
                 chat_id=query.message.chat_id,
@@ -259,7 +342,10 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Handle cloudflared auto-install approval from /remote
     elif query.data in ("install_cf_yes", "install_cf_no"):
-        from pocket_desk_agent.handlers.remote import handle_install_cloudflared_callback
+        from pocket_desk_agent.handlers.remote import (
+            handle_install_cloudflared_callback,
+        )
+
         await handle_install_cloudflared_callback(update, context)
 
     # Handle browser open selection
@@ -270,45 +356,47 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not success:
             logger.warning("Browser callback failed for %s: %s", browser_key, message)
 
-async def handle_dropbox_delete(update: Update, context: ContextTypes.DEFAULT_TYPE, query):
+
+async def handle_dropbox_delete(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, query
+):
     """Handle Dropbox file deletion request."""
     try:
         # Parse callback data: delete_dropbox_{user_id}_{file_path}
-        parts = query.data.split('_', 3)
+        parts = query.data.split("_", 3)
         if len(parts) < 4:
             await query.answer("Invalid delete request", show_alert=True)
             return
-        
+
         dropbox_path = parts[3]
-        
+
         await query.edit_message_text(
             f"Deleting file from Dropbox...\n\n"
             f"File: {os.path.basename(dropbox_path)}"
         )
-        
+
         # Delete from Dropbox
         result = await asyncio.to_thread(delete_from_dropbox, dropbox_path)
-        
-        if result['success']:
+
+        if result["success"]:
             await context.bot.send_message(
                 chat_id=query.message.chat_id,
                 text=f"File deleted from Dropbox successfully!\n\n"
-                     f"File: {os.path.basename(dropbox_path)}"
+                f"File: {os.path.basename(dropbox_path)}",
             )
             logger.info(f"Deleted file from Dropbox: {dropbox_path}")
         else:
             await context.bot.send_message(
                 chat_id=query.message.chat_id,
                 text=f"Failed to delete file from Dropbox:\n{result['error']}\n\n"
-                     f"You can delete it manually from the Dropbox app."
+                f"You can delete it manually from the Dropbox app.",
             )
             logger.error(f"Failed to delete from Dropbox: {result['error']}")
-    
+
     except Exception as e:
         logger.error(f"Error in handle_dropbox_delete: {e}")
         await context.bot.send_message(
-            chat_id=query.message.chat_id,
-            text=f"Error: {str(e)}"
+            chat_id=query.message.chat_id, text=f"Error: {str(e)}"
         )
 
 
@@ -323,73 +411,75 @@ def delete_from_dropbox(dropbox_path: str) -> dict:
         import dropbox
         from dropbox.exceptions import AuthError, ApiError
     except ImportError:
-        return {'success': False, 'error': 'Dropbox library not installed. Run: pip install dropbox'}
+        return {
+            "success": False,
+            "error": "Dropbox library not installed. Run: pip install dropbox",
+        }
 
     try:
         logger.info(f"Deleting from Dropbox: {dropbox_path}")
 
-        access_token = os.getenv('DROPBOX_ACCESS_TOKEN')
-        if not access_token or access_token == 'your_dropbox_access_token_here':
-            return {'success': False, 'error': 'Dropbox not configured'}
+        access_token = os.getenv("DROPBOX_ACCESS_TOKEN")
+        if not access_token or access_token == "your_dropbox_access_token_here":
+            return {"success": False, "error": "Dropbox not configured"}
 
         dbx = dropbox.Dropbox(access_token)
 
         try:
             dbx.files_delete_v2(dropbox_path)
             logger.info(f"Successfully deleted: {dropbox_path}")
-            return {'success': True}
+            return {"success": True}
         except ApiError as e:
             err_str = str(e)
-            if 'not_found' in err_str or 'path/not_found' in err_str:
+            if "not_found" in err_str or "path/not_found" in err_str:
                 return {
-                    'success': False,
-                    'error': 'File not found (may have already been deleted)'
+                    "success": False,
+                    "error": "File not found (may have already been deleted)",
                 }
-            return {'success': False, 'error': f'ApiError: {err_str}'}
+            return {"success": False, "error": f"ApiError: {err_str}"}
 
     except AuthError as e:
         logger.error(f"Dropbox auth error during delete: {e}")
-        return {'success': False, 'error': f'Authentication error: {str(e)}'}
+        return {"success": False, "error": f"Authentication error: {str(e)}"}
     except Exception as e:
         logger.error(f"Dropbox delete exception: {type(e).__name__}: {str(e)}")
-        return {'success': False, 'error': f'{type(e).__name__}: {str(e)}'}
+        return {"success": False, "error": f"{type(e).__name__}: {str(e)}"}
 
 
-
-async def handle_upload_choice(update: Update, context: ContextTypes.DEFAULT_TYPE, query):
+async def handle_upload_choice(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, query
+):
     """Handle user's choice for large file upload."""
     try:
         user_id = update.effective_user.id
-        
+
         # Check if we have state for this user
         if user_id not in large_file_upload_state:
-            await query.edit_message_text(
-                "Upload session expired. Please try again."
-            )
+            await query.edit_message_text("Upload session expired. Please try again.")
             return
-        
+
         # Check if state is too old (10 minutes)
-        if time.time() - large_file_upload_state[user_id]['timestamp'] > 600:
+        if time.time() - large_file_upload_state[user_id]["timestamp"] > 600:
             del large_file_upload_state[user_id]
             await query.edit_message_text(
                 "Upload session expired (10 minutes). Please try again."
             )
             return
-        
-        file_path = large_file_upload_state[user_id]['file_path']
-        file_size_mb = large_file_upload_state[user_id]['file_size_mb']
-        
+
+        file_path = large_file_upload_state[user_id]["file_path"]
+        file_size_mb = large_file_upload_state[user_id]["file_size_mb"]
+
         # Determine which service was chosen
         if query.data.startswith("upload_tempfile_"):
-            service = 'tempfile'
-            service_name = 'TempFile.org'
+            service = "tempfile"
+            service_name = "TempFile.org"
             await query.edit_message_text(
                 f"Starting TempFile.org upload...\n\n"
                 f"Uploading {file_size_mb:.2f} MB..."
             )
         elif query.data.startswith("upload_dropbox_"):
-            service = 'dropbox'
-            service_name = 'Dropbox'
+            service = "dropbox"
+            service_name = "Dropbox"
             await query.edit_message_text(
                 f"Starting Dropbox upload...\n\n"
                 f"Uploading {file_size_mb:.2f} MB...\n"
@@ -398,15 +488,16 @@ async def handle_upload_choice(update: Update, context: ContextTypes.DEFAULT_TYP
         else:
             await query.edit_message_text("Unknown upload service")
             return
-        
+
         # Upload file
         from pocket_desk_agent.handlers.build import upload_large_file
+
         upload_result = await asyncio.to_thread(upload_large_file, file_path, service)
-        
-        if upload_result['success']:
-            service_used = upload_result.get('service', service_name)
-            expiry = upload_result.get('expiry', 'Unknown')
-            
+
+        if upload_result["success"]:
+            service_used = upload_result.get("service", service_name)
+            expiry = upload_result.get("expiry", "Unknown")
+
             message_text = (
                 f"Upload successful!\n\n"
                 f"Download your APK:\n{upload_result['link']}\n\n"
@@ -415,48 +506,52 @@ async def handle_upload_choice(update: Update, context: ContextTypes.DEFAULT_TYP
                 f"Tip: Open the link on your Android device to install directly!\n\n"
                 f"Local path (if needed):\n{file_path}"
             )
-            
+
             # Add delete button for Dropbox uploads
-            if service == 'dropbox':
+            if service == "dropbox":
                 # Store dropbox file path for deletion
-                dropbox_file_path = f'/{os.path.basename(file_path)}'
-                
+                dropbox_file_path = f"/{os.path.basename(file_path)}"
+
                 keyboard = [
-                    [InlineKeyboardButton("Delete from Dropbox", callback_data=f"delete_dropbox_{user_id}_{dropbox_file_path}")]
+                    [
+                        InlineKeyboardButton(
+                            "Delete from Dropbox",
+                            callback_data=f"delete_dropbox_{user_id}_{dropbox_file_path}",
+                        )
+                    ]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
-                
+
                 await context.bot.send_message(
                     chat_id=query.message.chat_id,
                     text=message_text,
-                    reply_markup=reply_markup
+                    reply_markup=reply_markup,
                 )
             else:
                 await context.bot.send_message(
-                    chat_id=query.message.chat_id,
-                    text=message_text
+                    chat_id=query.message.chat_id, text=message_text
                 )
-            
-            logger.info(f"Uploaded large APK to {service_used}: {file_path} ({file_size_mb:.2f} MB)")
+
+            logger.info(
+                f"Uploaded large APK to {service_used}: {file_path} ({file_size_mb:.2f} MB)"
+            )
         else:
             await context.bot.send_message(
                 chat_id=query.message.chat_id,
                 text=f"Upload failed: {upload_result['error']}\n\n"
-                     f"File location:\n{file_path}\n\n"
-                     f"Please retrieve it manually or try another upload method."
+                f"File location:\n{file_path}\n\n"
+                f"Please retrieve it manually or try another upload method.",
             )
             logger.error(f"Upload to {service_name} failed: {upload_result['error']}")
-        
+
         # Clear state
         del large_file_upload_state[user_id]
-        
+
     except Exception as e:
         logger.error(f"Error in handle_upload_choice: {e}")
         await context.bot.send_message(
-            chat_id=query.message.chat_id,
-            text=f"Error: {str(e)}"
+            chat_id=query.message.chat_id, text=f"Error: {str(e)}"
         )
 
 
 # Claude Desktop Automation Commands
-
