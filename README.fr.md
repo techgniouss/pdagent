@@ -61,6 +61,7 @@ Tout ce qui suit fonctionne sans configuration IA :
 - **Intégration VS Code / Antigravity** : ouvrez des dossiers, changez de modèles IA, pilotez l'extension Antigravity.
 - **Planificateur de tâches** : exécutez des automatisations ou des prompts Claude à un moment précis. Les tâches survivent aux redémarrages.
 - **Automatisation de build** : lancez des builds React Native Android et recevez les APK via Telegram.
+- **Bureau à distance en direct** : diffusez votre bureau dans n'importe quel navigateur via un tunnel HTTPS sécurisé — sans redirection de port. Contrôle complet de la souris et du clavier depuis le téléphone, avec zoom, trackpad et installation automatique de cloudflared. Voir [docs/REMOTE.md](docs/REMOTE.md).
 - **Mise à jour automatique** : le bot peut vérifier et appliquer des mises à jour.
 - **Léger** : ~55-70 Mo de RAM au repos, <0.5% de CPU. Les dépendances lourdes sont chargées uniquement à la demande.
 
@@ -87,7 +88,7 @@ Votre téléphone → Serveurs Telegram → (polling sortant) → Pocket Desk Ag
 | `GeminiClient` | Sessions API Gemini et historique de conversation |
 | `FileManager` | E/S de fichiers en bac à sable — validation des chemins |
 | `AuthManager` | OAuth pour Antigravity, Gemini CLI et clé API |
-| `SchedulerRegistry` | Tâches persistées sur disque, vérification toutes les 60 s |
+| `SchedulerRegistry` | Tâches persistées sur disque, vérification toutes les 5 s |
 | `RateLimiter` | Limiteur de débit par jeton par utilisateur |
 
 ---
@@ -107,6 +108,7 @@ Votre téléphone → Serveurs Telegram → (polling sortant) → Pocket Desk Ag
 | Intégration Claude Desktop | ✅ | ❌ |
 | Intégration VS Code | ✅ | ❌ |
 | Build APK | ✅ | ❌ |
+| Bureau à distance (`/remote`) | ✅ | ❌ |
 | Démarrage automatique | ✅ | ❌ |
 
 ---

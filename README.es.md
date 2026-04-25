@@ -61,6 +61,7 @@ Todo lo siguiente funciona sin configuración de IA:
 - **Integración con VS Code / Antigravity**: abre carpetas, cambia modelos de IA, controla la extensión Antigravity.
 - **Programador de tareas**: ejecuta automatizaciones o prompts de Claude en un horario específico. Las tareas sobreviven a los reinicios.
 - **Automatización de compilaciones**: activa compilaciones de React Native y recibe APKs por Telegram.
+- **Escritorio remoto en vivo**: transmite tu escritorio a cualquier navegador a través de un túnel HTTPS seguro — sin reenvío de puertos. Control completo de ratón y teclado desde el móvil, con zoom, trackpad y autoinstalación de cloudflared. Ver [docs/REMOTE.md](docs/REMOTE.md).
 - **Actualización automática**: el bot puede buscar y aplicar actualizaciones.
 - **Ligero**: ~55-70 MB de RAM en reposo, <0.5% de CPU. Las dependencias pesadas se cargan solo cuando se usan.
 
@@ -87,7 +88,7 @@ Tu teléfono → Servidores Telegram → (polling saliente) → Pocket Desk Agen
 | `GeminiClient` | Sesiones Gemini API e historial de conversación |
 | `FileManager` | E/S de archivos en sandbox — valida rutas |
 | `AuthManager` | OAuth para Antigravity, Gemini CLI y API key |
-| `SchedulerRegistry` | Tareas persistidas en disco, verificación cada 60 s |
+| `SchedulerRegistry` | Tareas persistidas en disco, verificación cada 5 s |
 | `RateLimiter` | Limitador de velocidad por usuario en cada comando |
 
 ---
@@ -107,6 +108,7 @@ Tu teléfono → Servidores Telegram → (polling saliente) → Pocket Desk Agen
 | Integración Claude Desktop | ✅ | ❌ |
 | Integración VS Code | ✅ | ❌ |
 | Compilación de APK | ✅ | ❌ |
+| Escritorio remoto (`/remote`) | ✅ | ❌ |
 | Inicio automático | ✅ | ❌ |
 
 ---

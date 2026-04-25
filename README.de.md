@@ -61,6 +61,7 @@ Alles unten funktioniert ohne KI-Konfiguration:
 - **VS Code / Antigravity-Integration**: Ordner öffnen, KI-Modelle wechseln, Antigravity-Erweiterung steuern.
 - **Aufgabenplaner**: Automatisierungsabläufe oder Claude-Prompts zu einem bestimmten Zeitpunkt ausführen. Aufgaben überleben Neustarts.
 - **Build-Automatisierung**: React-Native-Android-Builds starten und APKs über Telegram empfangen.
+- **Live-Fernzugriff auf den Desktop**: Desktop live in einem Browser über einen sicheren HTTPS-Tunnel streamen — kein Port-Forwarding, kein Konto. Vollständige Maus- und Tastatursteuerung vom Telefon, inkl. Zoom, Trackpad-Modus und automatischer cloudflared-Installation. Siehe [docs/REMOTE.md](docs/REMOTE.md).
 - **Automatische Updates**: Der Bot kann Updates prüfen und anwenden.
 - **Leichtgewichtig**: ~55-70 MB RAM im Leerlauf, <0.5% CPU. Schwere Abhängigkeiten werden nur bei Bedarf geladen.
 
@@ -87,7 +88,7 @@ Dein Telefon → Telegram-Server → (ausgehendes Polling) → Pocket Desk Agent
 | `GeminiClient` | Gemini-API-Sitzungen und Gesprächsverlauf |
 | `FileManager` | Datei-I/O in Sandbox — Pfadvalidierung |
 | `AuthManager` | OAuth für Antigravity, Gemini CLI und API-Key |
-| `SchedulerRegistry` | Aufgaben auf Disk gespeichert, Prüfung alle 60 s |
+| `SchedulerRegistry` | Aufgaben auf Disk gespeichert, Prüfung alle 5 s |
 | `RateLimiter` | Token-Bucket-Ratenbegrenzer pro Benutzer |
 
 ---
@@ -107,6 +108,7 @@ Dein Telefon → Telegram-Server → (ausgehendes Polling) → Pocket Desk Agent
 | Claude-Desktop-Integration | ✅ | ❌ |
 | VS-Code-Integration | ✅ | ❌ |
 | APK-Build | ✅ | ❌ |
+| Live-Fernzugriff (`/remote`) | ✅ | ❌ |
 | Autostart nach Anmeldung | ✅ | ❌ |
 
 ---

@@ -110,16 +110,34 @@ Robotic Process Automation using OCR and computer vision.
 
 ## Remote Desktop
 
-Stream your desktop to a mobile browser and control mouse + keyboard from anywhere over the internet. Backed by a [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) quick-tunnel (free, no account).
+Stream your desktop to a mobile browser and control mouse + keyboard from anywhere over the internet. Backed by a [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) quick-tunnel (free, no account, no port forwarding).
 
 | Command | Description | Example |
 | :--- | :--- | :--- |
 | `/remote` | Start a live remote-control session. Returns a public HTTPS URL and a QR code. The first browser that opens the link is bound to the session. | `/remote` |
 | `/stopremote` | Stop the active remote session for this user. | `/stopremote` |
 
-**Prerequisites:** `cloudflared` must be installed once on the host (`winget install Cloudflare.cloudflared`).
+**Prerequisites:** `cloudflared` must be available. If it is missing, `/remote` detects this and offers to install it automatically via `winget` (Windows only) — approve with the inline button. To install manually: `winget install Cloudflare.cloudflared`. Set `CLOUDFLARED_PATH` in `~/.pdagent/config` to point to a custom binary location.
 
-**Mobile gestures:** tap = left click · drag = move + left-drag · long-press = right-click · two-finger vertical = scroll · ⌨︎ button = keyboard input.
+**Mobile controls (toolbar at bottom of viewer):**
+
+| Control | Action |
+| :--- | :--- |
+| Tap | Left click |
+| Drag | Click-and-drag |
+| Long-press (500 ms) | Right click |
+| Two-finger vertical scroll | Scroll up/down |
+| **keys** button | Open on-screen keyboard input |
+| **right click** button | Next tap sends a right click instead of left |
+| **mouse pad** button | Toggle trackpad panel — drag to move cursor, tap to click, two-finger to scroll |
+| **zoom** button | Cycle zoom levels: 1.0× → 1.5× → 2.0× → 3.0× → 1.0× |
+| **view pan** button | When zoomed: drag the canvas to scroll the viewport (instead of dragging the remote mouse) |
+| Quality slider | Adjust JPEG stream quality (30–85); lower = faster on slow connections |
+| **end** button | Disconnect client (session stays alive until `/stopremote` or idle timeout) |
+
+**Desktop browser:** full mouse (move, left/right/middle click, drag, scroll wheel) and keyboard are supported natively.
+
+**Session security:** the viewer URL contains a one-shot token. After the first valid browser opens it, the session is bound to that browser's fingerprint (User-Agent + hashed IP). WebSocket connections are verified against the same token and fingerprint.
 
 **Auto-end conditions:** explicit `/stopremote`, 15-minute idle timeout, or bot shutdown.
 
@@ -156,14 +174,14 @@ Control the Anthropic Claude Desktop app and Claude Code CLI from your phone.
 | Command | Description | Example |
 | :--- | :--- | :--- |
 | `/openclaude` | Launch or focus the Claude Desktop application. | `/openclaude` |
-| `/stopclaude` | Terminate the Claude Desktop process. | `/stopclaude` |
+| `/stopclaude` | Stop the active `claude remote-control` terminal session. | `/stopclaude` |
 | `/claudescreen` | Capture a screenshot of the Claude Desktop window. | `/claudescreen` |
 
 ### Interactions
 
 | Command | Description | Example |
 | :--- | :--- | :--- |
-| `/clauderemote` | Open a cmd terminal at `CLAUDE_DEFAULT_REPO_PATH` and run `claude remote-control`. | `/clauderemote` |
+| `/clauderemote` | Open a cmd terminal at the current bot working directory (`/pwd`) and run `claude remote-control`. | `/clauderemote` |
 | `/claudeask <prompt>` | Send a detailed multiline prompt to Claude Desktop. | `/claudeask optimize auth.py` |
 | `/claudechat <msg>` | Append a message to the active Claude chat. | `/claudechat continue` |
 | `/claudenew` | Open a new Claude Desktop chat session. | `/claudenew` |
@@ -173,7 +191,7 @@ Control the Anthropic Claude Desktop app and Claude Code CLI from your phone.
 
 | Command | Description | Example |
 | :--- | :--- | :--- |
-| `/claudecli [prompt]` | Open a Claude Code CLI session in a folder, with an optional initial prompt. | `/claudecli fix the login bug` |
+| `/claudecli [path-or-name] [optional prompt]` | If the first argument resolves to a folder, open Claude CLI there and optionally send the remaining text as the first prompt. Otherwise show a folder picker and treat all args as an optional prompt. | `/claudecli myrepo run tests` |
 | `/claudeclisend <text>` | Send a prompt to an already-open Claude Code CLI session. | `/claudeclisend run the tests` |
 | `/clauderepo` | Select the active repository for Claude context. | `/clauderepo` |
 | `/claudebranch` | Switch the git branch for the active Claude session. | `/claudebranch` |
@@ -196,7 +214,7 @@ Bridge the bot to VS Code via the Antigravity desktop extension.
 | `/antigravitymodel` | Switch the Antigravity AI model backend. | `/antigravitymodel` |
 | `/antigravityclaudecodeopen` | Focus the Claude Code panel in VS Code. | `/antigravityclaudecodeopen` |
 | `/openclaudeinvscode` | Run `Claude Code: Open` from the VS Code command palette. | `/openclaudeinvscode` |
-| `/antigravityopenfolder` | Open a project folder in VS Code. | `/antigravityopenfolder` |
+| `/antigravityopenfolder [path-or-name]` | Open a project folder directly when an argument is provided, or show a picker when no argument is provided. | `/antigravityopenfolder myrepo` |
 
 ---
 
@@ -204,7 +222,7 @@ Bridge the bot to VS Code via the Antigravity desktop extension.
 
 | Command | Description | Example |
 | :--- | :--- | :--- |
-| `/openbrowser` | Show an inline keyboard to select and open a browser full-screen. Supports Edge, Chrome, Firefox, and Brave. | `/openbrowser` |
+| `/openbrowser [browser]` | Open `edge`, `chrome`, `firefox`, or `brave` directly, or show an inline picker with no argument. | `/openbrowser chrome` |
 
 ---
 

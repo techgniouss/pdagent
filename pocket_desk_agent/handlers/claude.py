@@ -17,11 +17,9 @@ from pocket_desk_agent.handlers._shared import (
     search_results,
     repo_lists,
     repo_selection_state,
-    repo_selection_state,
     record_action_if_active,
     file_manager,
 )
-from pocket_desk_agent.config import Config
 
 # Lazy-loaded on first call to _load_win_deps() to avoid ~15-20 MB at startup.
 Application = None
@@ -45,6 +43,23 @@ def _load_win_deps():
     ImageGrab = _ig
 
 logger = logging.getLogger(__name__)
+
+_INPUT_HINT_TERMS = (
+    "reply",
+    "find",
+    "todo",
+    "ask",
+    "type",
+    "message",
+    "chat",
+    "prompt",
+    "command",
+)
+_NEW_CHAT_HINT_TERMS = ("new", "chat", "session", "conversation")
+_NEW_CHAT_TITLE_PATTERNS = (
+    r".*[Nn]ew.*([Cc]hat|[Ss]ession|[Cc]onversation).*",
+    r".*[Ss]tart.*[Nn]ew.*",
+)
 
 # Store claude process PID in a file for persistence
 CLAUDE_PID_FILE = os.path.join(os.getenv("TEMP", "/tmp"), "claude_remote_control.pid")
@@ -120,9 +135,112 @@ def is_claude_running():
         return False
 
 
+def _iter_new_chat_shortcuts():
+    """Return fallback shortcuts for creating a fresh Claude conversation."""
+    return (
+        ("ctrl", "n"),
+        ("ctrl", "shift", "o"),
+    )
+
+
+def _configure_tesseract():
+    """Import pytesseract and configure a common Windows binary path if present."""
+    try:
+        import pytesseract
+    except Exception:
+        return None
+
+    if platform.system() == "Windows":
+        tesseract_paths = [
+            r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+            r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+            os.path.expandvars(r"%LOCALAPPDATA%\Programs\Tesseract-OCR\tesseract.exe"),
+        ]
+        for path in tesseract_paths:
+            if os.path.exists(path):
+                pytesseract.pytesseract.tesseract_cmd = path
+                break
+    return pytesseract
+
+
+def _click_claude_input(window, pyautogui) -> None:
+    """Focus Claude's composer input using UIA/OCR fallbacks."""
+    if PYWINAUTO_AVAILABLE:
+        try:
+            _load_win_deps()
+            app = Application(backend="uia").connect(title_re=".*Claude.*")
+            claude_window = app.window(title_re=".*Claude.*")
+            for spec in (
+                {"control_type": "Edit", "found_index": 0},
+                {"control_type": "Document", "found_index": 0},
+                {"title_re": ".*(Ask|Message|Prompt|Chat|Reply).*", "control_type": "Edit"},
+            ):
+                try:
+                    control = claude_window.child_window(**spec)
+                    control.click_input()
+                    time.sleep(0.4)
+                    logger.info("Focused Claude input via pywinauto: %s", spec)
+                    return
+                except Exception:
+                    continue
+        except Exception as exc:
+            logger.warning("pywinauto input focus failed: %s", exc)
+
+    pytesseract = _configure_tesseract()
+    if pytesseract:
+        try:
+            bottom_height = 220
+            screenshot = pyautogui.screenshot(
+                region=(
+                    window.left,
+                    window.top + window.height - bottom_height,
+                    window.width,
+                    bottom_height,
+                )
+            )
+            text_data = pytesseract.image_to_data(screenshot, output_type=pytesseract.Output.DICT)
+            for index, raw_word in enumerate(text_data["text"]):
+                word = (raw_word or "").strip().lower()
+                if not word or not any(term in word for term in _INPUT_HINT_TERMS):
+                    continue
+                x = text_data["left"][index] + (text_data["width"][index] // 2) + window.left
+                y = (
+                    text_data["top"][index]
+                    + (text_data["height"][index] // 2)
+                    + window.top
+                    + window.height
+                    - bottom_height
+                )
+                pyautogui.click(x, y)
+                time.sleep(0.4)
+                logger.info("Focused Claude input via OCR term '%s' at (%s, %s)", word, x, y)
+                return
+        except Exception as exc:
+            logger.warning("OCR input focus failed: %s", exc)
+
+    pyautogui.click(window.left + (window.width // 2), window.top + window.height - 40)
+    time.sleep(0.4)
+    logger.info("Focused Claude input via coordinate fallback")
+
+
+def send_prompt_to_claude(window, prompt: str, *, submit: bool = True) -> None:
+    """Focus Claude input, paste prompt text, and optionally submit."""
+    import pyautogui
+    import pyperclip
+
+    _click_claude_input(window, pyautogui)
+    pyperclip.copy(prompt)
+    time.sleep(0.3)
+    pyautogui.hotkey("ctrl", "v")
+    time.sleep(0.6)
+    if submit:
+        pyautogui.press("enter")
+        time.sleep(0.3)
+
+
 
 async def clauderemote_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /clauderemote command - open a cmd window at the default repo path and run claude remote-control."""
+    """Handle /clauderemote command - open a cmd window in current repo and run claude remote-control."""
     if not update.message:
         return
 
@@ -177,7 +295,7 @@ async def stopclaude_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if not is_claude_running():
         await update.message.reply_text(
             "ℹ️ Claude remote-control is not running.\n"
-            "Use /claude to start it."
+            "Use /clauderemote to start it."
         )
         return
     
@@ -507,117 +625,8 @@ async def claudeask_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         window.activate()
         time.sleep(1.5)
         
-        import pyautogui
-        import pyperclip
-        
         logger.info(f"Attempting to send message to Claude: {message[:50]}")
-        
-        input_clicked = False
-        
-        # Method 1: Try to find input box using OCR
-        try:
-            import pytesseract
-            
-            # Set Tesseract path for Windows
-            if platform.system() == "Windows":
-                tesseract_paths = [
-                    r"C:\Program Files\Tesseract-OCR\tesseract.exe",
-                    r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
-                    os.path.expandvars(r"%LOCALAPPDATA%\Programs\Tesseract-OCR\tesseract.exe"),
-                ]
-                for path in tesseract_paths:
-                    if os.path.exists(path):
-                        pytesseract.pytesseract.tesseract_cmd = path
-                        break
-            
-            logger.info("Using OCR to find input box...")
-            
-            # Take screenshot of bottom portion of window
-            bottom_height = 200
-            screenshot = pyautogui.screenshot(region=(
-                window.left,
-                window.top + window.height - bottom_height,
-                window.width,
-                bottom_height
-            ))
-            
-            # Use OCR to find text
-            text_data = pytesseract.image_to_data(screenshot, output_type=pytesseract.Output.DICT)
-            
-            # Search for multiple possible placeholder texts
-            search_terms = ['reply', 'find', 'todo', 'ask', 'type', 'message', 'chat']
-            
-            for i, word in enumerate(text_data['text']):
-                if word:
-                    word_lower = word.lower()
-                    # Check if any search term is in the word
-                    if any(term in word_lower for term in search_terms):
-                        # Calculate absolute screen position
-                        x = text_data['left'][i] + (text_data['width'][i] // 2) + window.left
-                        y = text_data['top'][i] + (text_data['height'][i] // 2) + (window.top + window.height - bottom_height)
-                        logger.info(f"Found input box text '{word}' at ({x}, {y}), clicking...")
-                        pyautogui.click(x, y)
-                        time.sleep(0.5)
-                        input_clicked = True
-                        break
-            
-            if not input_clicked:
-                logger.warning("Input box text not found with OCR")
-                
-        except Exception as e:
-            logger.warning(f"OCR method failed: {e}")
-        
-        # Method 2: Try pywinauto to find Edit control
-        if not input_clicked:
-            try:
-                logger.info("Trying pywinauto to find input box...")
-                app = Application(backend="uia").connect(title_re=".*Claude.*")
-                claude_window = app.window(title_re=".*Claude.*")
-                
-                # Find the edit/input control (text box)
-                input_box = claude_window.child_window(control_type="Edit", found_index=0)
-                input_box.click_input()
-                time.sleep(0.5)
-                input_clicked = True
-                logger.info("Clicked input box using pywinauto")
-                
-            except Exception as e:
-                logger.warning(f"pywinauto method failed: {e}")
-        
-        # Method 3: Fallback to coordinate-based clicking
-        if not input_clicked:
-            logger.warning("Using coordinate fallback for input box")
-            # Try multiple possible positions
-            possible_positions = [
-                (window.left + (window.width // 2), window.top + window.height - 35),  # Center bottom
-                (window.left + (window.width // 2) + 50, window.top + window.height - 35),  # Slightly right
-                (window.left + (window.width // 2), window.top + window.height - 60),  # Higher up
-            ]
-            
-            # Try first position
-            click_x, click_y = possible_positions[0]
-            logger.info(f"Fallback clicking at ({click_x}, {click_y})")
-            pyautogui.click(click_x, click_y)
-            time.sleep(0.5)
-        
-        # Copy message to clipboard
-        pyperclip.copy(message)
-        time.sleep(0.3)
-        
-        # Paste the message
-        pyautogui.hotkey('ctrl', 'v')
-        time.sleep(1.0)
-        
-        # Verify paste worked
-        current_clipboard = pyperclip.paste()
-        if current_clipboard == message:
-            logger.info("Message pasted successfully")
-        else:
-            logger.warning(f"Clipboard verification failed. Expected: {message[:30]}, Got: {current_clipboard[:30]}")
-        
-        # Press Enter to send
-        pyautogui.press('enter')
-        time.sleep(0.5)
+        send_prompt_to_claude(window, message)
         
         logger.info(f"Sent message to Claude: {message[:50]}")
         
@@ -671,23 +680,13 @@ async def claudenew_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         new_session_clicked = False
 
-        # Method 1: Try OCR to find "New session" button
+        # Method 1: Try OCR to find "New chat/session" button
         try:
-            import pytesseract
+            pytesseract = _configure_tesseract()
+            if not pytesseract:
+                raise RuntimeError("pytesseract unavailable")
             
-            # Set Tesseract path for Windows
-            if platform.system() == "Windows":
-                tesseract_paths = [
-                    r"C:\Program Files\Tesseract-OCR\tesseract.exe",
-                    r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
-                    os.path.expandvars(r"%LOCALAPPDATA%\Programs\Tesseract-OCR\tesseract.exe"),
-                ]
-                for path in tesseract_paths:
-                    if os.path.exists(path):
-                        pytesseract.pytesseract.tesseract_cmd = path
-                        break
-            
-            logger.info("Using OCR to find 'New session' button...")
+            logger.info("Using OCR to find 'New chat/session' button...")
             
             # Take screenshot of top-left area where button usually is
             search_width = 300
@@ -702,12 +701,11 @@ async def claudenew_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Use OCR to find text
             text_data = pytesseract.image_to_data(screenshot, output_type=pytesseract.Output.DICT)
             
-            # Search for "New" or "session" text
+            # Search for words commonly used in the new-conversation control.
             for i, word in enumerate(text_data['text']):
                 if word:
                     word_lower = word.lower()
-                    # Look for "new" or "session" text
-                    if 'new' in word_lower or 'session' in word_lower:
+                    if any(term in word_lower for term in _NEW_CHAT_HINT_TERMS):
                         # Calculate absolute screen position
                         x = text_data['left'][i] + (text_data['width'][i] // 2) + window.left
                         y = text_data['top'][i] + (text_data['height'][i] // 2) + window.top
@@ -719,21 +717,23 @@ async def claudenew_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         break
             
             if not new_session_clicked:
-                logger.warning("'New session' text not found with OCR")
+                logger.warning("'New chat/session' text not found with OCR")
                 
         except Exception as e:
             logger.warning(f"OCR method failed: {e}")
 
-        # Method 2: Try keyboard shortcut (most reliable)
+        # Method 2: Try keyboard shortcut fallbacks.
         if not new_session_clicked:
-            try:
-                logger.info("Trying keyboard shortcut Ctrl+Shift+O")
-                pyautogui.hotkey('ctrl', 'shift', 'o')
-                time.sleep(1.0)
-                new_session_clicked = True
-                logger.info("Used keyboard shortcut for new session")
-            except Exception as e:
-                logger.warning(f"Keyboard shortcut failed: {e}")
+            for keys in _iter_new_chat_shortcuts():
+                try:
+                    logger.info("Trying keyboard shortcut: %s", "+".join(keys))
+                    pyautogui.hotkey(*keys)
+                    time.sleep(1.0)
+                    new_session_clicked = True
+                    logger.info("Used keyboard shortcut for new session: %s", "+".join(keys))
+                    break
+                except Exception as e:
+                    logger.warning("Keyboard shortcut %s failed: %s", "+".join(keys), e)
 
         # Method 3: Try pywinauto
         if not new_session_clicked:
@@ -741,21 +741,25 @@ async def claudenew_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 app = Application(backend="uia").connect(title_re=".*Claude.*")
                 claude_window = app.window(title_re=".*Claude.*")
 
-                # Try to find and click "New session" button
-                try:
-                    new_session_btn = claude_window.child_window(title="New session", control_type="Button")
-                    new_session_btn.click_input()
-                    logger.info("Clicked 'New session' button using pywinauto")
-                    new_session_clicked = True
-                except Exception:
-                    # Try as text element
-                    try:
-                        new_session_text = claude_window.child_window(title_re=".*New.*session.*")
-                        new_session_text.click_input()
-                        logger.info("Clicked 'New session' text using pywinauto")
-                        new_session_clicked = True
-                    except Exception:
-                        pass
+                for pattern in _NEW_CHAT_TITLE_PATTERNS:
+                    if new_session_clicked:
+                        break
+                    for control_type in ("Button", "Text"):
+                        try:
+                            new_session_control = claude_window.child_window(
+                                title_re=pattern,
+                                control_type=control_type,
+                            )
+                            new_session_control.click_input()
+                            logger.info(
+                                "Clicked new chat control using pywinauto pattern '%s' (%s)",
+                                pattern,
+                                control_type,
+                            )
+                            new_session_clicked = True
+                            break
+                        except Exception:
+                            continue
 
                 time.sleep(1.0)
 
@@ -767,57 +771,26 @@ async def claudenew_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.warning("All methods failed, using coordinate fallback")
             # Try multiple possible positions for the button
             possible_positions = [
-                (window.left + 68, window.top + 85),   # Original position
-                (window.left + 80, window.top + 70),   # Alternative 1
-                (window.left + 60, window.top + 100),  # Alternative 2
+                (window.left + 68, window.top + 85),   # Legacy position
+                (window.left + 90, window.top + 90),   # Current build fallback
+                (window.left + 60, window.top + 110),  # Wider title bar fallback
             ]
             
             for x, y in possible_positions:
                 logger.info(f"Trying coordinate click at ({x}, {y})")
                 pyautogui.click(x, y)
                 time.sleep(0.5)
-                # Check if it worked by looking for input box
-                break  # Just try the first one for now
+                break
 
         time.sleep(1.0)  # Wait for new session to be created
 
         if initial_message:
-            # Try to find and click in the input box using pywinauto
             try:
-                app = Application(backend="uia").connect(title_re=".*Claude.*")
-                claude_window = app.window(title_re=".*Claude.*")
-                
-                # Find the edit/input control (text box)
-                input_box = claude_window.child_window(control_type="Edit", found_index=0)
-                input_box.click_input()
-                time.sleep(0.3)
-                
-                # Set text directly using pywinauto
-                input_box.set_focus()
-                input_box.type_keys(initial_message, with_spaces=True)
-                time.sleep(0.3)
-                
-                # Press Enter to send
-                input_box.type_keys('{ENTER}')
-                
-                logger.info(f"Sent message using pywinauto text input: {initial_message[:50]}")
-                
+                send_prompt_to_claude(window, initial_message)
+                logger.info("Sent initial message after creating new session")
             except Exception as e:
-                logger.warning(f"pywinauto text input failed: {e}, trying clipboard method")
-                # Fallback to clipboard paste method (more reliable for special characters)
-                click_x = window.left + (window.width // 2)
-                click_y = window.top + window.height - 60
-                
-                pyautogui.click(click_x, click_y)
-                time.sleep(0.3)
-                
-                # Use clipboard for more reliable text input
-                import pyperclip
-                pyperclip.copy(initial_message)
-                pyautogui.hotkey('ctrl', 'v')
-                time.sleep(0.3)
-                
-                pyautogui.press('enter')
+                logger.warning(f"Failed to send initial message after new session: {e}")
+                raise
             
             await update.message.reply_text(
                 f"✅ New session created and message sent!\n\n"
@@ -913,106 +886,8 @@ async def claudechat_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         window.activate()
         time.sleep(1.5)
         
-        import pyautogui
-        import pyperclip
-        
         logger.info(f"Attempting to send message: {message[:50]}")
-        
-        input_clicked = False
-        
-        # Method 1: Try to find input box using OCR
-        try:
-            import pytesseract
-            
-            # Set Tesseract path for Windows
-            if platform.system() == "Windows":
-                tesseract_paths = [
-                    r"C:\Program Files\Tesseract-OCR\tesseract.exe",
-                    r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
-                    os.path.expandvars(r"%LOCALAPPDATA%\Programs\Tesseract-OCR\tesseract.exe"),
-                ]
-                for path in tesseract_paths:
-                    if os.path.exists(path):
-                        pytesseract.pytesseract.tesseract_cmd = path
-                        break
-            
-            logger.info("Using OCR to find input box...")
-            
-            # Take screenshot of bottom portion
-            bottom_height = 200
-            screenshot = pyautogui.screenshot(region=(
-                window.left,
-                window.top + window.height - bottom_height,
-                window.width,
-                bottom_height
-            ))
-            
-            # Use OCR
-            text_data = pytesseract.image_to_data(screenshot, output_type=pytesseract.Output.DICT)
-            
-            # Search for multiple possible placeholder texts
-            search_terms = ['reply', 'find', 'todo', 'ask', 'type', 'message', 'chat']
-            
-            for i, word in enumerate(text_data['text']):
-                if word:
-                    word_lower = word.lower()
-                    # Check if any search term is in the word
-                    if any(term in word_lower for term in search_terms):
-                        x = text_data['left'][i] + (text_data['width'][i] // 2) + window.left
-                        y = text_data['top'][i] + (text_data['height'][i] // 2) + (window.top + window.height - bottom_height)
-                        logger.info(f"Found input box text '{word}' at ({x}, {y})")
-                        pyautogui.click(x, y)
-                        time.sleep(0.5)
-                        input_clicked = True
-                        break
-            
-            if not input_clicked:
-                logger.warning("Input box text not found with OCR")
-                
-        except Exception as e:
-            logger.warning(f"OCR method failed: {e}")
-        
-        # Method 2: Try pywinauto to find Edit control
-        if not input_clicked:
-            try:
-                logger.info("Trying pywinauto to find input box...")
-                app = Application(backend="uia").connect(title_re=".*Claude.*")
-                claude_window = app.window(title_re=".*Claude.*")
-                
-                # Find the edit/input control (text box)
-                input_box = claude_window.child_window(control_type="Edit", found_index=0)
-                input_box.click_input()
-                time.sleep(0.5)
-                input_clicked = True
-                logger.info("Clicked input box using pywinauto")
-                
-            except Exception as e:
-                logger.warning(f"pywinauto method failed: {e}")
-        
-        # Method 3: Fallback to coordinate-based clicking
-        if not input_clicked:
-            logger.warning("Using coordinate fallback for input box")
-            click_x = window.left + (window.width // 2) + 50
-            click_y = window.top + window.height - 35
-            pyautogui.click(click_x, click_y)
-            time.sleep(0.5)
-        
-        # Paste message
-        pyperclip.copy(message)
-        time.sleep(0.3)
-        pyautogui.hotkey('ctrl', 'v')
-        time.sleep(1.0)
-        
-        # Verify paste
-        current_clipboard = pyperclip.paste()
-        if current_clipboard == message:
-            logger.info("Message pasted successfully")
-        else:
-            logger.warning(f"Clipboard verification failed")
-        
-        # Send
-        pyautogui.press('enter')
-        time.sleep(0.5)
+        send_prompt_to_claude(window, message)
         
         await update.message.reply_text(
             f"✅ Message sent!\n\n"
@@ -1354,19 +1229,6 @@ async def claudemodel_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         logger.error(f"Error in claudemodel_command: {e}")
 
 
-# Store search results for selection
-search_results = {}
-
-# Default repository base path - loaded from config
-from pocket_desk_agent.config import Config
-DEFAULT_REPO_PATH = Config.CLAUDE_DEFAULT_REPO_PATH
-
-# Store repo list for selection
-repo_lists = {}
-
-# Store repo selection state for conversational flow
-repo_selection_state = {}
-
 async def claudesearch_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /claudesearch command - search conversations and show results."""
     if not update.message:
@@ -1438,7 +1300,7 @@ async def claudesearch_command(update: Update, context: ContextTypes.DEFAULT_TYP
                 if search_query:
                     caption += f"Query: '{search_query}'\n\n"
                 caption += "To select a conversation:\n"
-                caption += "• /claudeselect <number> - Select by position (1-10, excludes 'How to use Claude')\n"
+                caption += "• /claudeselect <number> - Select by position (1-10)\n"
                 caption += "• /claudeselect <text> - Select by matching text\n\n"
                 caption += "Example: /claudeselect 2 or /claudeselect payment issues"
                 
@@ -1476,7 +1338,7 @@ async def claudeselect_command(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text(
             "Usage: /claudeselect <number or text>\n\n"
             "Examples:\n"
-            "• /claudeselect 2 - Select 2nd conversation (excludes 'How to use Claude')\n"
+            "• /claudeselect 2 - Select 2nd conversation\n"
             "• /claudeselect payment - Select conversation with 'payment' in title\n\n"
             "First use /claudesearch to see available conversations."
         )
@@ -1519,18 +1381,25 @@ async def claudeselect_command(update: Update, context: ContextTypes.DEFAULT_TYP
                 if position < 1 or position > 10:
                     await update.message.reply_text("❌ Position must be between 1 and 10.")
                     return
-                
-                # Calculate position (skip first item "How to use Claude")
-                # Each item is approximately 37-40px apart
-                search_dialog_top = window.top + 170  # Approximate top of first result
-                item_height = 38  # Approximate height between items
-                
-                # Position 1 = second item (first after "How to use Claude")
-                click_y = search_dialog_top + (position * item_height)
-                click_x = window.left + (window.width // 2)
-                
-                pyautogui.click(click_x, click_y)
-                logger.info(f"Clicked conversation at position {position}")
+
+                selected_via_list = False
+                try:
+                    visible_items = [
+                        item
+                        for item in claude_window.descendants(control_type="ListItem")
+                        if item.is_visible()
+                    ]
+                    if len(visible_items) >= position:
+                        visible_items[position - 1].click_input()
+                        selected_via_list = True
+                        logger.info("Clicked conversation #%s via ListItem", position)
+                except Exception:
+                    selected_via_list = False
+
+                if not selected_via_list:
+                    pyautogui.press('down', presses=max(position - 1, 0), interval=0.08)
+                    pyautogui.press('enter')
+                    logger.info("Selected conversation #%s via keyboard fallback", position)
                 
             else:
                 # Search by text - try to find matching conversation
@@ -1540,16 +1409,8 @@ async def claudeselect_command(update: Update, context: ContextTypes.DEFAULT_TYP
                     conversation.click_input()
                     logger.info(f"Clicked conversation matching '{selection}'")
                 except Exception:
-                    # Fallback: use keyboard navigation
-                    # Press down arrow to skip "How to use Claude"
-                    pyautogui.press('down')
-                    time.sleep(0.2)
-                    
-                    # Search through items
-                    for _ in range(10):  # Try up to 10 items
-                        pyautogui.press('enter')
-                        break
-                    
+                    # Fallback: keep current highlighted item and open it.
+                    pyautogui.press('enter')
                     logger.info(f"Selected conversation using keyboard for '{selection}'")
             
             time.sleep(0.5)
