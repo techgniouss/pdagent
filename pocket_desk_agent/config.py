@@ -38,6 +38,28 @@ def _resolve_user_path(raw_path: str, *, default: Path | None = None) -> Path:
     return (Path.home() / expanded).resolve()
 
 
+def _env_int(name: str, default: int) -> int:
+    """Read an integer environment variable, falling back on invalid values."""
+    try:
+        return int(os.getenv(name, str(default)))
+    except ValueError:
+        return default
+
+
+def _parse_user_ids(raw_value: str) -> list[int]:
+    """Parse comma-separated Telegram user IDs, skipping malformed entries."""
+    user_ids: list[int] = []
+    for item in raw_value.split(","):
+        value = item.strip()
+        if not value:
+            continue
+        try:
+            user_ids.append(int(value))
+        except ValueError:
+            continue
+    return user_ids
+
+
 _load_config_files()
 
 
@@ -84,14 +106,9 @@ class Config:
         cls.TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
         cls.TELEGRAM_BOT_USERNAME = os.getenv("TELEGRAM_BOT_USERNAME", "")
 
-        cls.AUTHORIZED_USER_IDS = [
-            int(uid.strip())
-            for uid in (
-                os.getenv("AUTHORIZED_USER_IDS")
-                or os.getenv("ALLOWED_USERS", "")
-            ).split(",")
-            if uid.strip()
-        ]
+        cls.AUTHORIZED_USER_IDS = _parse_user_ids(
+            os.getenv("AUTHORIZED_USER_IDS") or os.getenv("ALLOWED_USERS", "")
+        )
 
         cls.GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 
@@ -121,9 +138,7 @@ class Config:
         # Keep GOOGLE_OAUTH_ENABLED in sync for backward compat
         cls.GOOGLE_OAUTH_ENABLED = cls.GEMINI_AUTH_MODE != "apikey"
 
-        cls.MAX_TOKENS_PER_REQUEST = int(
-            os.getenv("MAX_TOKENS_PER_REQUEST", "8000")
-        )
+        cls.MAX_TOKENS_PER_REQUEST = _env_int("MAX_TOKENS_PER_REQUEST", 8000)
 
         cls.SYSTEM_PROMPT = (
             os.getenv("SYSTEM_PROMPT") or os.getenv("SYSTEM_INSTRUCTION", "")
@@ -163,8 +178,9 @@ class Config:
             )
         ).lower() == "true"
 
-        cls.AUTO_UPDATE_INTERVAL_MINUTES = int(
-            os.getenv("AUTO_UPDATE_INTERVAL_MINUTES", "60")
+        cls.AUTO_UPDATE_INTERVAL_MINUTES = _env_int(
+            "AUTO_UPDATE_INTERVAL_MINUTES",
+            60,
         )
 
         cls.LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")

@@ -306,6 +306,14 @@ GOOGLE_OAUTH_CLIENT_SECRET="your_client_secret"
 | `CLAUDE_DEFAULT_REPO_PATH` | `~/Documents` | Default repo root for Claude CLI integration. **Also automatically added to the file-system sandbox at runtime**, so the bot can always access this path even if it is not listed in `APPROVED_DIRECTORIES`. |
 | `SYSTEM_PROMPT` | — | Custom Gemini system prompt |
 | `DROPBOX_ACCESS_TOKEN` | — | Dropbox token for optional large-file uploads (see [docs/dropbox-setup.md](docs/dropbox-setup.md)) |
+| `REMOTE_ENABLED` | `true` | Enable the `/remote` live desktop feature |
+| `REMOTE_AI_TOOLS_ENABLED` | `true` | Allow Gemini to start/stop remote sessions via tool-calling |
+| `REMOTE_BIND_HOST` | `127.0.0.1` | Local host the aiohttp WebSocket server binds to |
+| `REMOTE_IDLE_TIMEOUT_SECS` | `900` | Seconds of inactivity before the remote session auto-closes (min 60) |
+| `REMOTE_DEFAULT_FPS` | `10` | Default frame rate for the desktop stream (2–20) |
+| `REMOTE_JPEG_QUALITY` | `60` | Default JPEG compression quality for the stream (30–85) |
+| `REMOTE_MAX_WIDTH` | `1280` | Max pixel width to which the desktop frame is downscaled (640–1920) |
+| `CLOUDFLARED_PATH` | `(auto)` | Override the path to the `cloudflared` binary used by `/remote` |
 
 ### Legacy Config Aliases
 
@@ -349,7 +357,7 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 
 ## Commands Quick Reference
 
-> For the complete reference with all 79 built-in commands, see **[docs/COMMANDS.md](docs/COMMANDS.md)**.
+> For the complete reference with all 82 built-in commands, see **[docs/COMMANDS.md](docs/COMMANDS.md)**.
 
 <details>
 <summary><strong>Expand cheat sheet</strong></summary>
@@ -367,6 +375,7 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 | `/logout` | Sign out of Google |
 | `/new` | Clear chat history and start fresh |
 | `/enhance <prompt>` | Let Gemini improve a prompt |
+| `/update` | Upgrade the installed package and restart |
 | *(any text/photo)* | Chat with Gemini 2.0 Flash |
 
 ### File System
@@ -440,7 +449,8 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 | `/claudesearch <query>` | Search Claude chat history |
 | `/claudeselect` | Select Claude workspace |
 | `/claudemode` | Switch Claude mode |
-| `/claudemodel` | Switch Claude model |
+| `/claudeacceptedits` | Toggle Claude accept-edits mode |
+| `/claudemodel` | Scan and switch the Claude model |
 | `/claudescreen` | Screenshot of the Claude app |
 | `/claudeschedule <HH:MM> <text>` | Schedule a Claude prompt |
 
@@ -479,6 +489,7 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 | :--- | :--- |
 | `/build` | Start a React Native Android build |
 | `/getapk` | Download the latest built APK |
+| `/stopbuildscreenshot` | Stop build screenshot monitoring |
 
 ### Remote Desktop
 

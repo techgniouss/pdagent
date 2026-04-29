@@ -458,7 +458,7 @@ async def hotkey_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pyperclip.copy(clipboard_text)
             logger.info(f"Copied to clipboard: {clipboard_text[:50]}")
             await update.message.reply_text(f"\U0001f4cb Copied to clipboard: {clipboard_text[:100]}{'...' if len(clipboard_text) > 100 else ''}")
-            time.sleep(0.2)
+            await asyncio.sleep(0.2)
         
         # Map the keys using utility function
         from pocket_desk_agent.automation_utils import (
@@ -480,7 +480,7 @@ async def hotkey_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             send_hotkey(pyautogui, *mapped_keys)
         
-        time.sleep(0.3)
+        await asyncio.sleep(0.3)
         
         result_msg = f"\u2705 Hotkey executed: {hotkey_str}"
         if clipboard_text:
@@ -647,7 +647,7 @@ async def clipboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         pyperclip.copy(text)
-        time.sleep(0.2)
+        await asyncio.sleep(0.2)
         
         # Verify it was copied
         if pyperclip.paste() == text:

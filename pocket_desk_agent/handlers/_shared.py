@@ -52,7 +52,10 @@ window_switch_options = {}       # {user_id: {num: {"handle": int, "title": str}
 search_results = {}              # Claude search results
 repo_lists = {}                  # Claude repo listings
 repo_selection_state = {}        # Claude repo selection flow
+model_selection_state = {}       # Claude model scan+select flow
 build_state = {}                 # Build workflow state
+build_monitor_state = {}         # Pending screenshot monitor params (pre-confirmation)
+build_screenshot_tasks = {}      # {user_id: asyncio.Task} — active screenshot monitors
 large_file_upload_state = {}     # Upload choice state
 apk_retrieval_state = {}         # APK retrieval flow
 

@@ -37,6 +37,7 @@ Manage the fundamental runtime state, session lifecycle, and system capabilities
 | `/new` | Purge current Gemini chat history and start a fresh session. | `/new` |
 | `/enhance <text>` | Ask Gemini to rewrite or improve a prompt. | `/enhance write an email to my boss` |
 | `/sync` | Force-sync the command list with Telegram's bot menu. Use this after saving a new macro or if the `/help` menu looks stale. | `/sync` |
+| `/update` | Upgrade the installed package and restart the bot. | `/update` |
 | `/stopbot` | Shut down the bot process gracefully (requires confirmation). | `/stopbot` |
 
 ---
@@ -197,7 +198,8 @@ Control the Anthropic Claude Desktop app and Claude Code CLI from your phone.
 | `/claudebranch` | Switch the git branch for the active Claude session. | `/claudebranch` |
 | `/claudeselect` | Switch between predefined desktop workspaces. | `/claudeselect` |
 | `/claudemode` | Cycle Claude's agentic or conversational mode. | `/claudemode` |
-| `/claudemodel` | Hot-swap the Claude model (Opus, Sonnet, Haiku). | `/claudemodel` |
+| `/claudeacceptedits` | Toggle Claude's accept-edits mode via the bottom status bar. | `/claudeacceptedits` |
+| `/claudemodel` | Scan the bottom status bar with OCR and switch the active Claude model. | `/claudemodel` |
 | `/claudesearch <query>` | Search your Claude conversation history. | `/claudesearch python` |
 
 ---
@@ -263,8 +265,9 @@ CI/CD commands for React Native Android build pipelines.
 
 | Command | Description | Example |
 | :--- | :--- | :--- |
-| `/build` | Start the React Native / Android build workflow. | `/build` |
+| `/build` | Start the React Native / Android build workflow. When the build starts, you are asked whether to enable screenshot monitoring. | `/build` |
 | `/getapk` | Retrieve the latest built APK and deliver it through Telegram or a large-file upload option. | `/getapk` |
+| `/stopbuildscreenshot` | Cancel the active build screenshot monitoring started during `/build`. | `/stopbuildscreenshot` |
 
 See [BUILD_WORKFLOW.md](BUILD_WORKFLOW.md) for the full build guide.
 

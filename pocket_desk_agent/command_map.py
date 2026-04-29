@@ -15,6 +15,7 @@ COMMAND_REGISTRY = [
     ("new", handlers.new_command, "Start new chat"),
     ("enhance", handlers.enhance_command, "Enhance prompt"),
     ("sync", handlers.sync_commands_command, "Sync command list with Telegram"),
+    ("update", handlers.update_command, "Upgrade and restart the bot"),
     # File System Commands
     ("pwd", handlers.pwd_command, "Current directory"),
     ("cd", handlers.cd_command, "Change directory"),
@@ -71,7 +72,8 @@ COMMAND_REGISTRY = [
     ("claudesearch", handlers.claudesearch_command, "Search Claude history"),
     ("claudeselect", handlers.claudeselect_command, "Select Claude workspace"),
     ("claudemode", handlers.claudemode_command, "Switch Claude mode"),
-    ("claudemodel", handlers.claudemodel_command, "Switch Claude model"),
+    ("claudeacceptedits", handlers.claudeacceptedits_command, "Set Claude accept-edits mode"),
+    ("claudemodel", handlers.claudemodel_command, "Scan and switch Claude model"),
     ("claudescreen", handlers.claudescreen_command, "Claude app screenshot"),
     ("claudechat", handlers.claudechat_command, "Automated Claude chat"),
     (
@@ -119,6 +121,7 @@ COMMAND_REGISTRY = [
     # Workflow Commands
     ("build", handlers.build_command, "Start build workflow"),
     ("getapk", handlers.getapk_command, "Download built APK"),
+    ("stopbuildscreenshot", handlers.stopbuildscreenshot_command, "Stop build screenshot monitoring"),
     # Scheduling Commands
     ("schedule", handlers.schedule_command, "Schedule custom command"),
     (

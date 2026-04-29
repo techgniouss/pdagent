@@ -24,6 +24,8 @@ from pocket_desk_agent.handlers._shared import (
     claudecli_options,
     large_file_upload_state,
     window_switch_options,
+    build_monitor_state,
+    build_screenshot_tasks,
 )
 
 logger = logging.getLogger(__name__)
@@ -347,6 +349,53 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         await handle_install_cloudflared_callback(update, context)
+
+    # Handle build screenshot confirmation (Yes/No)
+    elif query.data.startswith("build_screenshot_yes_") or query.data.startswith(
+        "build_screenshot_no_"
+    ):
+        try:
+            user_id = int(query.data.rsplit("_", 1)[-1])
+        except (ValueError, IndexError):
+            await query.edit_message_text("Invalid build screenshot payload.")
+            return
+
+        if query.data.startswith("build_screenshot_yes_"):
+            state = build_monitor_state.pop(user_id, None)
+            if not state:
+                await query.edit_message_text(
+                    "Build monitor state expired. Start a new build to enable screenshots."
+                )
+                return
+
+            from pocket_desk_agent.handlers.build import monitor_build_window
+
+            # Cancel any existing monitor for this user before starting a new one
+            old_task = build_screenshot_tasks.get(user_id)
+            if old_task and not old_task.done():
+                old_task.cancel()
+
+            task = asyncio.create_task(
+                monitor_build_window(
+                    context.bot,
+                    state["chat_id"],
+                    state["user_id"],
+                    state["window_title"],
+                    state["repo_path"],
+                    state["build_type"],
+                )
+            )
+            build_screenshot_tasks[user_id] = task
+            await query.edit_message_text(
+                "📸 Screenshot monitoring started! I'll send a full-screen capture every minute.\n"
+                "Keep the Command Prompt window visible for the best view.\n\n"
+                "Use /stopbuildscreenshot to stop at any time."
+            )
+        else:
+            build_monitor_state.pop(user_id, None)
+            await query.edit_message_text(
+                "No problem! Use /getapk when the build finishes."
+            )
 
     # Handle browser open selection
     elif query.data.startswith("browser_"):

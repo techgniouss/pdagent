@@ -54,7 +54,7 @@ async def clicktext_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 # Click at the specified position
                 pyautogui.click(x, y)
-                time.sleep(0.3)
+                await asyncio.sleep(0.3)
                 
                 await update.message.reply_text(f"✅ Clicked at ({x}, {y})")
                 logger.info(f"Clicked at coordinates ({x}, {y})")
