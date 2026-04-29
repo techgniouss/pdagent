@@ -1,7 +1,9 @@
-# Pocket Desk Agent
+# PDAgent (Pocket Desk Agent) - Control Your PC from Anywhere via Telegram
 
 <p align="center">
   <a href="https://pypi.org/project/pocket-desk-agent/"><img src="https://img.shields.io/pypi/v/pocket-desk-agent.svg?style=for-the-badge&color=3776AB" alt="PyPI" /></a>
+  <a href="https://github.com/techgniouss/pdagent/stargazers"><img src="https://img.shields.io/github/stars/techgniouss/pdagent?style=for-the-badge&logo=github" alt="GitHub stars" /></a>
+  <a href="https://github.com/techgniouss/pdagent/network/members"><img src="https://img.shields.io/github/forks/techgniouss/pdagent?style=for-the-badge&logo=github" alt="GitHub forks" /></a>
   <img src="https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
   <img src="https://img.shields.io/badge/Gemini-2.0_Flash-4285F4?style=for-the-badge&logo=google-gemini&logoColor=white" alt="Gemini" />
   <img src="https://img.shields.io/badge/Windows-Supported-0078D6?style=for-the-badge&logo=windows&logoColor=white" alt="Windows" />
@@ -9,6 +11,7 @@
 </p>
 
 <p align="center"><strong>Your PC in your pocket — remote control, AI automation, and developer tools — all through Telegram.</strong></p>
+<p align="center"><em>If Pocket Desk Agent saves you time, a GitHub star helps more people find the project.</em></p>
 
 <p align="center">
   <a href="docs/COMMANDS.md">Commands</a> •
@@ -49,6 +52,14 @@ Add **Google Gemini 2.0 Flash** credentials to unlock:
 
 ---
 
+## Demo
+
+![Pocket Desk Agent demo](assets/demo.gif)
+
+The demo uses placeholder data to show the core flow: send Telegram commands, receive status and screenshots, confirm an OCR-guided click, and start a secure live remote session.
+
+---
+
 ## Key Features
 
 Everything below works with no AI configuration required:
@@ -69,6 +80,23 @@ Everything below works with no AI configuration required:
 
 - **AI Chat & Computer Use**: Google Gemini 2.0 Flash with multi-turn conversation, image analysis, and full agentic tool-calling. Send any text or photo directly to chat. Gemini acts as an autonomous agent that can natively browse your files, analyze screenshots, and use UI automation (click, type, navigate) to perform tasks on your PC in response to natural language requests. All destructive or system-altering actions require explicit human-in-the-loop confirmation via Telegram buttons.
 - **Prompt Enhancement**: Use `/enhance` to let Gemini rewrite and improve a prompt before sending it anywhere.
+
+---
+
+## Use Cases
+
+- Manage a home or work PC while traveling without opening inbound network ports.
+- Run developer workflows remotely: launch builds, inspect logs, retrieve APKs, and guide Claude or VS Code from your phone.
+- Automate repetitive desktop actions that do not expose an API by combining screenshots, OCR, hotkeys, and saved macros.
+- Keep lightweight watch tasks running, such as scheduled prompts, screen watchers, and one-shot shutdowns.
+- Experiment with a private AI assistant that can inspect your local context and request confirmation before taking real-world actions.
+
+## Who Is This For?
+
+- Developers who want remote access to local projects, build tools, and AI coding assistants.
+- Automation-minded users who prefer a self-hosted Telegram workflow over heavier remote desktop tools.
+- Windows power users who want quick access to screenshots, clipboard, window switching, sleep, shutdown, and OCR automation.
+- Builders exploring practical AI agents with explicit approval gates for side-effecting actions.
 
 ---
 
@@ -187,8 +215,8 @@ pdagent startup configure
 ### Option B: Local Developer Mode
 
 ```bash
-git clone https://github.com/techgniouss/pocket-desk-agent.git
-cd pocket-desk-agent
+git clone https://github.com/techgniouss/pdagent.git
+cd pdagent
 pip install -e ".[dev]"
 pdagent
 ```
