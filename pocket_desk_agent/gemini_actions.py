@@ -523,6 +523,14 @@ def get_gemini_action_tools() -> list[dict[str, Any]]:
                 "required": ["execute_at", "actions"],
             },
         },
+        {
+            "name": "update_bot",
+            "description": (
+                "Check PyPI for a newer version of the bot and, if one exists, "
+                "ask for confirmation before upgrading via pip and restarting."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
     ]
 
 
@@ -1017,6 +1025,22 @@ async def dispatch_gemini_tool(
                 f"Settings: {status.get('fps')} fps, quality {status.get('quality')}, "
                 f"max width {status.get('max_width')}."
             ),
+        )
+
+    if func_name == "update_bot":
+        from pocket_desk_agent.updater import VERSION, check_pypi_version
+
+        info = await asyncio.get_running_loop().run_in_executor(None, check_pypi_version)
+        if info.error:
+            return GeminiToolResult(False, f"Could not reach PyPI: {info.error}")
+        if info.up_to_date:
+            return GeminiToolResult(True, f"Already on latest version v{VERSION}. No update needed.")
+        return await _queue_confirmation(
+            user_id=user_id,
+            action_type="update_bot",
+            args={},
+            summary=f"upgrade the bot from v{VERSION} to v{info.remote_sha} and restart",
+            tool_runtime=tool_runtime,
         )
 
     return GeminiToolResult(False, f"Tool '{func_name}' is not implemented.")
@@ -1586,6 +1610,16 @@ async def _execute_confirmed_action(pending: PendingGeminiAction, bot: Any) -> G
         )
         get_scheduler_registry().add_task(task)
         return GeminiToolResult(True, f"Scheduled '{name}' for {execute_at.strftime('%Y-%m-%d %H:%M')} with {len(actions)} action(s).")
+
+    if action_type == "update_bot":
+        from pocket_desk_agent.updater import apply_pypi_update, restart_bot_after_delay
+
+        loop = asyncio.get_running_loop()
+        success, message = await loop.run_in_executor(None, apply_pypi_update)
+        if success:
+            asyncio.create_task(restart_bot_after_delay(3.0))
+            return GeminiToolResult(True, f"{message}\n\n♻️ Restarting bot…")
+        return GeminiToolResult(success, message)
 
     return GeminiToolResult(False, f"Unsupported approved action '{action_type}'.")
 

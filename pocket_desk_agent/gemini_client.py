@@ -5,6 +5,7 @@ import uuid
 import logging
 import asyncio
 import re
+import time
 from typing import Optional, Tuple, Dict, Any, Callable
 
 import requests
@@ -631,6 +632,7 @@ _ALLOWED_TOOLS = frozenset({
     "request_remote_session",
     "request_stop_remote_session",
     "get_remote_session_status",
+    "update_bot",
 })
 
 def _build_wrapped_body_with_tools(project_id: str, model: str, history: list, message: Optional[str] = None) -> Tuple[dict, ResolvedModel]:
@@ -655,6 +657,20 @@ def _trim_history(history: list) -> list:
     if len(history) > max_items:
         return history[-max_items:]
     return history
+
+_MAX_RETRIES = 3
+
+
+def _retry_wait(resp: requests.Response, attempt: int) -> float:
+    """Seconds to wait before retrying a 429 response. Respects Retry-After."""
+    retry_after = resp.headers.get("Retry-After")
+    if retry_after:
+        try:
+            return float(retry_after)
+        except ValueError:
+            pass
+    return min(5 * (2 ** attempt), 60)  # 5s, 10s, 20s, cap 60s
+
 
 class GeminiClient:
     """Telegram bot Gemini client with Tool support."""
@@ -998,19 +1014,26 @@ class GeminiClient:
         # The model is passed in the wrapped body (not the URL path).
         for endpoint in endpoints:
             url = f"{endpoint}/v1internal:generateContent"
-            try:
-                resp = requests.post(url, headers=headers, json=wrapped, timeout=60)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    return data.get('response', data)
-                last_error = f"HTTP {resp.status_code}: {resp.text[:300]}"
-                logger.warning(f"Endpoint {url} returned {resp.status_code}: {resp.text[:300]}")
-                if resp.status_code in (400, 401, 403, 429):
-                    return {"error": last_error}
-            except Exception as e:
-                last_error = str(e)
-                logger.warning(f"Endpoint {url} error: {e}")
-                continue
+            for attempt in range(_MAX_RETRIES + 1):
+                try:
+                    resp = requests.post(url, headers=headers, json=wrapped, timeout=60)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        return data.get('response', data)
+                    last_error = f"HTTP {resp.status_code}: {resp.text[:300]}"
+                    logger.warning(f"Endpoint {url} returned {resp.status_code}: {resp.text[:300]}")
+                    if resp.status_code == 429 and attempt < _MAX_RETRIES:
+                        wait = _retry_wait(resp, attempt)
+                        logger.info("Rate limited (429); retrying in %.0fs (attempt %d/%d)", wait, attempt + 1, _MAX_RETRIES)
+                        time.sleep(wait)
+                        continue
+                    if resp.status_code in (400, 401, 403, 429):
+                        return {"error": last_error}
+                    break
+                except Exception as e:
+                    last_error = str(e)
+                    logger.warning(f"Endpoint {url} error: {e}")
+                    break
 
         return {"error": f"Failed to connect: {last_error}"}
 
@@ -1022,19 +1045,26 @@ class GeminiClient:
 
         for endpoint in _get_code_assist_endpoints(auth_mode):
             url = f"{endpoint}/v1internal:generateContent"
-            try:
-                resp = requests.post(url, headers=headers, json=wrapped, timeout=60)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    return data.get('response', data)
-                last_error = f"HTTP {resp.status_code}: {resp.text[:300]}"
-                logger.warning(f"Endpoint {url} returned {resp.status_code}: {resp.text[:300]}")
-                if resp.status_code in (400, 401, 403, 429):
-                    return {"error": last_error}
-            except Exception as e:
-                last_error = str(e)
-                logger.warning(f"Endpoint {url} error: {e}")
-                continue
+            for attempt in range(_MAX_RETRIES + 1):
+                try:
+                    resp = requests.post(url, headers=headers, json=wrapped, timeout=60)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        return data.get('response', data)
+                    last_error = f"HTTP {resp.status_code}: {resp.text[:300]}"
+                    logger.warning(f"Endpoint {url} returned {resp.status_code}: {resp.text[:300]}")
+                    if resp.status_code == 429 and attempt < _MAX_RETRIES:
+                        wait = _retry_wait(resp, attempt)
+                        logger.info("Rate limited (429); retrying in %.0fs (attempt %d/%d)", wait, attempt + 1, _MAX_RETRIES)
+                        time.sleep(wait)
+                        continue
+                    if resp.status_code in (400, 401, 403, 429):
+                        return {"error": last_error}
+                    break
+                except Exception as e:
+                    last_error = str(e)
+                    logger.warning(f"Endpoint {url} error: {e}")
+                    break
 
         return {"error": f"Failed to connect: {last_error}"}
 
@@ -1042,22 +1072,30 @@ class GeminiClient:
         """Call the standard Gemini API using an API key (fallback mode)."""
         model = resolved.actual_model
         url = f"{GEMINI_API_BASE_URL}/v1beta/models/{model}:generateContent?key={Config.GOOGLE_API_KEY}"
-        # Standard API uses the inner request payload directly
         payload = wrapped.get("request", wrapped)
-        # Remove internal-only fields that the public API does not accept
         payload = {k: v for k, v in payload.items() if k not in ("sessionId",)}
-        try:
-            resp = requests.post(
-                url,
-                headers={"Content-Type": "application/json"},
-                json=payload,
-                timeout=60,
-            )
-            if resp.status_code == 200:
-                return resp.json()
-            return {"error": f"HTTP {resp.status_code}: {resp.text[:300]}"}
-        except Exception as e:
-            return {"error": str(e)}
+        last_error = "Unknown error"
+        for attempt in range(_MAX_RETRIES + 1):
+            try:
+                resp = requests.post(
+                    url,
+                    headers={"Content-Type": "application/json"},
+                    json=payload,
+                    timeout=60,
+                )
+                if resp.status_code == 200:
+                    return resp.json()
+                last_error = f"HTTP {resp.status_code}: {resp.text[:300]}"
+                if resp.status_code == 429 and attempt < _MAX_RETRIES:
+                    wait = _retry_wait(resp, attempt)
+                    logger.info("Rate limited (429); retrying in %.0fs (attempt %d/%d)", wait, attempt + 1, _MAX_RETRIES)
+                    time.sleep(wait)
+                    continue
+                return {"error": last_error}
+            except Exception as e:
+                last_error = str(e)
+                break
+        return {"error": last_error}
 
     async def send_message_with_image(
         self,
