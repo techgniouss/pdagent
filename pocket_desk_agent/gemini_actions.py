@@ -14,6 +14,8 @@ from typing import Any, Optional
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
+from pocket_desk_agent.app_catalog import get_app_entry_by_id, resolve_app_query
+from pocket_desk_agent.app_control import close_desktop_app, launch_desktop_app
 from pocket_desk_agent.command_registry import CommandAction, get_registry
 from pocket_desk_agent.rate_limiter import RateLimiter
 from pocket_desk_agent.scheduler_registry import ScheduledTask, get_scheduler_registry
@@ -85,6 +87,8 @@ _RATE_LIMIT_LABELS = {
     "claude_send_message": "Claude message actions",
     "open_antigravity": "Antigravity app actions",
     "focus_antigravity_chat": "Antigravity chat focus actions",
+    "open_desktop_app": "desktop app launch actions",
+    "close_desktop_app": "desktop app close actions",
     "open_browser": "browser launch actions",
     "open_vscode_folder": "VS Code folder opens",
     "open_claude_cli": "Claude CLI launches",
@@ -111,6 +115,8 @@ _GEMINI_TOOL_RATE_LIMITER.set_limit("claude_new_chat", calls=4, window=60)
 _GEMINI_TOOL_RATE_LIMITER.set_limit("claude_send_message", calls=6, window=60)
 _GEMINI_TOOL_RATE_LIMITER.set_limit("open_antigravity", calls=6, window=60)
 _GEMINI_TOOL_RATE_LIMITER.set_limit("focus_antigravity_chat", calls=6, window=60)
+_GEMINI_TOOL_RATE_LIMITER.set_limit("open_desktop_app", calls=6, window=60)
+_GEMINI_TOOL_RATE_LIMITER.set_limit("close_desktop_app", calls=6, window=60)
 _GEMINI_TOOL_RATE_LIMITER.set_limit("open_browser", calls=6, window=60)
 _GEMINI_TOOL_RATE_LIMITER.set_limit("open_vscode_folder", calls=6, window=60)
 _GEMINI_TOOL_RATE_LIMITER.set_limit("open_claude_cli", calls=5, window=60)
@@ -382,6 +388,29 @@ def get_gemini_action_tools() -> list[dict[str, Any]]:
             "name": "focus_antigravity_chat",
             "description": "Ask for confirmation before focusing Antigravity's agent chat input.",
             "parameters": {"type": "object", "properties": {}},
+        },
+        {
+            "name": "open_desktop_app",
+            "description": "Ask for confirmation before opening a safe discovered desktop application by name.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Application name such as Spotify, Chrome, or Edge."}
+                },
+                "required": ["name"],
+            },
+        },
+        {
+            "name": "close_desktop_app",
+            "description": "Ask for confirmation before closing a discovered desktop application, optionally with force-close.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Application name such as Spotify, Chrome, or Edge."},
+                    "force": {"type": "boolean", "description": "When true, force-close matching processes instead of trying a graceful window close first."},
+                },
+                "required": ["name"],
+            },
         },
         {
             "name": "open_browser",
@@ -797,6 +826,44 @@ async def dispatch_gemini_tool(
             action_type=func_name,
             args={},
             summary="focus the Antigravity agent chat input",
+            tool_runtime=tool_runtime,
+        )
+
+    if func_name == "open_desktop_app":
+        app_name = str(args.get("name", "")).strip()
+        if not app_name:
+            return GeminiToolResult(False, "Please provide the desktop app name to open.")
+        result = resolve_app_query(app_name)
+        if not result.matches:
+            return GeminiToolResult(False, f"No launchable desktop app matched '{app_name}'.")
+        if not result.selected:
+            names = ", ".join(entry.display_name for entry in result.matches[:5])
+            return GeminiToolResult(False, f"Multiple apps matched '{app_name}': {names}. Please be more specific.")
+        return await _queue_confirmation(
+            user_id=user_id,
+            action_type=func_name,
+            args={"app_id": result.selected.app_id},
+            summary=f"open {result.selected.display_name}",
+            tool_runtime=tool_runtime,
+        )
+
+    if func_name == "close_desktop_app":
+        app_name = str(args.get("name", "")).strip()
+        force = bool(args.get("force", False))
+        if not app_name:
+            return GeminiToolResult(False, "Please provide the desktop app name to close.")
+        result = resolve_app_query(app_name)
+        if not result.matches:
+            return GeminiToolResult(False, f"No desktop app matched '{app_name}'.")
+        if not result.selected:
+            names = ", ".join(entry.display_name for entry in result.matches[:5])
+            return GeminiToolResult(False, f"Multiple apps matched '{app_name}': {names}. Please be more specific.")
+        summary = f"force close {result.selected.display_name}" if force else f"close {result.selected.display_name}"
+        return await _queue_confirmation(
+            user_id=user_id,
+            action_type=func_name,
+            args={"app_id": result.selected.app_id, "force": force},
+            summary=summary,
             tool_runtime=tool_runtime,
         )
 
@@ -1409,6 +1476,20 @@ async def _execute_confirmed_action(pending: PendingGeminiAction, bot: Any) -> G
             handler_name="antigravitychat_command",
             args=[],
         )
+
+    if action_type == "open_desktop_app":
+        entry = get_app_entry_by_id(str(args.get("app_id", "")))
+        if not entry:
+            return GeminiToolResult(False, "That desktop app is no longer available in the catalog.")
+        success, message = launch_desktop_app(entry)
+        return GeminiToolResult(success, message)
+
+    if action_type == "close_desktop_app":
+        entry = get_app_entry_by_id(str(args.get("app_id", "")))
+        if not entry:
+            return GeminiToolResult(False, "That desktop app is no longer available in the catalog.")
+        result = close_desktop_app(entry, force=bool(args.get("force", False)))
+        return GeminiToolResult(result.success, result.message)
 
     if action_type == "open_browser":
         from pocket_desk_agent.handlers.antigravity import launch_browser

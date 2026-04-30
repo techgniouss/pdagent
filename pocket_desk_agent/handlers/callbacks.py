@@ -24,6 +24,8 @@ from pocket_desk_agent.handlers._shared import (
     claudecli_options,
     large_file_upload_state,
     window_switch_options,
+    app_selection_options,
+    app_forceclose_options,
     build_monitor_state,
     build_screenshot_tasks,
 )
@@ -40,6 +42,76 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     if await handle_gemini_confirmation_callback(update, context):
+        return
+
+    if query.data.startswith("appselect_"):
+        user_id = update.effective_user.id
+        try:
+            _, action, raw_index = query.data.split("_", 2)
+            selection = int(raw_index)
+        except (TypeError, ValueError):
+            await query.edit_message_text("Invalid app selection. Please run the command again.")
+            return
+
+        state = app_selection_options.get(user_id, {})
+        app_id = state.get("entries", {}).get(selection)
+        if not app_id or state.get("action") != action:
+            await query.edit_message_text("That app selection expired. Please run the command again.")
+            return
+
+        from pocket_desk_agent.app_catalog import get_app_entry_by_id
+        from pocket_desk_agent.app_control import close_desktop_app, launch_desktop_app
+
+        entry = get_app_entry_by_id(app_id)
+        if not entry:
+            await query.edit_message_text("That app could not be found anymore. Please search again.")
+            return
+
+        if action == "open":
+            success, message = launch_desktop_app(entry)
+            await query.edit_message_text(message)
+            if success:
+                app_selection_options.pop(user_id, None)
+            return
+
+        close_result = close_desktop_app(entry, force=False)
+        if close_result.requires_force:
+            app_selection_options.pop(user_id, None)
+            app_forceclose_options[user_id] = {"app_id": entry.app_id}
+            keyboard = InlineKeyboardMarkup(
+                [[InlineKeyboardButton("Force close", callback_data="appforceclose")]]
+            )
+            await query.edit_message_text(
+                f"{close_result.message}\n\n"
+                "Tap below to force close the remaining process.",
+                reply_markup=keyboard,
+            )
+            return
+
+        app_selection_options.pop(user_id, None)
+        await query.edit_message_text(close_result.message)
+        return
+
+    if query.data == "appforceclose":
+        user_id = update.effective_user.id
+        state = app_forceclose_options.get(user_id, {})
+        app_id = state.get("app_id")
+        if not app_id:
+            await query.edit_message_text("The force-close request expired. Run /closeapp again.")
+            return
+
+        from pocket_desk_agent.app_catalog import get_app_entry_by_id
+        from pocket_desk_agent.app_control import close_desktop_app
+
+        entry = get_app_entry_by_id(app_id)
+        if not entry:
+            await query.edit_message_text("That app could not be found anymore. Run /closeapp again.")
+            return
+
+        result = close_desktop_app(entry, force=True)
+        app_forceclose_options.pop(user_id, None)
+        app_selection_options.pop(user_id, None)
+        await query.edit_message_text(result.message)
         return
 
     if query.data == "confirm_stopbot":

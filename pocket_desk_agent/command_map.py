@@ -35,6 +35,8 @@ COMMAND_REGISTRY = [
         "Stop the active remote desktop session",
     ),
     # System Control Commands
+    ("openapp", handlers.openapp_command, "Open a safe desktop app"),
+    ("closeapp", handlers.closeapp_command, "Close a desktop app"),
     ("stopbot", handlers.stopbot_command, "Stop the bot process"),
     ("shutdown", handlers.shutdown_command, "Shutdown the PC"),
     ("sleep", handlers.sleep_command, "Put PC to sleep"),

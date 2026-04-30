@@ -53,6 +53,8 @@ from pocket_desk_agent.handlers.filesystem import (  # noqa: F401
 
 # ── System Control ──────────────────────────────────────────────────────────
 from pocket_desk_agent.handlers.system import (  # noqa: F401
+    openapp_command,
+    closeapp_command,
     stopbot_command,
     shutdown_command,
     battery_command,
