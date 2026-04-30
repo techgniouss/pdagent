@@ -2,10 +2,7 @@
 
 import asyncio
 import logging
-import os
 import platform
-import subprocess
-import sys
 from typing import Any
 from telegram import Update, BotCommand
 from telegram.ext import ContextTypes
@@ -20,8 +17,8 @@ from pocket_desk_agent.handlers._shared import (
 )
 from pocket_desk_agent.updater import (
     get_version_string,
-    apply_pypi_update,
-    PROJECT_ROOT,
+    apply_update,
+    restart_bot_after_delay,
 )
 from pocket_desk_agent.config import Config
 from pocket_desk_agent.constants import AUTH_MODE_APIKEY
@@ -511,30 +508,15 @@ async def sync_commands_command(update: Update, context: ContextTypes.DEFAULT_TY
         logger.error(f"Manual sync failed: {e}")
 
 
-async def _restart_bot_after_delay(delay: float = 2.0):
-    """Wait briefly so final messages flush, then restart the bot process."""
-    await asyncio.sleep(delay)
-    try:
-        subprocess.Popen(
-            [sys.executable, "-m", "pocket_desk_agent.main"],
-            cwd=str(PROJECT_ROOT),
-            creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
-        )
-    except Exception as exc:
-        logger.error(f"[update] restart failed: {exc}")
-        return
-    os._exit(0)
-
-
 async def update_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /update — upgrade from PyPI and restart the bot."""
+    """Handle /update — apply an update and restart when code changed."""
     if not update.message:
         return
 
-    await update.message.reply_text("🔄 Upgrading from PyPI…")
+    await update.message.reply_text("🔄 Applying update…")
 
     loop = asyncio.get_running_loop()
-    success, msg = await loop.run_in_executor(None, apply_pypi_update)
+    success, msg = await loop.run_in_executor(None, apply_update)
 
     try:
         await update.message.reply_text(msg, parse_mode="Markdown")
@@ -543,7 +525,7 @@ async def update_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if success:
         await update.message.reply_text("♻️ Restarting bot…")
-        asyncio.create_task(_restart_bot_after_delay())
+        asyncio.create_task(restart_bot_after_delay())
 
 
 def get_bot_commands():

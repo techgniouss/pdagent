@@ -1,9 +1,9 @@
 """
 Auto-update manager for Pocket Desk Agent.
 
-Compares the local git HEAD against the upstream GitHub repo.
-If a newer commit exists, it can pull the changes, re-install
-dependencies, and signal the bot process to restart.
+Checks PyPI for released updates and can apply updates through either the
+local git checkout or the installed PyPI package, depending on how the bot
+is running.
 
 Public API
 ----------
@@ -38,11 +38,6 @@ logger = logging.getLogger(__name__)
 VERSION = _PACKAGE_VERSION
 
 # ── Repo coordinates ─────────────────────────────────────────────────────────
-GITHUB_REPO = "techgniouss/pocket-desk-agent"
-GITHUB_BRANCH = "main"
-GITHUB_API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/commits/{GITHUB_BRANCH}"
-GITHUB_COMPARE_URL = f"https://api.github.com/repos/{GITHUB_REPO}/compare"
-
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 REQUIREMENTS_FILE = PROJECT_ROOT / "requirements.txt"
 
@@ -78,11 +73,11 @@ class UpdateInfo:
     up_to_date: bool
     local_sha: str
     remote_sha: str
-    remote_message: str          # commit message of the latest remote commit
+    remote_message: str          # summary of the latest available update
     remote_author: str
     remote_date: str
     commits_behind: int          # 0 if up-to-date or unknown
-    changelog: List[str] = field(default_factory=list)   # recent commit summaries
+    changelog: List[str] = field(default_factory=list)   # optional recent update summaries
     error: Optional[str] = None  # set when the check itself failed
 
 
@@ -209,27 +204,24 @@ def get_last_check() -> tuple[Optional["UpdateInfo"], Optional[datetime]]:
 
 # ── Apply update ──────────────────────────────────────────────────────────────
 
-def apply_update() -> tuple[bool, str]:
+def _apply_git_update() -> tuple[bool, str]:
     """
-    Pull latest changes from GitHub and re-install requirements.
+    Pull the latest changes for the current tracked branch and re-install
+    requirements.
 
     Returns (success, message).  On success the calling code should restart
     the bot (the existing reloader in main.py will handle that automatically
     once a .py file changes on disk after the pull).
     """
-    if not _is_git_repo():
-        return False, (
-            "Cannot apply updates — installed from PyPI (no git repo).\n"
-            "Use `pip install --upgrade pocket-desk-agent` to update."
-        )
     try:
         # 1. Stash any local changes to avoid merge conflicts
         logger.info("[updater] Stashing local changes...")
         _run_git("stash", "--include-untracked")
 
-        # 2. Fetch + pull
+        # 2. Pull the currently tracked upstream branch instead of hardcoding
+        # origin/main so editable installs on other branches update correctly.
         logger.info("[updater] Running git pull…")
-        pull = _run_git("pull", "origin", GITHUB_BRANCH)
+        pull = _run_git("pull")
         if pull.returncode != 0:
             err = pull.stderr.strip() or pull.stdout.strip()
             # Try to pop stash on failure
@@ -242,7 +234,7 @@ def apply_update() -> tuple[bool, str]:
         # Nothing changed (already up to date)
         if "Already up to date" in pull_output:
             _run_git("stash", "pop")
-            return True, "✅ Already up to date — no changes were pulled."
+            return False, "✅ Already up to date — no changes were pulled."
 
         # 3. Re-apply stashed local changes (if any were stashed)
         logger.info("[updater] Re-applying stashed changes...")
@@ -291,6 +283,32 @@ def apply_update() -> tuple[bool, str]:
     except Exception as exc:
         logger.error(f"[updater] apply_update crashed: {exc}", exc_info=True)
         return False, f"❌ Unexpected error during update: {exc}"
+
+
+def apply_update() -> tuple[bool, str]:
+    """
+    Upgrade to the latest version from PyPI regardless of install type.
+
+    Always uses pip so that the installed package version matches what the
+    update-checker notifications track.  Git checkouts that want to sync
+    uncommitted source changes should use _apply_git_update() directly.
+    """
+    return apply_pypi_update()
+
+
+async def restart_bot_after_delay(delay: float = 2.0) -> None:
+    """Wait briefly so pending messages flush, then restart the bot process."""
+    await asyncio.sleep(delay)
+    try:
+        subprocess.Popen(
+            [sys.executable, "-m", "pocket_desk_agent.main"],
+            cwd=str(PROJECT_ROOT),
+            creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
+        )
+    except Exception as exc:
+        logger.error(f"[updater] restart failed: {exc}")
+        return
+    os._exit(0)
 
 
 # ── PyPI update ───────────────────────────────────────────────────────────────
