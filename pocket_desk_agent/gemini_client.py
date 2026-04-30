@@ -624,6 +624,8 @@ _ALLOWED_TOOLS = frozenset({
     "open_vscode_folder",
     "open_claude_cli",
     "claude_cli_send_message",
+    "open_desktop_app",
+    "close_desktop_app",
     "schedule_claude_prompt",
     "schedule_desktop_sequence",
     "request_remote_session",

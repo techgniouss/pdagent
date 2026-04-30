@@ -18,6 +18,7 @@ from pocket_desk_agent.handlers._shared import (
     search_results,
     repo_lists,
     repo_selection_state,
+    safe_command,
     record_action_if_active,
     file_manager,
 )
@@ -169,7 +170,7 @@ def _configure_tesseract():
     return pytesseract
 
 
-def _click_bottom_bar_ocr(window, pyautogui, keywords: tuple, strip_height: int = 40) -> bool:
+async def _click_bottom_bar_ocr(window, pyautogui, keywords: tuple, strip_height: int = 40) -> bool:
     """OCR the bottom status bar and click the first word matching any keyword.
 
     Returns True if a click was performed.
@@ -191,7 +192,7 @@ def _click_bottom_bar_ocr(window, pyautogui, keywords: tuple, strip_height: int 
                 x = data["left"][i] + data["width"][i] // 2 + window.left
                 y = data["top"][i] + data["height"][i] // 2 + strip_top
                 pyautogui.click(x, y)
-                time.sleep(0.4)
+                await asyncio.sleep(0.4)
                 logger.info("Bottom-bar OCR click '%s' at (%d, %d)", word, x, y)
                 return True
     except Exception as exc:
@@ -1130,7 +1131,7 @@ async def claudemode_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
                     continue
 
             if not mode_clicked:
-                if not _click_bottom_bar_ocr(window, pyautogui, ("accept", "auto", "plan", "ask", "bypass")):
+                if not await _click_bottom_bar_ocr(window, pyautogui, ("accept", "auto", "plan", "ask", "bypass")):
                     dropdown_x = window.left + int(window.width * _BOTTOM_X_MODE)
                     dropdown_y = window.top + window.height - _BOTTOM_BAR_Y_OFFSET
                     pyautogui.click(dropdown_x, dropdown_y)
@@ -1168,6 +1169,7 @@ async def claudemode_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         logger.error(f"Error in claudemode_command: {e}")
 
 
+@safe_command
 async def claudeacceptedits_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /claudeacceptedits [ask|auto|plan|bypass] — set Claude edit mode."""
     if not update.message:
@@ -1261,7 +1263,7 @@ async def claudeacceptedits_command(update: Update, context: ContextTypes.DEFAUL
                     continue
 
         if not mode_opened:
-            if not _click_bottom_bar_ocr(
+            if not await _click_bottom_bar_ocr(
                 window, pyautogui,
                 ("accept", "auto", "plan", "ask", "bypass", "edits", "permissions"),
             ):
@@ -1321,6 +1323,7 @@ async def claudeacceptedits_command(update: Update, context: ContextTypes.DEFAUL
         logger.error("Error in claudeacceptedits_command: %s", e, exc_info=True)
 
 
+@safe_command
 async def claudemodel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /claudemodel — scan models (no args) or select by number / name.
 
@@ -1383,7 +1386,7 @@ async def claudemodel_command(update: Update, context: ContextTypes.DEFAULT_TYPE
                 pass
 
         if not model_btn_clicked:
-            if not _click_bottom_bar_ocr(window, pyautogui, _MODEL_KEYWORDS):
+            if not await _click_bottom_bar_ocr(window, pyautogui, _MODEL_KEYWORDS):
                 x = window.left + int(window.width * _BOTTOM_X_MODEL)
                 y = window.top + window.height - _BOTTOM_BAR_Y_OFFSET
                 pyautogui.click(x, y)
@@ -1535,7 +1538,7 @@ async def _claudemodel_select(
                 pass
 
         if not btn_clicked:
-            if not _click_bottom_bar_ocr(window, pyautogui, _MODEL_KEYWORDS):
+            if not await _click_bottom_bar_ocr(window, pyautogui, _MODEL_KEYWORDS):
                 x = window.left + int(window.width * _BOTTOM_X_MODEL)
                 y = window.top + window.height - _BOTTOM_BAR_Y_OFFSET
                 pyautogui.click(x, y)
@@ -1904,7 +1907,7 @@ async def claudebranch_command(update: Update, context: ContextTypes.DEFAULT_TYP
                     continue
 
         if not branch_opened:
-            if not _click_bottom_bar_ocr(
+            if not await _click_bottom_bar_ocr(
                 window, pyautogui,
                 ("main", "master", "feature", "develop", "branch"),
             ):
@@ -2190,7 +2193,7 @@ async def clauderepo_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
             logger.warning("pywinauto repo click failed: %s", exc)
 
         if not repo_clicked:
-            if not _click_bottom_bar_ocr(window, pyautogui, ("pdagent", "repo", "project")):
+            if not await _click_bottom_bar_ocr(window, pyautogui, ("pdagent", "repo", "project")):
                 click_x = window.left + int(window.width * _BOTTOM_X_REPO)
                 click_y = window.top + window.height - _BOTTOM_BAR_Y_OFFSET
                 pyautogui.click(click_x, click_y)

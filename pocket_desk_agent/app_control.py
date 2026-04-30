@@ -53,6 +53,11 @@ def close_desktop_app(entry: DesktopAppEntry, force: bool = False) -> CloseAppRe
         return CloseAppResult(True, f"{entry.display_name} does not appear to be running.")
 
     if force:
+        if not process_ids:
+            return CloseAppResult(
+                False,
+                f"No matching processes found to terminate for {entry.display_name}.",
+            )
         remaining = _terminate_process_ids(process_ids)
         if remaining:
             return CloseAppResult(

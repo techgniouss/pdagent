@@ -38,12 +38,15 @@ def _resolve_user_path(raw_path: str, *, default: Path | None = None) -> Path:
     return (Path.home() / expanded).resolve()
 
 
-def _env_int(name: str, default: int) -> int:
+def _env_int(name: str, default: int, minimum: int | None = None) -> int:
     """Read an integer environment variable, falling back on invalid values."""
     try:
-        return int(os.getenv(name, str(default)))
+        value = int(os.getenv(name, str(default)))
     except ValueError:
-        return default
+        value = default
+    if minimum is not None:
+        return max(value, minimum)
+    return value
 
 
 def _parse_user_ids(raw_value: str) -> list[int]:
@@ -138,7 +141,7 @@ class Config:
         # Keep GOOGLE_OAUTH_ENABLED in sync for backward compat
         cls.GOOGLE_OAUTH_ENABLED = cls.GEMINI_AUTH_MODE != "apikey"
 
-        cls.MAX_TOKENS_PER_REQUEST = _env_int("MAX_TOKENS_PER_REQUEST", 8000)
+        cls.MAX_TOKENS_PER_REQUEST = _env_int("MAX_TOKENS_PER_REQUEST", 8000, minimum=1)
 
         cls.SYSTEM_PROMPT = (
             os.getenv("SYSTEM_PROMPT") or os.getenv("SYSTEM_INSTRUCTION", "")
@@ -181,6 +184,7 @@ class Config:
         cls.AUTO_UPDATE_INTERVAL_MINUTES = _env_int(
             "AUTO_UPDATE_INTERVAL_MINUTES",
             60,
+            minimum=1,
         )
 
         cls.LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")

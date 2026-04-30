@@ -33,6 +33,24 @@ from pocket_desk_agent.handlers._shared import (
 logger = logging.getLogger(__name__)
 
 
+def _parse_app_selection_callback_data(data: str) -> tuple[str | None, str | None, int | None]:
+    """Parse app-selection callback payloads, supporting legacy payloads."""
+    parts = data.split("_", 3)
+    if len(parts) == 4:
+        _, request_id, action, raw_index = parts
+    elif len(parts) == 3:
+        request_id = None
+        _, action, raw_index = parts
+    else:
+        return None, None, None
+
+    try:
+        selection = int(raw_index)
+    except (TypeError, ValueError):
+        return None, None, None
+    return request_id, action, selection
+
+
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle button callbacks for confirmations."""
     query = update.callback_query
@@ -46,14 +64,15 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if query.data.startswith("appselect_"):
         user_id = update.effective_user.id
-        try:
-            _, action, raw_index = query.data.split("_", 2)
-            selection = int(raw_index)
-        except (TypeError, ValueError):
+        request_id, action, selection = _parse_app_selection_callback_data(query.data)
+        if not action or selection is None:
             await query.edit_message_text("Invalid app selection. Please run the command again.")
             return
 
         state = app_selection_options.get(user_id, {})
+        if state.get("request_id") != request_id:
+            await query.edit_message_text("That app selection expired. Please run the command again.")
+            return
         app_id = state.get("entries", {}).get(selection)
         if not app_id or state.get("action") != action:
             await query.edit_message_text("That app selection expired. Please run the command again.")
@@ -79,7 +98,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             app_selection_options.pop(user_id, None)
             app_forceclose_options[user_id] = {"app_id": entry.app_id}
             keyboard = InlineKeyboardMarkup(
-                [[InlineKeyboardButton("Force close", callback_data="appforceclose")]]
+                [[InlineKeyboardButton("Force close", callback_data=f"appforceclose:{entry.app_id}")]]
             )
             await query.edit_message_text(
                 f"{close_result.message}\n\n"
@@ -92,11 +111,15 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(close_result.message)
         return
 
-    if query.data == "appforceclose":
+    if query.data.startswith("appforceclose"):
         user_id = update.effective_user.id
         state = app_forceclose_options.get(user_id, {})
-        app_id = state.get("app_id")
+        requested_app_id = query.data.partition(":")[2] if ":" in query.data else ""
+        app_id = requested_app_id or state.get("app_id")
         if not app_id:
+            await query.edit_message_text("The force-close request expired. Run /closeapp again.")
+            return
+        if state.get("app_id") != app_id:
             await query.edit_message_text("The force-close request expired. Run /closeapp again.")
             return
 
@@ -110,7 +133,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         result = close_desktop_app(entry, force=True)
         app_forceclose_options.pop(user_id, None)
-        app_selection_options.pop(user_id, None)
         await query.edit_message_text(result.message)
         return
 
@@ -427,25 +449,51 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "build_screenshot_no_"
     ):
         try:
-            user_id = int(query.data.rsplit("_", 1)[-1])
-        except (ValueError, IndexError):
+            request_key = query.data.rsplit("_", 1)[-1]
+        except IndexError:
             await query.edit_message_text("Invalid build screenshot payload.")
             return
 
-        if query.data.startswith("build_screenshot_yes_"):
-            state = build_monitor_state.pop(user_id, None)
-            if not state:
-                await query.edit_message_text(
-                    "Build monitor state expired. Start a new build to enable screenshots."
-                )
-                return
+        from pocket_desk_agent.handlers.build import (
+            monitor_build_window,
+            resolve_build_monitor_request,
+        )
 
-            from pocket_desk_agent.handlers.build import monitor_build_window
+        state_key, state = resolve_build_monitor_request(request_key)
+        if not state:
+            await query.edit_message_text(
+                "Build monitor state expired. Start a new build to enable screenshots."
+            )
+            return
+
+        callback_user_id = (
+            query.from_user.id
+            if getattr(query, "from_user", None)
+            else getattr(update.effective_user, "id", None)
+        )
+        if callback_user_id != state.get("user_id"):
+            await query.edit_message_text("This confirmation is for another user.")
+            return
+
+        user_id = state["user_id"]
+
+        if query.data.startswith("build_screenshot_yes_"):
+            build_monitor_state.pop(state_key, None)
 
             # Cancel any existing monitor for this user before starting a new one
             old_task = build_screenshot_tasks.get(user_id)
             if old_task and not old_task.done():
                 old_task.cancel()
+                try:
+                    await old_task
+                except asyncio.CancelledError:
+                    pass
+                except Exception as exc:
+                    logger.warning(
+                        "Cancelled stale build screenshot task for user %s with %s",
+                        user_id,
+                        exc,
+                    )
 
             task = asyncio.create_task(
                 monitor_build_window(
@@ -464,7 +512,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "Use /stopbuildscreenshot to stop at any time."
             )
         else:
-            build_monitor_state.pop(user_id, None)
+            build_monitor_state.pop(state_key, None)
             await query.edit_message_text(
                 "No problem! Use /getapk when the build finishes."
             )

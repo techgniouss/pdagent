@@ -8,6 +8,7 @@ import asyncio
 import time
 import io
 import json
+import uuid
 import requests
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
@@ -26,6 +27,61 @@ from pocket_desk_agent.handlers._shared import (
 from pocket_desk_agent.config import Config
 
 logger = logging.getLogger(__name__)
+
+
+def create_build_monitor_request(
+    *,
+    window_title: str,
+    repo_path: str,
+    build_type: str,
+    chat_id: int,
+    user_id: int,
+) -> str:
+    """Store one pending build-monitor confirmation under a unique request id."""
+    request_id = uuid.uuid4().hex
+    build_monitor_state[request_id] = {
+        "window_title": window_title,
+        "repo_path": repo_path,
+        "build_type": build_type,
+        "chat_id": chat_id,
+        "user_id": user_id,
+        "request_id": request_id,
+    }
+    return request_id
+
+
+def resolve_build_monitor_request(request_key: str) -> tuple[str | int | None, dict | None]:
+    """Resolve a build-monitor request id, falling back to legacy user-id keys."""
+    state = build_monitor_state.get(request_key)
+    if state:
+        return request_key, state
+
+    try:
+        legacy_user_id = int(request_key)
+    except (TypeError, ValueError):
+        return None, None
+
+    state = build_monitor_state.get(legacy_user_id)
+    if state:
+        return legacy_user_id, state
+    return None, None
+
+
+def clear_build_monitor_requests_for_user(user_id: int) -> None:
+    """Remove all pending build-monitor confirmations for one user."""
+    stale_keys = [
+        key
+        for key, state in build_monitor_state.items()
+        if isinstance(state, dict) and state.get("user_id") == user_id
+    ]
+    for key in stale_keys:
+        build_monitor_state.pop(key, None)
+
+
+def unregister_build_screenshot_task(user_id: int, task: object) -> None:
+    """Clear the task mapping only when the finishing task is still current."""
+    if build_screenshot_tasks.get(user_id) is task:
+        build_screenshot_tasks.pop(user_id, None)
 
 
 def _discover_build_repositories(base_dir: str) -> list[str]:
@@ -758,24 +814,23 @@ async def execute_build_command(update: Update, context: ContextTypes.DEFAULT_TY
             user_id = update.effective_user.id
             chat_id = update.effective_chat.id
 
-            # Store monitor params for the screenshot confirmation callback
-            build_monitor_state[user_id] = {
-                "window_title": window_title,
-                "repo_path": repo_path,
-                "build_type": build_type,
-                "chat_id": chat_id,
-                "user_id": user_id,
-            }
+            request_id = create_build_monitor_request(
+                window_title=window_title,
+                repo_path=repo_path,
+                build_type=build_type,
+                chat_id=chat_id,
+                user_id=user_id,
+            )
 
             keyboard = [
                 [
                     InlineKeyboardButton(
                         "📸 Yes, send screenshots",
-                        callback_data=f"build_screenshot_yes_{user_id}",
+                        callback_data=f"build_screenshot_yes_{request_id}",
                     ),
                     InlineKeyboardButton(
                         "🚫 No thanks",
-                        callback_data=f"build_screenshot_no_{user_id}",
+                        callback_data=f"build_screenshot_no_{request_id}",
                     ),
                 ]
             ]
@@ -821,6 +876,7 @@ async def monitor_build_window(bot, chat_id: int, user_id: int, window_title: st
     Cleans up that entry when it finishes or is cancelled.
     """
     max_screenshots = 20  # up to 20 minutes
+    current_task = asyncio.current_task()
 
     try:
         await asyncio.sleep(5)  # brief wait for the terminal window to open
@@ -855,7 +911,7 @@ async def monitor_build_window(bot, chat_id: int, user_id: int, window_title: st
     except Exception as exc:
         logger.error("Error in monitor_build_window: %s", exc, exc_info=True)
     finally:
-        build_screenshot_tasks.pop(user_id, None)
+        unregister_build_screenshot_task(user_id, current_task)
 
 
 
@@ -867,9 +923,15 @@ async def stopbuildscreenshot_command(update: Update, context: ContextTypes.DEFA
         return
     user_id = update.effective_user.id
     task = build_screenshot_tasks.pop(user_id, None)
-    build_monitor_state.pop(user_id, None)
+    clear_build_monitor_requests_for_user(user_id)
     if task and not task.done():
         task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        except Exception as exc:
+            logger.warning("Build screenshot task for user %s ended with %s", user_id, exc)
         await update.message.reply_text("📸 Screenshot monitoring stopped.")
     else:
         await update.message.reply_text("No active screenshot monitoring to stop.")

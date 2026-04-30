@@ -10,8 +10,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, Optional
 
-_SAFE_EXTENSIONS = {".exe", ".lnk", ".url"}
+_SAFE_EXTENSIONS = {".exe"}
 _UNSAFE_EXTENSIONS = {".bat", ".cmd", ".com", ".ps1", ".psm1", ".vbs", ".js"}
+_SHORTCUT_EXTENSIONS = {".lnk", ".url"}
 _START_MENU_DIRS = (
     r"%APPDATA%\Microsoft\Windows\Start Menu\Programs",
     r"%PROGRAMDATA%\Microsoft\Windows\Start Menu\Programs",
@@ -55,11 +56,23 @@ def is_safe_launch_target(target: str) -> bool:
     if not raw_target:
         return False
 
-    lowered = raw_target.lower()
+    suffix = Path(raw_target).suffix.lower()
+    if suffix in _SHORTCUT_EXTENSIONS:
+        resolved_target = resolve_shortcut_target(raw_target)
+        if not resolved_target:
+            return False
+        raw_target = resolved_target.strip()
+
+    return _is_safe_resolved_launch_target(raw_target)
+
+
+def _is_safe_resolved_launch_target(target: str) -> bool:
+    """Validate a direct launch destination after shortcut resolution."""
+    lowered = target.lower()
     if lowered.startswith(("shell:appsfolder\\", "ms-settings:", "http:", "https:", "mailto:")):
         return True
 
-    suffix = Path(raw_target).suffix.lower()
+    suffix = Path(target).suffix.lower()
     if suffix in _UNSAFE_EXTENSIONS:
         return False
     if suffix in _SAFE_EXTENSIONS:
@@ -68,9 +81,67 @@ def is_safe_launch_target(target: str) -> bool:
     return False
 
 
+def resolve_shortcut_target(target: str) -> Optional[str]:
+    """Resolve a Windows shortcut or URL shortcut to its destination."""
+    raw_target = (target or "").strip()
+    suffix = Path(raw_target).suffix.lower()
+    if suffix == ".url":
+        return resolve_url_shortcut(raw_target)
+    if suffix == ".lnk":
+        return _resolve_lnk_shortcut(raw_target)
+    return raw_target
+
+
+def resolve_url_shortcut(target: str) -> Optional[str]:
+    """Read the destination URL from a ``.url`` shortcut file."""
+    shortcut_path = Path(target)
+    text = ""
+    for encoding in ("utf-8-sig", "utf-16", "cp1252"):
+        try:
+            text = shortcut_path.read_text(encoding=encoding)
+            break
+        except (OSError, UnicodeError):
+            continue
+    if not text:
+        return None
+
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.upper().startswith("URL="):
+            return stripped[4:].strip() or None
+    return None
+
+
+def _resolve_lnk_shortcut(target: str) -> Optional[str]:
+    """Resolve the target path from a ``.lnk`` shortcut file on Windows."""
+    if platform.system() != "Windows":
+        return None
+
+    try:
+        import pythoncom
+        from win32com.client import Dispatch
+    except Exception:
+        return None
+
+    pythoncom.CoInitialize()
+    try:
+        shell = Dispatch("WScript.Shell")
+        shortcut = shell.CreateShortcut(target)
+        resolved = (
+            getattr(shortcut, "TargetPath", "")
+            or getattr(shortcut, "Targetpath", "")
+            or ""
+        ).strip()
+        return resolved or None
+    except Exception:
+        return None
+    finally:
+        pythoncom.CoUninitialize()
+
+
 def build_builtin_app_catalog() -> list[DesktopAppEntry]:
     """Return the curated built-in safe app catalog."""
-    return [
+    entries = [
         DesktopAppEntry(
             app_id="chrome",
             display_name="Google Chrome",
@@ -80,8 +151,7 @@ def build_builtin_app_catalog() -> list[DesktopAppEntry]:
                     r"C:\Program Files\Google\Chrome\Application\chrome.exe",
                     r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
                     os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
-                ],
-                default="chrome.exe",
+                ]
             ),
             launch_type="exe",
             process_hints=["chrome"],
@@ -94,8 +164,7 @@ def build_builtin_app_catalog() -> list[DesktopAppEntry]:
                 [
                     r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
                     r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
-                ],
-                default="msedge.exe",
+                ]
             ),
             launch_type="exe",
             process_hints=["msedge"],
@@ -108,8 +177,7 @@ def build_builtin_app_catalog() -> list[DesktopAppEntry]:
                 [
                     r"C:\Program Files\Mozilla Firefox\firefox.exe",
                     r"C:\Program Files (x86)\Mozilla Firefox\firefox.exe",
-                ],
-                default="firefox.exe",
+                ]
             ),
             launch_type="exe",
             process_hints=["firefox"],
@@ -122,8 +190,7 @@ def build_builtin_app_catalog() -> list[DesktopAppEntry]:
                 [
                     os.path.expandvars(r"%LOCALAPPDATA%\BraveSoftware\Brave-Browser\Application\brave.exe"),
                     r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
-                ],
-                default="brave.exe",
+                ]
             ),
             launch_type="exe",
             process_hints=["brave"],
@@ -132,7 +199,7 @@ def build_builtin_app_catalog() -> list[DesktopAppEntry]:
             app_id="notepad",
             display_name="Notepad",
             aliases=["notepad"],
-            launch_target="notepad.exe",
+            launch_target=os.path.expandvars(r"%WINDIR%\System32\notepad.exe"),
             launch_type="exe",
             process_hints=["notepad"],
         ),
@@ -140,8 +207,8 @@ def build_builtin_app_catalog() -> list[DesktopAppEntry]:
             app_id="calculator",
             display_name="Calculator",
             aliases=["calculator", "calc"],
-            launch_target="calc.exe",
-            launch_type="exe",
+            launch_target=r"shell:appsfolder\Microsoft.WindowsCalculator_8wekyb3d8bbwe!App",
+            launch_type="shell",
             process_hints=["calculator", "calc"],
         ),
         DesktopAppEntry(
@@ -153,8 +220,7 @@ def build_builtin_app_catalog() -> list[DesktopAppEntry]:
                     os.path.expandvars(r"%LOCALAPPDATA%\Programs\Microsoft VS Code\Code.exe"),
                     r"C:\Program Files\Microsoft VS Code\Code.exe",
                     r"C:\Program Files (x86)\Microsoft VS Code\Code.exe",
-                ],
-                default="code.exe",
+                ]
             ),
             launch_type="exe",
             process_hints=["code"],
@@ -163,10 +229,15 @@ def build_builtin_app_catalog() -> list[DesktopAppEntry]:
             app_id="explorer",
             display_name="File Explorer",
             aliases=["explorer", "file explorer", "windows explorer"],
-            launch_target="explorer.exe",
+            launch_target=os.path.expandvars(r"%WINDIR%\explorer.exe"),
             launch_type="exe",
             process_hints=["explorer"],
         ),
+    ]
+    return [
+        entry
+        for entry in entries
+        if entry.launch_target and is_safe_launch_target(entry.launch_target)
     ]
 
 
@@ -235,9 +306,14 @@ def _discover_start_menu_entries() -> list[DesktopAppEntry]:
             if not candidate.is_file():
                 continue
             target = str(candidate)
-            if not is_safe_launch_target(target):
+            resolved_target = (
+                resolve_shortcut_target(target)
+                if candidate.suffix.lower() in _SHORTCUT_EXTENSIONS
+                else target
+            )
+            if not resolved_target or not is_safe_launch_target(resolved_target):
                 continue
-            normalized_target = target.lower()
+            normalized_target = resolved_target.lower()
             if normalized_target in seen_targets:
                 continue
             seen_targets.add(normalized_target)
@@ -248,7 +324,7 @@ def _discover_start_menu_entries() -> list[DesktopAppEntry]:
             aliases = [stem]
             entries.append(
                 DesktopAppEntry(
-                    app_id=_build_start_menu_app_id(stem, target),
+                    app_id=_build_start_menu_app_id(stem, resolved_target),
                     display_name=stem,
                     aliases=aliases,
                     launch_target=target,
@@ -287,12 +363,12 @@ def _dedupe_catalog(entries: Iterable[DesktopAppEntry]) -> list[DesktopAppEntry]
     return deduped
 
 
-def _first_existing_path(paths: list[str], default: str) -> str:
-    """Return the first existing path or a safe fallback executable name."""
+def _first_existing_path(paths: list[str]) -> str:
+    """Return the first existing absolute path from the provided candidates."""
     for path in paths:
         if os.path.exists(path):
             return path
-    return default
+    return ""
 
 
 def _build_start_menu_app_id(name: str, target: str) -> str:

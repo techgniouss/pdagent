@@ -8,6 +8,7 @@ import subprocess
 import asyncio
 import time
 import io
+import uuid
 import psutil
 from typing import Optional
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -113,18 +114,34 @@ def _normalize_privacy_mode_action(args: list[str]) -> str:
     return aliases.get(action, "invalid")
 
 
-def _build_app_picker_keyboard(action: str, app_ids: dict[int, str]) -> InlineKeyboardMarkup:
+def _new_request_id() -> str:
+    """Return a unique request token for inline app-selection callbacks."""
+    return uuid.uuid4().hex
+
+
+def _build_app_picker_keyboard(
+    action: str,
+    request_id: str,
+    app_ids: dict[int, str],
+) -> InlineKeyboardMarkup:
     """Return an inline keyboard for app selections."""
     return InlineKeyboardMarkup(
         [
             [
                 InlineKeyboardButton(
                     str(index),
-                    callback_data=f"appselect_{action}_{index}",
+                    callback_data=f"appselect_{request_id}_{action}_{index}",
                 )
             ]
             for index in app_ids
         ]
+    )
+
+
+def _build_force_close_keyboard(app_id: str) -> InlineKeyboardMarkup:
+    """Return the inline keyboard for one force-close confirmation."""
+    return InlineKeyboardMarkup(
+        [[InlineKeyboardButton("Force close", callback_data=f"appforceclose:{app_id}")]]
     )
 
 
@@ -148,7 +165,9 @@ async def openapp_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if not context.args:
         popular_entries = _popular_app_entries()
+        request_id = _new_request_id()
         app_selection_options[user_id] = {
+            "request_id": request_id,
             "action": "open",
             "entries": {
                 index: entry.app_id for index, entry in enumerate(popular_entries, start=1)
@@ -162,6 +181,7 @@ async def openapp_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown",
             reply_markup=_build_app_picker_keyboard(
                 "open",
+                request_id,
                 app_selection_options[user_id]["entries"],
             ),
         )
@@ -182,7 +202,9 @@ async def openapp_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.warning("openapp failed for %s: %s", result.selected.app_id, message)
         return
 
+    request_id = _new_request_id()
     app_selection_options[user_id] = {
+        "request_id": request_id,
         "action": "open",
         "entries": {
             index: entry.app_id for index, entry in enumerate(result.matches[:8], start=1)
@@ -198,6 +220,7 @@ async def openapp_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Tap a number below to choose which app to open.",
         reply_markup=_build_app_picker_keyboard(
             "open",
+            request_id,
             app_selection_options[user_id]["entries"],
         ),
     )
@@ -231,7 +254,9 @@ async def closeapp_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if not result.selected:
+        request_id = _new_request_id()
         app_selection_options[user_id] = {
+            "request_id": request_id,
             "action": "close",
             "entries": {
                 index: entry.app_id for index, entry in enumerate(result.matches[:8], start=1)
@@ -247,6 +272,7 @@ async def closeapp_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Tap a number below to choose which app to close.",
             reply_markup=_build_app_picker_keyboard(
                 "close",
+                request_id,
                 app_selection_options[user_id]["entries"],
             ),
         )
@@ -255,13 +281,10 @@ async def closeapp_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     close_result = close_desktop_app(result.selected, force=False)
     if close_result.requires_force:
         app_forceclose_options[user_id] = {"app_id": result.selected.app_id}
-        keyboard = InlineKeyboardMarkup(
-            [[InlineKeyboardButton("Force close", callback_data="appforceclose")]]
-        )
         await update.message.reply_text(
             f"{close_result.message}\n\n"
             "If you want, I can force close the remaining process now.",
-            reply_markup=keyboard,
+            reply_markup=_build_force_close_keyboard(result.selected.app_id),
         )
         return
 
