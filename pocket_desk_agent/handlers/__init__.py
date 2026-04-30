@@ -13,6 +13,8 @@ from pocket_desk_agent.handlers._shared import (  # noqa: F401
     gemini_client,
     file_manager,
     recording_sessions,
+    build_monitor_state,
+    build_screenshot_tasks,
     PYWINAUTO_AVAILABLE,
 )
 
@@ -51,6 +53,8 @@ from pocket_desk_agent.handlers.filesystem import (  # noqa: F401
 
 # ── System Control ──────────────────────────────────────────────────────────
 from pocket_desk_agent.handlers.system import (  # noqa: F401
+    openapp_command,
+    closeapp_command,
     stopbot_command,
     shutdown_command,
     battery_command,
@@ -99,6 +103,7 @@ from pocket_desk_agent.handlers.claude import (  # noqa: F401
     claudechat_command,
     claudelatest_command,
     claudemode_command,
+    claudeacceptedits_command,
     claudemodel_command,
     claudesearch_command,
     claudeselect_command,
@@ -109,6 +114,7 @@ from pocket_desk_agent.handlers.claude import (  # noqa: F401
     find_claude_window,
     ensure_claude_open,
     capture_claude_screenshot,
+    check_model_selection,
 )
 
 # ── Antigravity / VS Code ──────────────────────────────────────────────────
@@ -132,6 +138,7 @@ from pocket_desk_agent.handlers.build import (  # noqa: F401
     check_build_selection,
     execute_build_command,
     monitor_build_window,
+    stopbuildscreenshot_command,
     capture_full_screen,
     capture_window_screenshot,
     find_and_send_apk,

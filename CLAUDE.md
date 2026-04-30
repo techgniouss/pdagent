@@ -42,8 +42,8 @@ pocket-desk-agent/
 │   │   ├── custom_commands.py  # /savecommand, /done, /listcommands, /deletecommand
 │   │   ├── claude.py           # /claudeask, /clauderepo, /claudechat, /clauderemote, etc.
 │   │   ├── antigravity.py      # /openantigravity, /antigravitychat, /claudecli, etc.
-│   │   ├── build.py            # /build, /getapk
-│   │   ├── scheduling.py       # /schedule, /claudeschedule, /listschedules, /cancelschedule
+│   │   ├── build.py            # /build, /getapk, /stopbuildscreenshot
+│   │   ├── scheduling.py       # /schedule, /scheduleshutdown, /claudeschedule, /listschedules, /cancelschedule
 │   │   ├── remote.py           # /remote, /stopremote, session lifecycle + auto-install flow
 │   │   └── callbacks.py        # Inline keyboard button handlers
 │   ├── remote/                 # Live remote-desktop subsystem
@@ -61,13 +61,15 @@ pocket-desk-agent/
 │   ├── command_registry.py     # User-defined macro storage
 │   ├── file_manager.py         # Sandboxed file I/O (path traversal prevention)
 │   ├── gemini_client.py        # Gemini API client with tool-calling
+│   ├── gemini_actions.py       # Gemini tool definitions, rate-limiting, and confirmation flows
+│   ├── scheduling_utils.py     # Shared date/time parsing helpers for scheduling commands
 │   ├── antigravity_auth.py     # OAuth 2.0 PKCE implementation
 │   ├── auth.py                 # User allowlist + multi-mode auth wrapper
 │   ├── gemini_cli_auth.py      # Gemini CLI OAuth PKCE implementation
 │   ├── scheduler_registry.py   # Persistent scheduled task storage
 │   ├── startup_manager.py      # Windows logon-task startup management
 │   ├── rate_limiter.py         # Token-bucket rate limiter
-│   ├── updater.py              # Auto-update manager (git pull)
+│   ├── updater.py              # Auto-update manager (PyPI-based; /update command)
 │   ├── automation_utils.py     # OCR/UI automation helpers
 │   └── constants.py            # API endpoints and header constants
 ├── scripts/
@@ -179,11 +181,18 @@ All values live in `pocket_desk_agent/config.py` → `Config` class.
 | `APPROVED_DIRECTORIES` | No | `Path.home()` | Comma-separated allowed paths for file ops |
 | `CLAUDE_DEFAULT_REPO_PATH` | No | `~/Documents` | Default repo root for Claude integration |
 | `UPLOAD_EXPIRY_TIME` | No | `1h` | Dropbox link expiry (`1h`/`12h`/`24h`/`72h`) |
-| `AUTO_UPDATE_ENABLED` | No | `true` | Enable periodic git-pull auto-update |
-| `AUTO_UPDATE_INTERVAL_MINUTES` | No | `60` | Update check interval |
+| `AUTO_UPDATE_ENABLED` | No | `true` | Enable periodic PyPI update check |
+| `AUTO_UPDATE_INTERVAL_MINUTES` | No | `60` | Update check interval (minutes) |
 | `LOG_LEVEL` | No | `INFO` | Logging verbosity |
 | `MAX_TOKENS_PER_REQUEST` | No | `8000` | Gemini token limit |
 | `SYSTEM_PROMPT` | No | — | Custom Gemini system prompt |
+| `REMOTE_ENABLED` | No | `true` | Enable the `/remote` live desktop feature |
+| `REMOTE_AI_TOOLS_ENABLED` | No | `true` | Allow Gemini to start/stop remote sessions via tool-calling |
+| `REMOTE_BIND_HOST` | No | `127.0.0.1` | Local host the aiohttp WebSocket server binds to |
+| `REMOTE_IDLE_TIMEOUT_SECS` | No | `900` | Seconds of inactivity before auto-close (min 60) |
+| `REMOTE_DEFAULT_FPS` | No | `10` | Default stream frame rate (clamped 2–20) |
+| `REMOTE_JPEG_QUALITY` | No | `60` | Default JPEG quality (clamped 30–85) |
+| `REMOTE_MAX_WIDTH` | No | `1280` | Max downscale width for desktop frames (640–1920) |
 | `CLOUDFLARED_PATH` | No | auto-discovered | Override path to the `cloudflared` binary used by `/remote` |
 
 ### Secrets — never commit

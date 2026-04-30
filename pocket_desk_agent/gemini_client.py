@@ -67,6 +67,12 @@ _TOOL_NAME_ALIASES: dict[str, str] = {
     "schedule_command": "schedule_desktop_sequence",
     "schedule_custom_command": "schedule_desktop_sequence",
     "schedule_actions": "schedule_desktop_sequence",
+    "open_app": "open_desktop_app",
+    "launch_app": "open_desktop_app",
+    "start_app": "open_desktop_app",
+    "close_app": "close_desktop_app",
+    "stop_app": "close_desktop_app",
+    "end_app": "close_desktop_app",
     "launch_browser": "open_browser",
     "open_folder_vscode": "open_vscode_folder",
     "vscode_open_folder": "open_vscode_folder",
@@ -96,6 +102,7 @@ You have access to comprehensive tools for files, desktop context, and automatio
 - start_build_workflow: Prepare the existing build flow so the user can choose a project/script
 - start_apk_retrieval_workflow: Prepare the existing APK retrieval flow so the user can choose a project or browse build outputs
 - set_privacy_mode: Check or control display privacy mode
+- open_desktop_app / close_desktop_app: Open or close safe discovered desktop apps
 - open_browser: Open a supported browser in a maximized window
 - open_vscode_folder: Open a specific approved folder in VS Code
 - open_claude_cli / claude_cli_send_message: Launch Claude CLI in a folder or send it a follow-up prompt
@@ -107,6 +114,7 @@ You have access to comprehensive tools for files, desktop context, and automatio
 - run_saved_command / shutdown_computer / sleep_computer
 - open_claude / claude_new_chat / claude_send_message
 - open_antigravity / focus_antigravity_chat
+- open_desktop_app / close_desktop_app
 - schedule_claude_prompt / schedule_desktop_sequence
 - request_remote_session / request_stop_remote_session (confirmation-gated live remote-desktop)
 
@@ -123,6 +131,8 @@ These tools send an approval prompt to the user before any risky action happens.
    - "get apk from emploi" -> start_apk_retrieval_workflow
    - "watch Claude every minute for Allow and press enter with 30s cooldown" -> start_screen_watch
    - "stop watching my screen" -> stop_screen_watch
+   - "open spotify" / "open calculator" -> open_desktop_app
+   - "close spotify" / "force close spotify" -> close_desktop_app
    - "open chrome" -> open_browser
    - "open emploi folder in vscode" -> open_vscode_folder
    - "open claude cli in emploi and ask it to run tests" -> open_claude_cli
@@ -261,6 +271,20 @@ def _as_int(value: Any, default: int = 0) -> int:
         return default
 
 
+def _as_bool(value: Any, default: bool = False) -> bool:
+    """Best-effort boolean parsing for tool arguments."""
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    text = str(value).strip().lower()
+    if text in {"1", "true", "yes", "y", "on", "force"}:
+        return True
+    if text in {"0", "false", "no", "n", "off"}:
+        return False
+    return default
+
+
 def _normalize_tool_args(func_name: str, args: dict[str, Any]) -> dict[str, Any]:
     """Normalize aliased argument keys to each tool's canonical schema."""
     if func_name in {
@@ -338,6 +362,13 @@ def _normalize_tool_args(func_name: str, args: dict[str, Any]) -> dict[str, Any]
         if task_id.lower() in {"all", "*"}:
             task_id = ""
         return {"task_id": task_id}
+    if func_name == "open_desktop_app":
+        return {"name": _first_string(args, "name", "app", "application", "query", "target")}
+    if func_name == "close_desktop_app":
+        return {
+            "name": _first_string(args, "name", "app", "application", "query", "target"),
+            "force": _as_bool(_first_value(args, "force", "kill", "terminate"), default=False),
+        }
     if func_name == "open_browser":
         browser = _first_string(args, "browser", "name", "app", "target", default="edge").lower()
         return {"browser": browser}
@@ -593,6 +624,8 @@ _ALLOWED_TOOLS = frozenset({
     "open_vscode_folder",
     "open_claude_cli",
     "claude_cli_send_message",
+    "open_desktop_app",
+    "close_desktop_app",
     "schedule_claude_prompt",
     "schedule_desktop_sequence",
     "request_remote_session",

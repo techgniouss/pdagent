@@ -8,6 +8,7 @@ import asyncio
 import time
 import io
 import json
+import uuid
 import requests
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
@@ -15,14 +16,72 @@ from telegram.ext import ContextTypes
 from pocket_desk_agent.handlers._shared import (
     PYWINAUTO_AVAILABLE,
     build_state,
+    build_monitor_state,
+    build_screenshot_tasks,
     large_file_upload_state,
     apk_retrieval_state,
     DEFAULT_REPO_PATH,
     file_manager,
+    safe_command,
 )
 from pocket_desk_agent.config import Config
 
 logger = logging.getLogger(__name__)
+
+
+def create_build_monitor_request(
+    *,
+    window_title: str,
+    repo_path: str,
+    build_type: str,
+    chat_id: int,
+    user_id: int,
+) -> str:
+    """Store one pending build-monitor confirmation under a unique request id."""
+    request_id = uuid.uuid4().hex
+    build_monitor_state[request_id] = {
+        "window_title": window_title,
+        "repo_path": repo_path,
+        "build_type": build_type,
+        "chat_id": chat_id,
+        "user_id": user_id,
+        "request_id": request_id,
+    }
+    return request_id
+
+
+def resolve_build_monitor_request(request_key: str) -> tuple[str | int | None, dict | None]:
+    """Resolve a build-monitor request id, falling back to legacy user-id keys."""
+    state = build_monitor_state.get(request_key)
+    if state:
+        return request_key, state
+
+    try:
+        legacy_user_id = int(request_key)
+    except (TypeError, ValueError):
+        return None, None
+
+    state = build_monitor_state.get(legacy_user_id)
+    if state:
+        return legacy_user_id, state
+    return None, None
+
+
+def clear_build_monitor_requests_for_user(user_id: int) -> None:
+    """Remove all pending build-monitor confirmations for one user."""
+    stale_keys = [
+        key
+        for key, state in build_monitor_state.items()
+        if isinstance(state, dict) and state.get("user_id") == user_id
+    ]
+    for key in stale_keys:
+        build_monitor_state.pop(key, None)
+
+
+def unregister_build_screenshot_task(user_id: int, task: object) -> None:
+    """Clear the task mapping only when the finishing task is still current."""
+    if build_screenshot_tasks.get(user_id) is task:
+        build_screenshot_tasks.pop(user_id, None)
 
 
 def _discover_build_repositories(base_dir: str) -> list[str]:
@@ -751,18 +810,38 @@ async def execute_build_command(update: Update, context: ContextTypes.DEFAULT_TY
                 cwd=repo_path,
                 creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
             )
-            
+
+            user_id = update.effective_user.id
+            chat_id = update.effective_chat.id
+
+            request_id = create_build_monitor_request(
+                window_title=window_title,
+                repo_path=repo_path,
+                build_type=build_type,
+                chat_id=chat_id,
+                user_id=user_id,
+            )
+
+            keyboard = [
+                [
+                    InlineKeyboardButton(
+                        "📸 Yes, send screenshots",
+                        callback_data=f"build_screenshot_yes_{request_id}",
+                    ),
+                    InlineKeyboardButton(
+                        "🚫 No thanks",
+                        callback_data=f"build_screenshot_no_{request_id}",
+                    ),
+                ]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
             await update.message.reply_text(
                 f"🚀 Build started in new Command Prompt window!\n\n"
                 f"Repository: {repo_name}\n"
                 f"Command: npm run {script_name}\n"
                 f"Build Type: {build_type}\n\n"
-                f"📸 I'll send you screenshots every 30 seconds to show progress..."
-            )
-            
-            # Start monitoring task in background
-            asyncio.create_task(
-                monitor_build_window(update, context, window_title, repo_path, build_type)
+                f"Do you want me to send screenshots every minute to track progress?",
+                reply_markup=reply_markup,
             )
             
         else:
@@ -790,61 +869,72 @@ async def execute_build_command(update: Update, context: ContextTypes.DEFAULT_TY
         logger.error(f"Error in execute_build_command: {e}")
 
 
-async def monitor_build_window(update: Update, context: ContextTypes.DEFAULT_TYPE, window_title: str, repo_path: str, build_type: str):
-    """Monitor build window and send periodic screenshots using full screen capture."""
+async def monitor_build_window(bot, chat_id: int, user_id: int, window_title: str, repo_path: str, build_type: str):
+    """Send periodic full-screen screenshots to track build progress.
+
+    Stores itself in ``build_screenshot_tasks[user_id]`` (done by the caller).
+    Cleans up that entry when it finishes or is cancelled.
+    """
+    max_screenshots = 20  # up to 20 minutes
+    current_task = asyncio.current_task()
+
     try:
-        # Wait a bit for window to open
-        await asyncio.sleep(5)
-        
-        logger.info(f"Starting build monitoring with full screen screenshots for: {window_title}")
-        
-        screenshot_count = 0
-        max_screenshots = 20  # Max 20 minutes (20 * 60 seconds)
-        
-        # Send initial message
-        await update.message.reply_text(
-            f"📸 Starting screenshot monitoring...\n\n"
-            f"I'll send you full screen captures every 1 minute.\n"
-            f"Make sure the Command Prompt window is visible!"
-        )
-        
+        await asyncio.sleep(5)  # brief wait for the terminal window to open
+
+        logger.info("Starting build screenshot monitoring for window: %s", window_title)
+
         for i in range(max_screenshots):
-            try:
-                # Take full screen screenshot
-                screenshot = capture_full_screen()
-                
-                if screenshot:
-                    # Send screenshot to user
-                    screenshot_count += 1
-                    await context.bot.send_photo(
-                        chat_id=update.effective_chat.id,
-                        photo=screenshot,
-                        caption=f"📸 Build Progress (Update #{screenshot_count})\n\n"
-                                f"Tip: Keep Command Prompt window visible for best view"
-                    )
-                    logger.info(f"Sent build screenshot #{screenshot_count}")
-                else:
-                    logger.warning(f"Failed to capture screenshot #{i+1}")
-                
-                # Wait 60 seconds (1 minute) before next screenshot
-                await asyncio.sleep(60)
-                
-            except Exception as e:
-                logger.error(f"Error capturing build screenshot: {e}", exc_info=True)
-                await asyncio.sleep(60)
-                continue
-        
-        # If we reached max screenshots, notify user
-        if screenshot_count >= max_screenshots:
-            await update.message.reply_text(
-                f"⏱️ Build monitoring stopped after {max_screenshots} updates (20 minutes).\n\n"
-                f"Use /getapk to retrieve the APK when build completes."
-            )
-        
-    except Exception as e:
-        logger.error(f"Error in monitor_build_window: {e}", exc_info=True)
+            screenshot = capture_full_screen()
+            if screenshot:
+                await bot.send_photo(
+                    chat_id=chat_id,
+                    photo=screenshot,
+                    caption=f"📸 Build Progress (Update #{i + 1} of {max_screenshots})",
+                )
+                logger.info("Sent build screenshot #%d", i + 1)
+            else:
+                logger.warning("Failed to capture build screenshot #%d", i + 1)
+
+            await asyncio.sleep(60)
+
+        await bot.send_message(
+            chat_id=chat_id,
+            text=(
+                f"⏱️ Screenshot monitoring stopped after {max_screenshots} minutes.\n\n"
+                "Use /getapk to retrieve the APK when the build completes."
+            ),
+        )
+
+    except asyncio.CancelledError:
+        logger.info("Build screenshot monitoring cancelled for user %d", user_id)
+        raise
+    except Exception as exc:
+        logger.error("Error in monitor_build_window: %s", exc, exc_info=True)
+    finally:
+        unregister_build_screenshot_task(user_id, current_task)
 
 
+
+
+@safe_command
+async def stopbuildscreenshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """/stopbuildscreenshot — cancel active build screenshot monitoring."""
+    if not update.message or not update.effective_user:
+        return
+    user_id = update.effective_user.id
+    task = build_screenshot_tasks.pop(user_id, None)
+    clear_build_monitor_requests_for_user(user_id)
+    if task and not task.done():
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        except Exception as exc:
+            logger.warning("Build screenshot task for user %s ended with %s", user_id, exc)
+        await update.message.reply_text("📸 Screenshot monitoring stopped.")
+    else:
+        await update.message.reply_text("No active screenshot monitoring to stop.")
 
 
 def capture_full_screen():

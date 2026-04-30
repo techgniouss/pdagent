@@ -341,7 +341,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Check if this is a repo selection (before Gemini processing)
     # Deferred imports to avoid circular dependencies between handler modules.
-    from pocket_desk_agent.handlers.claude import check_repo_selection
+    from pocket_desk_agent.handlers.claude import check_repo_selection, check_model_selection
     from pocket_desk_agent.handlers.build import (
         check_build_selection,
         check_apk_retrieval_selection,
@@ -349,6 +349,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     from pocket_desk_agent.handlers.custom_commands import execute_custom_command
 
     if await check_repo_selection(update, context):
+        return
+
+    if await check_model_selection(update, context):
         return
 
     # Check if this is part of build workflow

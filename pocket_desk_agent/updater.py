@@ -310,8 +310,15 @@ def apply_pypi_update() -> tuple[bool, str]:
 
     try:
         result = subprocess.run(
-            [sys.executable, "-m", "pip", "install", "--upgrade", "pocket-desk-agent",
-             "--quiet"],
+            [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "--upgrade",
+                "pocket-desk-agent",
+                "--quiet",
+            ],
             capture_output=True,
             text=True,
             timeout=120,
@@ -321,7 +328,10 @@ def apply_pypi_update() -> tuple[bool, str]:
             return False, f"❌ pip upgrade failed:\n`{err}`"
         return True, f"✅ Upgraded to `v{info.remote_sha}` successfully!"
     except subprocess.TimeoutExpired:
-        return False, "❌ Upgrade timed out. Run `pip install --upgrade pocket-desk-agent` manually."
+        return False, (
+            "❌ Upgrade timed out. Run "
+            "`pip install --upgrade pocket-desk-agent` manually."
+        )
     except Exception as exc:
         return False, f"❌ Unexpected error: {exc}"
 

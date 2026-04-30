@@ -24,9 +24,31 @@ from pocket_desk_agent.handlers._shared import (
     claudecli_options,
     large_file_upload_state,
     window_switch_options,
+    app_selection_options,
+    app_forceclose_options,
+    build_monitor_state,
+    build_screenshot_tasks,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_app_selection_callback_data(data: str) -> tuple[str | None, str | None, int | None]:
+    """Parse app-selection callback payloads, supporting legacy payloads."""
+    parts = data.split("_", 3)
+    if len(parts) == 4:
+        _, request_id, action, raw_index = parts
+    elif len(parts) == 3:
+        request_id = None
+        _, action, raw_index = parts
+    else:
+        return None, None, None
+
+    try:
+        selection = int(raw_index)
+    except (TypeError, ValueError):
+        return None, None, None
+    return request_id, action, selection
 
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -38,6 +60,80 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     if await handle_gemini_confirmation_callback(update, context):
+        return
+
+    if query.data.startswith("appselect_"):
+        user_id = update.effective_user.id
+        request_id, action, selection = _parse_app_selection_callback_data(query.data)
+        if not action or selection is None:
+            await query.edit_message_text("Invalid app selection. Please run the command again.")
+            return
+
+        state = app_selection_options.get(user_id, {})
+        if state.get("request_id") != request_id:
+            await query.edit_message_text("That app selection expired. Please run the command again.")
+            return
+        app_id = state.get("entries", {}).get(selection)
+        if not app_id or state.get("action") != action:
+            await query.edit_message_text("That app selection expired. Please run the command again.")
+            return
+
+        from pocket_desk_agent.app_catalog import get_app_entry_by_id
+        from pocket_desk_agent.app_control import close_desktop_app, launch_desktop_app
+
+        entry = get_app_entry_by_id(app_id)
+        if not entry:
+            await query.edit_message_text("That app could not be found anymore. Please search again.")
+            return
+
+        if action == "open":
+            success, message = launch_desktop_app(entry)
+            await query.edit_message_text(message)
+            if success:
+                app_selection_options.pop(user_id, None)
+            return
+
+        close_result = close_desktop_app(entry, force=False)
+        if close_result.requires_force:
+            app_selection_options.pop(user_id, None)
+            app_forceclose_options[user_id] = {"app_id": entry.app_id}
+            keyboard = InlineKeyboardMarkup(
+                [[InlineKeyboardButton("Force close", callback_data=f"appforceclose:{entry.app_id}")]]
+            )
+            await query.edit_message_text(
+                f"{close_result.message}\n\n"
+                "Tap below to force close the remaining process.",
+                reply_markup=keyboard,
+            )
+            return
+
+        app_selection_options.pop(user_id, None)
+        await query.edit_message_text(close_result.message)
+        return
+
+    if query.data.startswith("appforceclose"):
+        user_id = update.effective_user.id
+        state = app_forceclose_options.get(user_id, {})
+        requested_app_id = query.data.partition(":")[2] if ":" in query.data else ""
+        app_id = requested_app_id or state.get("app_id")
+        if not app_id:
+            await query.edit_message_text("The force-close request expired. Run /closeapp again.")
+            return
+        if state.get("app_id") != app_id:
+            await query.edit_message_text("The force-close request expired. Run /closeapp again.")
+            return
+
+        from pocket_desk_agent.app_catalog import get_app_entry_by_id
+        from pocket_desk_agent.app_control import close_desktop_app
+
+        entry = get_app_entry_by_id(app_id)
+        if not entry:
+            await query.edit_message_text("That app could not be found anymore. Run /closeapp again.")
+            return
+
+        result = close_desktop_app(entry, force=True)
+        app_forceclose_options.pop(user_id, None)
+        await query.edit_message_text(result.message)
         return
 
     if query.data == "confirm_stopbot":
@@ -347,6 +443,79 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         await handle_install_cloudflared_callback(update, context)
+
+    # Handle build screenshot confirmation (Yes/No)
+    elif query.data.startswith("build_screenshot_yes_") or query.data.startswith(
+        "build_screenshot_no_"
+    ):
+        try:
+            request_key = query.data.rsplit("_", 1)[-1]
+        except IndexError:
+            await query.edit_message_text("Invalid build screenshot payload.")
+            return
+
+        from pocket_desk_agent.handlers.build import (
+            monitor_build_window,
+            resolve_build_monitor_request,
+        )
+
+        state_key, state = resolve_build_monitor_request(request_key)
+        if not state:
+            await query.edit_message_text(
+                "Build monitor state expired. Start a new build to enable screenshots."
+            )
+            return
+
+        callback_user_id = (
+            query.from_user.id
+            if getattr(query, "from_user", None)
+            else getattr(update.effective_user, "id", None)
+        )
+        if callback_user_id != state.get("user_id"):
+            await query.edit_message_text("This confirmation is for another user.")
+            return
+
+        user_id = state["user_id"]
+
+        if query.data.startswith("build_screenshot_yes_"):
+            build_monitor_state.pop(state_key, None)
+
+            # Cancel any existing monitor for this user before starting a new one
+            old_task = build_screenshot_tasks.get(user_id)
+            if old_task and not old_task.done():
+                old_task.cancel()
+                try:
+                    await old_task
+                except asyncio.CancelledError:
+                    pass
+                except Exception as exc:
+                    logger.warning(
+                        "Cancelled stale build screenshot task for user %s with %s",
+                        user_id,
+                        exc,
+                    )
+
+            task = asyncio.create_task(
+                monitor_build_window(
+                    context.bot,
+                    state["chat_id"],
+                    state["user_id"],
+                    state["window_title"],
+                    state["repo_path"],
+                    state["build_type"],
+                )
+            )
+            build_screenshot_tasks[user_id] = task
+            await query.edit_message_text(
+                "📸 Screenshot monitoring started! I'll send a full-screen capture every minute.\n"
+                "Keep the Command Prompt window visible for the best view.\n\n"
+                "Use /stopbuildscreenshot to stop at any time."
+            )
+        else:
+            build_monitor_state.pop(state_key, None)
+            await query.edit_message_text(
+                "No problem! Use /getapk when the build finishes."
+            )
 
     # Handle browser open selection
     elif query.data.startswith("browser_"):

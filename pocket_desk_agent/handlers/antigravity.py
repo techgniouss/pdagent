@@ -1,5 +1,6 @@
 """Antigravity and VS Code integration command handlers."""
 
+import asyncio
 import logging
 import os
 import platform
@@ -428,9 +429,9 @@ async def openantigravity_command(update: Update, context: ContextTypes.DEFAULT_
                 try:
                     if window.isMinimized:
                         window.restore()
-                        time.sleep(0.5)
+                        await asyncio.sleep(0.5)
                     window.activate()
-                    time.sleep(0.3)
+                    await asyncio.sleep(0.3)
                     await update.message.reply_text(
                         "Antigravity app is now active!\n\n"
                         "The window has been brought to front."
@@ -448,7 +449,7 @@ async def openantigravity_command(update: Update, context: ContextTypes.DEFAULT_
             try:
                 # Common Electron installation paths or protocol handler
                 subprocess.Popen("start antigravity://", shell=True)
-                time.sleep(3)
+                await asyncio.sleep(3)
                 await update.message.reply_text("Attempted to open Antigravity via protocol handler.")
                 return
             except Exception:
@@ -490,11 +491,11 @@ async def antigravitychat_command(update: Update, context: ContextTypes.DEFAULT_
     
     try:
         window.activate()
-        time.sleep(0.5)
+        await asyncio.sleep(0.5)
         
         # Sequence provided by user: Ctrl+Shift+P then Ctrl+L
         send_keys('^+p')
-        time.sleep(0.8)
+        await asyncio.sleep(0.8)
         send_keys('^l')
         
         await update.message.reply_text("Sent command sequence to Antigravity (Ctrl+Shift+P -> Ctrl+L).")
@@ -527,7 +528,7 @@ async def antigravitymode_command(update: Update, context: ContextTypes.DEFAULT_
         window = find_antigravity_window()
         if window:
             window.activate()
-            time.sleep(0.5)
+            await asyncio.sleep(0.5)
 
         # Step 1: check if the mode label is already visible on screen
         screenshot = ImageGrab.grab()
@@ -544,7 +545,7 @@ async def antigravitymode_command(update: Update, context: ContextTypes.DEFAULT_
                 selector_x = screen_w // 2
                 selector_y = screen_h - 50
             pyautogui.click(selector_x, selector_y)
-            time.sleep(0.8)
+            await asyncio.sleep(0.8)
 
             # Step 3: re-scan for the mode option in the now-open dropdown
             screenshot = ImageGrab.grab()
@@ -586,7 +587,7 @@ async def antigravitymodel_command(update: Update, context: ContextTypes.DEFAULT
         await update.message.reply_text("Locating model selector to list available models...")
         try:
             window.activate()
-            time.sleep(0.5)
+            await asyncio.sleep(0.5)
             
             screenshot = ImageGrab.grab()
             # Try to find common keywords to click selection trigger
@@ -600,7 +601,7 @@ async def antigravitymodel_command(update: Update, context: ContextTypes.DEFAULT
             
             if trigger_match:
                 pyautogui.click(trigger_match.x, trigger_match.y)
-                time.sleep(1.0) # Wait for dropdown
+                await asyncio.sleep(1.0) # Wait for dropdown
                 
                 # Take new screenshot of the dropdown
                 dropdown_screenshot = ImageGrab.grab()
@@ -641,7 +642,7 @@ async def antigravitymodel_command(update: Update, context: ContextTypes.DEFAULT
     
     try:
         window.activate()
-        time.sleep(0.8)
+        await asyncio.sleep(0.8)
         
         # Take initial screenshot
         screenshot = ImageGrab.grab()
@@ -660,12 +661,12 @@ async def antigravitymodel_command(update: Update, context: ContextTypes.DEFAULT
                 found_match = matches[0]
                 # If we found it, click it to see if it was the selector or a list item
                 pyautogui.click(found_match.x, found_match.y)
-                time.sleep(0.5)
+                await asyncio.sleep(0.5)
                 # If a new list appeared, we need to click again. Let's assume it might have been the trigger.
                 break
         
         # 2. If not found or if we think we clicked the trigger, check again
-        time.sleep(0.5)
+        await asyncio.sleep(0.5)
         screenshot = ImageGrab.grab()
         
         # Try finding the keyword again in the (now potentially open) dropdown
@@ -682,7 +683,7 @@ async def antigravitymodel_command(update: Update, context: ContextTypes.DEFAULT
                 selector_matches = find_text_in_image(screenshot, keyword)
                 if selector_matches:
                     pyautogui.click(selector_matches[0].x, selector_matches[0].y)
-                    time.sleep(1.0)
+                    await asyncio.sleep(1.0)
                     screenshot = ImageGrab.grab()
                     for var in variations:
                         m = find_text_in_image(screenshot, var)

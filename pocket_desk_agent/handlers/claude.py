@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 import sys
 import platform
 import subprocess
@@ -17,6 +18,7 @@ from pocket_desk_agent.handlers._shared import (
     search_results,
     repo_lists,
     repo_selection_state,
+    safe_command,
     record_action_if_active,
     file_manager,
 )
@@ -45,21 +47,26 @@ def _load_win_deps():
 logger = logging.getLogger(__name__)
 
 _INPUT_HINT_TERMS = (
-    "reply",
-    "find",
-    "todo",
-    "ask",
-    "type",
-    "message",
-    "chat",
-    "prompt",
-    "command",
+    "reply", "find", "todo", "ask", "type", "message", "chat",
+    "prompt", "command", "describe", "task", "question",
 )
 _NEW_CHAT_HINT_TERMS = ("new", "chat", "session", "conversation")
 _NEW_CHAT_TITLE_PATTERNS = (
     r".*[Nn]ew.*([Cc]hat|[Ss]ession|[Cc]onversation).*",
     r".*[Ss]tart.*[Nn]ew.*",
 )
+
+# Bottom status bar is ~30 px tall; click its vertical midpoint from window bottom.
+_BOTTOM_BAR_Y_OFFSET = 15
+
+# Approximate x-ratios for bottom-bar items (fraction of window.width).
+_BOTTOM_X_REPO   = 0.37   # repo name button
+_BOTTOM_X_BRANCH = 0.46   # branch button
+_BOTTOM_X_MODE   = 0.57   # accept-edits / mode selector
+_BOTTOM_X_MODEL  = 0.87   # model selector (right side)
+
+# Keywords that identify a model name in OCR output.
+_MODEL_KEYWORDS = ("opus", "sonnet", "haiku", "claude")
 
 # Store claude process PID in a file for persistence
 CLAUDE_PID_FILE = os.path.join(os.getenv("TEMP", "/tmp"), "claude_remote_control.pid")
@@ -163,6 +170,36 @@ def _configure_tesseract():
     return pytesseract
 
 
+async def _click_bottom_bar_ocr(window, pyautogui, keywords: tuple, strip_height: int = 40) -> bool:
+    """OCR the bottom status bar and click the first word matching any keyword.
+
+    Returns True if a click was performed.
+    """
+    strip_top = window.top + window.height - strip_height
+    pytesseract = _configure_tesseract()
+    if not pytesseract:
+        return False
+    try:
+        from PIL import ImageGrab
+        shot = ImageGrab.grab(bbox=(
+            window.left, strip_top,
+            window.left + window.width, window.top + window.height,
+        ))
+        data = pytesseract.image_to_data(shot, output_type=pytesseract.Output.DICT)
+        for i, word in enumerate(data["text"]):
+            w = (word or "").strip().lower()
+            if w and any(k.lower() in w for k in keywords):
+                x = data["left"][i] + data["width"][i] // 2 + window.left
+                y = data["top"][i] + data["height"][i] // 2 + strip_top
+                pyautogui.click(x, y)
+                await asyncio.sleep(0.4)
+                logger.info("Bottom-bar OCR click '%s' at (%d, %d)", word, x, y)
+                return True
+    except Exception as exc:
+        logger.warning("Bottom-bar OCR failed: %s", exc)
+    return False
+
+
 def _click_claude_input(window, pyautogui) -> None:
     """Focus Claude's composer input using UIA/OCR fallbacks."""
     if PYWINAUTO_AVAILABLE:
@@ -173,7 +210,7 @@ def _click_claude_input(window, pyautogui) -> None:
             for spec in (
                 {"control_type": "Edit", "found_index": 0},
                 {"control_type": "Document", "found_index": 0},
-                {"title_re": ".*(Ask|Message|Prompt|Chat|Reply).*", "control_type": "Edit"},
+                {"title_re": ".*(Ask|Message|Prompt|Chat|Reply|Describe|Task|Question).*", "control_type": "Edit"},
             ):
                 try:
                     control = claude_window.child_window(**spec)
@@ -357,9 +394,9 @@ async def openclaude_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 try:
                     if window.isMinimized:
                         window.restore()
-                        time.sleep(0.5)
+                        await asyncio.sleep(0.5)
                     window.activate()
-                    time.sleep(0.3)
+                    await asyncio.sleep(0.3)
                     await update.message.reply_text(
                         "✅ Claude desktop app is now active!\n\n"
                         "The window has been restored and brought to front."
@@ -376,7 +413,7 @@ async def openclaude_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
             # Try Windows Store app first (most common)
             try:
                 subprocess.Popen(["explorer.exe", "shell:AppsFolder\\AnthropicPBC.Claude_jh5q8rxbfr2da!Claude"])
-                time.sleep(3)  # Wait for app to open
+                await asyncio.sleep(3)  # Wait for app to open
                 
                 # Verify it opened
                 if PYWINAUTO_AVAILABLE:
@@ -404,7 +441,7 @@ async def openclaude_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
             for path in possible_paths:
                 if os.path.exists(path):
                     subprocess.Popen([path])
-                    time.sleep(3)
+                    await asyncio.sleep(3)
                     await update.message.reply_text(
                         f"✅ Claude desktop app opened!\n"
                         f"Path: {path}"
@@ -623,7 +660,7 @@ async def claudeask_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Activate window and bring to front
         window.activate()
-        time.sleep(1.5)
+        await asyncio.sleep(1.5)
         
         logger.info(f"Attempting to send message to Claude: {message[:50]}")
         send_prompt_to_claude(window, message)
@@ -674,7 +711,7 @@ async def claudenew_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Activate window
         window.activate()
-        time.sleep(1.0)
+        await asyncio.sleep(1.0)
 
         import pyautogui
         
@@ -711,7 +748,7 @@ async def claudenew_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         y = text_data['top'][i] + (text_data['height'][i] // 2) + window.top
                         logger.info(f"Found '{word}' at ({x}, {y}), clicking...")
                         pyautogui.click(x, y)
-                        time.sleep(1.0)
+                        await asyncio.sleep(1.0)
                         new_session_clicked = True
                         logger.info("Clicked 'New session' using OCR")
                         break
@@ -728,7 +765,7 @@ async def claudenew_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 try:
                     logger.info("Trying keyboard shortcut: %s", "+".join(keys))
                     pyautogui.hotkey(*keys)
-                    time.sleep(1.0)
+                    await asyncio.sleep(1.0)
                     new_session_clicked = True
                     logger.info("Used keyboard shortcut for new session: %s", "+".join(keys))
                     break
@@ -761,7 +798,7 @@ async def claudenew_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         except Exception:
                             continue
 
-                time.sleep(1.0)
+                await asyncio.sleep(1.0)
 
             except Exception as e:
                 logger.warning(f"pywinauto method failed: {e}")
@@ -779,10 +816,10 @@ async def claudenew_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for x, y in possible_positions:
                 logger.info(f"Trying coordinate click at ({x}, {y})")
                 pyautogui.click(x, y)
-                time.sleep(0.5)
+                await asyncio.sleep(0.5)
                 break
 
-        time.sleep(1.0)  # Wait for new session to be created
+        await asyncio.sleep(1.0)  # Wait for new session to be created
 
         if initial_message:
             try:
@@ -884,7 +921,7 @@ async def claudechat_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         
         # Activate window
         window.activate()
-        time.sleep(1.5)
+        await asyncio.sleep(1.5)
         
         logger.info(f"Attempting to send message: {message[:50]}")
         send_prompt_to_claude(window, message)
@@ -956,7 +993,7 @@ async def claudelatest_command(update: Update, context: ContextTypes.DEFAULT_TYP
         
         # Activate window
         window.activate()
-        time.sleep(0.5)
+        await asyncio.sleep(0.5)
         
         import pyautogui
         
@@ -978,7 +1015,7 @@ async def claudelatest_command(update: Update, context: ContextTypes.DEFAULT_TYP
                 
                 pyautogui.click(session_x, session_y)
                 logger.info(f"Clicked latest session in '{section}' section using section header")
-                time.sleep(0.5)
+                await asyncio.sleep(0.5)
                 
             except Exception as e:
                 logger.warning(f"Could not find section header: {e}, trying coordinate fallback")
@@ -994,7 +1031,7 @@ async def claudelatest_command(update: Update, context: ContextTypes.DEFAULT_TYP
                 
                 pyautogui.click(session_x, session_y)
                 logger.info(f"Clicked latest session in '{section}' using coordinates")
-                time.sleep(0.5)
+                await asyncio.sleep(0.5)
             
             await update.message.reply_text(
                 f"✅ Opened latest session from '{section.title()}'!\n\n"
@@ -1065,7 +1102,7 @@ async def claudemode_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         
         # Activate window
         window.activate()
-        time.sleep(0.5)
+        await asyncio.sleep(0.5)
         
         import pyautogui
         
@@ -1074,21 +1111,32 @@ async def claudemode_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
             app = Application(backend="uia").connect(title_re=".*Claude.*")
             claude_window = app.window(title_re=".*Claude.*")
             
-            # Find the "Auto accept edits" dropdown button (or similar text)
-            try:
-                # Look for the dropdown button - it shows current mode
-                dropdown_btn = claude_window.child_window(title_re=".*Auto accept edits.*", control_type="Button")
-                dropdown_btn.click_input()
-                logger.info("Clicked mode dropdown using pywinauto")
-                time.sleep(0.5)
-            except Exception:
-                # Fallback: click at approximate dropdown location (bottom of window)
-                dropdown_x = window.left + (window.width // 2) - 100  # Left side of bottom area
-                dropdown_y = window.top + window.height - 60
-                
-                pyautogui.click(dropdown_x, dropdown_y)
-                logger.info("Clicked mode dropdown using coordinates")
-                time.sleep(0.5)
+            # Find the mode dropdown (accept-edits selector) in the bottom bar.
+            mode_clicked = False
+            for pattern in (
+                ".*[Aa]uto.*[Aa]ccept.*",
+                ".*[Aa]ccept.*[Ee]dits.*",
+                ".*[Pp]lan.*[Mm]ode.*",
+                ".*[Aa]sk.*[Pp]ermissions.*",
+                ".*[Bb]ypass.*",
+            ):
+                try:
+                    dropdown_btn = claude_window.child_window(title_re=pattern, control_type="Button")
+                    dropdown_btn.click_input()
+                    mode_clicked = True
+                    logger.info("Clicked mode dropdown via pywinauto pattern '%s'", pattern)
+                    await asyncio.sleep(0.5)
+                    break
+                except Exception:
+                    continue
+
+            if not mode_clicked:
+                if not await _click_bottom_bar_ocr(window, pyautogui, ("accept", "auto", "plan", "ask", "bypass")):
+                    dropdown_x = window.left + int(window.width * _BOTTOM_X_MODE)
+                    dropdown_y = window.top + window.height - _BOTTOM_BAR_Y_OFFSET
+                    pyautogui.click(dropdown_x, dropdown_y)
+                    logger.info("Clicked mode dropdown at coord fallback (%d, %d)", dropdown_x, dropdown_y)
+                await asyncio.sleep(0.5)
             
             # Now find and click the selected mode option
             try:
@@ -1096,11 +1144,10 @@ async def claudemode_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 mode_option.click_input()
                 logger.info(f"Selected mode '{selected_mode}' using pywinauto")
             except Exception:
-                # Fallback: use keyboard navigation
-                # Press down arrow keys based on selection
-                for _ in range(int(mode_choice)):
+                # Keyboard fallback: 0-based index (first option needs 0 presses).
+                for _ in range(int(mode_choice) - 1):
                     pyautogui.press('down')
-                    time.sleep(0.1)
+                    await asyncio.sleep(0.1)
                 pyautogui.press('enter')
                 logger.info(f"Selected mode '{selected_mode}' using keyboard")
             
@@ -1122,111 +1169,460 @@ async def claudemode_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         logger.error(f"Error in claudemode_command: {e}")
 
 
-async def claudemodel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /claudemodel command - change Claude model."""
+@safe_command
+async def claudeacceptedits_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /claudeacceptedits [ask|auto|plan|bypass] — set Claude edit mode."""
     if not update.message:
         return
-    
+
     if not PYWINAUTO_AVAILABLE:
         await update.message.reply_text(
-            "❌ pywinauto is not available.\n"
-            "This feature only works on Windows with pywinauto installed."
+            "❌ pywinauto not available.\nWindows only."
         )
         return
-    
-    # Available models
-    models = {
-        "1": "Opus 4.6",
-        "2": "Sonnet 4.6",
-        "3": "Haiku 4.5"
+
+    _MODES = {
+        "1": "Ask permissions",
+        "2": "Auto accept edits",
+        "3": "Plan mode",
+        "4": "Bypass permissions",
+        "ask": "Ask permissions",
+        "auto": "Auto accept edits",
+        "plan": "Plan mode",
+        "bypass": "Bypass permissions",
     }
-    
-    # Check if user provided a model selection
+
     if not context.args:
-        model_list = "\n".join([f"{key}. {value}" for key, value in models.items()])
+        lines = "\n".join(f"{k}. {v}" for k, v in [
+            ("1", "Ask permissions"),
+            ("2", "Auto accept edits"),
+            ("3", "Plan mode"),
+            ("4", "Bypass permissions"),
+        ])
         await update.message.reply_text(
-            f"🤖 Available Claude models:\n\n{model_list}\n\n"
-            f"Usage: /claudemodel <number>\n"
-            f"Example: /claudemodel 2"
+            f"🔧 Claude edit modes:\n\n{lines}\n\n"
+            "Usage: /claudeacceptedits <number or keyword>\n"
+            "Example: /claudeacceptedits 2  or  /claudeacceptedits auto"
         )
         return
-    
-    model_choice = context.args[0]
-    
-    if model_choice not in models:
+
+    arg = context.args[0].lower()
+    selected_mode = _MODES.get(arg)
+    if not selected_mode:
+        for val in _MODES.values():
+            if arg in val.lower():
+                selected_mode = val
+                break
+
+    if not selected_mode:
         await update.message.reply_text(
-            f"❌ Invalid model. Please choose 1-3.\n"
-            f"Use /claudemodel to see available models."
+            "❌ Unknown mode. Use: ask, auto, plan, bypass (or 1–4)."
         )
         return
-    
-    selected_model = models[model_choice]
-    await update.message.reply_text(f"🤖 Changing model to '{selected_model}'...")
-    
+
+    await update.message.reply_text(f"🔧 Setting mode to '{selected_mode}'...")
+
     try:
-        # Ensure Claude is open
         window = ensure_claude_open()
         if not window:
-            await update.message.reply_text("❌ Could not open or find Claude desktop app.")
+            await update.message.reply_text("❌ Could not open Claude desktop.")
             return
-        
-        # Activate window
+
         window.activate()
-        time.sleep(0.5)
-        
+        await asyncio.sleep(1.0)
+
         import pyautogui
-        
+        _load_win_deps()
+
+        # pywinauto connect is optional — OCR/coord fallbacks work without it.
+        claude_window = None
         try:
-            # Try to use pywinauto to find and click the model dropdown
             app = Application(backend="uia").connect(title_re=".*Claude.*")
             claude_window = app.window(title_re=".*Claude.*")
-            
-            # Find the model dropdown button (shows current model like "Opus 4.6")
+        except Exception as exc:
+            logger.warning("pywinauto connect failed, using fallbacks: %s", exc)
+
+        # ── Open the mode dropdown ─────────────────────────────────────
+        mode_opened = False
+        if claude_window:
+            for pattern in (
+                ".*[Aa]uto.*[Aa]ccept.*",
+                ".*[Aa]ccept.*[Ee]dits.*",
+                ".*[Pp]lan.*[Mm]ode.*",
+                ".*[Aa]sk.*[Pp]ermissions.*",
+                ".*[Bb]ypass.*",
+            ):
+                try:
+                    btn = claude_window.child_window(title_re=pattern, control_type="Button")
+                    btn.click_input()
+                    mode_opened = True
+                    logger.info("Opened mode dropdown via pywinauto: %s", pattern)
+                    await asyncio.sleep(0.5)
+                    break
+                except Exception:
+                    continue
+
+        if not mode_opened:
+            if not await _click_bottom_bar_ocr(
+                window, pyautogui,
+                ("accept", "auto", "plan", "ask", "bypass", "edits", "permissions"),
+            ):
+                click_x = window.left + int(window.width * _BOTTOM_X_MODE)
+                click_y = window.top + window.height - _BOTTOM_BAR_Y_OFFSET
+                pyautogui.click(click_x, click_y)
+                logger.info("Opened mode dropdown at coord fallback (%d, %d)", click_x, click_y)
+            await asyncio.sleep(0.5)
+
+        # ── Click the target option ────────────────────────────────────
+        option_clicked = False
+        if claude_window:
             try:
-                # Look for dropdown with model name
-                model_dropdown = claude_window.child_window(title_re=".*(Opus|Sonnet|Haiku).*", control_type="Button")
-                model_dropdown.click_input()
-                logger.info("Clicked model dropdown using pywinauto")
-                time.sleep(0.5)
+                opt = claude_window.child_window(title_re=f".*{re.escape(selected_mode)}.*")
+                opt.click_input()
+                option_clicked = True
+                logger.info("Clicked mode option '%s' via pywinauto", selected_mode)
             except Exception:
-                # Fallback: click at approximate model dropdown location (bottom right area)
-                dropdown_x = window.left + window.width - 150  # Right side of bottom area
-                dropdown_y = window.top + window.height - 60
-                
-                pyautogui.click(dropdown_x, dropdown_y)
-                logger.info("Clicked model dropdown using coordinates")
-                time.sleep(0.5)
-            
-            # Now find and click the selected model option
-            try:
-                model_option = claude_window.child_window(title_re=f".*{selected_model}.*")
-                model_option.click_input()
-                logger.info(f"Selected model '{selected_model}' using pywinauto")
-            except Exception:
-                # Fallback: use keyboard navigation
-                # Press down arrow keys based on selection
-                for _ in range(int(model_choice)):
-                    pyautogui.press('down')
-                    time.sleep(0.1)
-                pyautogui.press('enter')
-                logger.info(f"Selected model '{selected_model}' using keyboard")
-            
-            await update.message.reply_text(
-                f"✅ Model changed to '{selected_model}'!\n\n"
-                f"Use /claudescreen to verify the change."
-            )
-            logger.info(f"Changed Claude model to '{selected_model}'")
-            
-        except Exception as e:
-            logger.error(f"Error changing model: {e}")
-            await update.message.reply_text(
-                f"❌ Could not change model.\n"
-                f"Error: {str(e)}"
-            )
-        
+                pass
+
+        if not option_clicked:
+            from PIL import ImageGrab
+            shot = ImageGrab.grab(bbox=(
+                window.left, window.top,
+                window.left + window.width, window.top + window.height,
+            ))
+            pytesseract = _configure_tesseract()
+            if pytesseract:
+                data = pytesseract.image_to_data(shot, output_type=pytesseract.Output.DICT)
+                hint = selected_mode.split()[0].lower()
+                for i, word in enumerate(data["text"]):
+                    if hint in (word or "").lower():
+                        x = data["left"][i] + data["width"][i] // 2 + window.left
+                        y = data["top"][i] + data["height"][i] // 2 + window.top
+                        pyautogui.click(x, y)
+                        option_clicked = True
+                        logger.info("Clicked mode option '%s' via OCR at (%d, %d)", selected_mode, x, y)
+                        break
+
+        if not option_clicked:
+            order = ["Ask permissions", "Auto accept edits", "Plan mode", "Bypass permissions"]
+            idx = order.index(selected_mode) if selected_mode in order else 0
+            for _ in range(idx):
+                pyautogui.press("down")
+                await asyncio.sleep(0.1)
+            pyautogui.press("enter")
+            logger.info("Clicked mode option '%s' via keyboard", selected_mode)
+
+        await asyncio.sleep(0.4)
+        await update.message.reply_text(
+            f"✅ Mode set to '{selected_mode}'!\nUse /claudescreen to verify."
+        )
+        logger.info("Set Claude edit mode to '%s'", selected_mode)
+
     except Exception as e:
-        await update.message.reply_text(f"❌ Error: {str(e)}")
-        logger.error(f"Error in claudemodel_command: {e}")
+        await update.message.reply_text(f"❌ Error: {e}")
+        logger.error("Error in claudeacceptedits_command: %s", e, exc_info=True)
+
+
+@safe_command
+async def claudemodel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /claudemodel — scan models (no args) or select by number / name.
+
+    Step 1 — /claudemodel
+        Opens the model dropdown, screenshots it, reads available models with
+        pywinauto + OCR, closes the dropdown, sends a numbered list to the user.
+
+    Step 2 — /claudemodel <number|name>  (or plain reply via check_model_selection)
+        Re-opens the dropdown and clicks the chosen model.
+    """
+    if not update.message:
+        return
+
+    if not PYWINAUTO_AVAILABLE:
+        await update.message.reply_text(
+            "❌ pywinauto not available.\nWindows only."
+        )
+        return
+
+    user_id = update.effective_user.id
+
+    if context.args:
+        await _claudemodel_select(update, user_id, " ".join(context.args))
+        return
+
+    # ── STEP 1: scan dropdown ──────────────────────────────────────────────
+    await update.message.reply_text("🤖 Opening model selector to scan available models...")
+
+    try:
+        window = ensure_claude_open()
+        if not window:
+            await update.message.reply_text("❌ Could not open Claude desktop.")
+            return
+
+        window.activate()
+        await asyncio.sleep(1.0)
+
+        import pyautogui
+        _load_win_deps()
+
+        # pywinauto connect is optional — OCR/coord fallbacks work without it.
+        claude_window = None
+        try:
+            app = Application(backend="uia").connect(title_re=".*Claude.*")
+            claude_window = app.window(title_re=".*Claude.*")
+        except Exception as exc:
+            logger.warning("pywinauto connect failed, using fallbacks: %s", exc)
+
+        # ── Click the model button ─────────────────────────────────────
+        model_btn_clicked = False
+        if claude_window:
+            try:
+                model_btn = claude_window.child_window(
+                    title_re=".*(Opus|Sonnet|Haiku).*", control_type="Button"
+                )
+                model_btn.click_input()
+                model_btn_clicked = True
+                logger.info("Clicked model button via pywinauto")
+            except Exception:
+                pass
+
+        if not model_btn_clicked:
+            if not await _click_bottom_bar_ocr(window, pyautogui, _MODEL_KEYWORDS):
+                x = window.left + int(window.width * _BOTTOM_X_MODEL)
+                y = window.top + window.height - _BOTTOM_BAR_Y_OFFSET
+                pyautogui.click(x, y)
+                logger.info("Clicked model button at coord fallback (%d, %d)", x, y)
+
+        await asyncio.sleep(0.7)
+
+        # ── Try pywinauto accessibility tree first ─────────────────────
+        models_found: list[str] = []
+        if claude_window:
+            for ctrl_type in ("MenuItem", "ListItem"):
+                try:
+                    for item in claude_window.descendants(control_type=ctrl_type):
+                        text = (item.window_text() or "").strip()
+                        if text and any(k in text.lower() for k in _MODEL_KEYWORDS):
+                            if text not in models_found:
+                                models_found.append(text)
+                except Exception:
+                    pass
+                if models_found:
+                    break
+
+        # ── OCR fallback ───────────────────────────────────────────────
+        screenshot_bytes = capture_claude_screenshot()
+        if not models_found and screenshot_bytes:
+            try:
+                pytesseract = _configure_tesseract()
+                if pytesseract:
+                    from PIL import Image
+                    screenshot_bytes.seek(0)
+                    img = Image.open(screenshot_bytes)
+                    data = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT)
+                    seen: set[str] = set()
+                    for word in data["text"]:
+                        w = (word or "").strip()
+                        if w and any(k in w.lower() for k in _MODEL_KEYWORDS) and w not in seen:
+                            models_found.append(w)
+                            seen.add(w)
+            except Exception as exc:
+                logger.warning("OCR model scan failed: %s", exc)
+
+        # ── Close dropdown ─────────────────────────────────────────────
+        pyautogui.press("escape")
+        await asyncio.sleep(0.3)
+
+        # ── Store and reply ────────────────────────────────────────────
+        from pocket_desk_agent.handlers._shared import model_selection_state
+
+        if models_found:
+            model_selection_state[user_id] = {
+                "models": models_found,
+                "timestamp": time.time(),
+            }
+            numbered = "\n".join(f"{i + 1}. {m}" for i, m in enumerate(models_found))
+            caption = (
+                f"🤖 Available models detected:\n\n{numbered}\n\n"
+                "Reply with the number or use /claudemodel <number> to select."
+            )
+        else:
+            fallback = ["Claude Opus 4.7", "Claude Sonnet 4.6", "Claude Haiku 4.5"]
+            model_selection_state[user_id] = {
+                "models": fallback,
+                "timestamp": time.time(),
+            }
+            numbered = "\n".join(f"{i + 1}. {m}" for i, m in enumerate(fallback))
+            caption = (
+                "🤖 Could not read dropdown — using known models:\n\n"
+                f"{numbered}\n\n"
+                "Reply with the number or use /claudemodel <number> to select."
+            )
+
+        if screenshot_bytes:
+            screenshot_bytes.seek(0)
+            await update.message.reply_photo(photo=screenshot_bytes, caption=caption)
+        else:
+            await update.message.reply_text(caption)
+
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {e}")
+        logger.error("Error in claudemodel_command: %s", e, exc_info=True)
+
+
+async def _claudemodel_select(
+    update: Update, user_id: int, selection: str
+) -> None:
+    """Select a model by number or name (shared by command + message handler)."""
+    from pocket_desk_agent.handlers._shared import model_selection_state
+
+    state = model_selection_state.get(user_id, {})
+    stored_models: list[str] = state.get("models", [])
+
+    # Resolve selection to a model name.
+    selected: str | None = None
+    if selection.isdigit():
+        idx = int(selection) - 1
+        if 0 <= idx < len(stored_models):
+            selected = stored_models[idx]
+        else:
+            await update.message.reply_text(
+                f"❌ Invalid number. Choose 1–{len(stored_models) or '?'}.\n"
+                "Use /claudemodel to scan available models."
+            )
+            return
+    else:
+        sel_lower = selection.lower()
+        for m in stored_models:
+            if sel_lower in m.lower():
+                selected = m
+                break
+
+    if not selected:
+        await update.message.reply_text(
+            f"❌ Model '{selection}' not found.\nUse /claudemodel to scan available models."
+        )
+        return
+
+    await update.message.reply_text(f"🤖 Selecting model: {selected}...")
+
+    try:
+        window = ensure_claude_open()
+        if not window:
+            await update.message.reply_text("❌ Could not open Claude desktop.")
+            return
+
+        window.activate()
+        await asyncio.sleep(1.0)
+
+        import pyautogui
+        _load_win_deps()
+
+        # pywinauto connect is optional — OCR/coord fallbacks work without it.
+        claude_window = None
+        try:
+            app = Application(backend="uia").connect(title_re=".*Claude.*")
+            claude_window = app.window(title_re=".*Claude.*")
+        except Exception as exc:
+            logger.warning("pywinauto connect failed, using fallbacks: %s", exc)
+
+        # Re-open the model dropdown.
+        btn_clicked = False
+        if claude_window:
+            try:
+                model_btn = claude_window.child_window(
+                    title_re=".*(Opus|Sonnet|Haiku).*", control_type="Button"
+                )
+                model_btn.click_input()
+                btn_clicked = True
+            except Exception:
+                pass
+
+        if not btn_clicked:
+            if not await _click_bottom_bar_ocr(window, pyautogui, _MODEL_KEYWORDS):
+                x = window.left + int(window.width * _BOTTOM_X_MODEL)
+                y = window.top + window.height - _BOTTOM_BAR_Y_OFFSET
+                pyautogui.click(x, y)
+
+        await asyncio.sleep(0.7)
+
+        # Click the option.
+        option_clicked = False
+        if claude_window:
+            try:
+                opt = claude_window.child_window(title_re=f".*{re.escape(selected)}.*")
+                opt.click_input()
+                option_clicked = True
+                logger.info("Selected model '%s' via pywinauto", selected)
+            except Exception:
+                pass
+
+        if not option_clicked:
+            from PIL import ImageGrab
+            shot = ImageGrab.grab(bbox=(
+                window.left, window.top,
+                window.left + window.width, window.top + window.height,
+            ))
+            pytesseract = _configure_tesseract()
+            if pytesseract:
+                data = pytesseract.image_to_data(shot, output_type=pytesseract.Output.DICT)
+                hint = selected.split()[-1].lower()
+                for i, word in enumerate(data["text"]):
+                    if hint in (word or "").lower():
+                        x = data["left"][i] + data["width"][i] // 2 + window.left
+                        y = data["top"][i] + data["height"][i] // 2 + window.top
+                        pyautogui.click(x, y)
+                        option_clicked = True
+                        logger.info("Selected model '%s' via OCR at (%d, %d)", selected, x, y)
+                        break
+
+        if not option_clicked:
+            idx = stored_models.index(selected) if selected in stored_models else 0
+            for _ in range(idx):
+                pyautogui.press("down")
+                await asyncio.sleep(0.1)
+            pyautogui.press("enter")
+            logger.info("Selected model '%s' via keyboard", selected)
+
+        await asyncio.sleep(0.4)
+        model_selection_state.pop(user_id, None)
+        await update.message.reply_text(
+            f"✅ Model changed to {selected}!\nUse /claudescreen to verify."
+        )
+        logger.info("Changed Claude model to '%s'", selected)
+
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error selecting model: {e}")
+        logger.error("Error selecting model '%s': %s", selected, e, exc_info=True)
+
+
+async def check_model_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    """Intercept plain-text replies when user is in model-selection state.
+
+    Returns True if the message was consumed (caller should return early).
+    """
+    if not update.effective_user or not update.message or not update.message.text:
+        return False
+
+    user_id = update.effective_user.id
+
+    from pocket_desk_agent.handlers._shared import model_selection_state
+
+    state = model_selection_state.get(user_id)
+    if not state:
+        return False
+
+    # Expire after 5 minutes.
+    if time.time() - state.get("timestamp", 0) > 300:
+        model_selection_state.pop(user_id, None)
+        return False
+
+    text = update.message.text.strip()
+    # Only intercept short numeric or model-name replies.
+    if not (text.isdigit() or any(k in text.lower() for k in _MODEL_KEYWORDS)):
+        return False
+
+    await _claudemodel_select(update, user_id, text)
+    return True
 
 
 async def claudesearch_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1258,7 +1654,7 @@ async def claudesearch_command(update: Update, context: ContextTypes.DEFAULT_TYP
         
         # Activate window
         window.activate()
-        time.sleep(0.5)
+        await asyncio.sleep(0.5)
         
         import pyautogui
         
@@ -1277,14 +1673,14 @@ async def claudesearch_command(update: Update, context: ContextTypes.DEFAULT_TYP
                 pyautogui.hotkey('ctrl', 'k')
                 logger.info("Opened search using Ctrl+K")
             
-            time.sleep(1.0)  # Wait for search dialog to open
+            await asyncio.sleep(1.0)  # Wait for search dialog to open
             
             # If search query provided, type it
             if search_query:
                 import pyperclip
                 pyperclip.copy(search_query)
                 pyautogui.hotkey('ctrl', 'v')
-                time.sleep(0.5)
+                await asyncio.sleep(0.5)
             
             # Capture screenshot of search results
             screenshot = capture_claude_screenshot()
@@ -1366,7 +1762,7 @@ async def claudeselect_command(update: Update, context: ContextTypes.DEFAULT_TYP
         
         # Activate window
         window.activate()
-        time.sleep(0.5)
+        await asyncio.sleep(0.5)
         
         import pyautogui
         
@@ -1413,7 +1809,7 @@ async def claudeselect_command(update: Update, context: ContextTypes.DEFAULT_TYP
                     pyautogui.press('enter')
                     logger.info(f"Selected conversation using keyboard for '{selection}'")
             
-            time.sleep(0.5)
+            await asyncio.sleep(0.5)
             
             # Clear search results for this user
             if user_id in search_results:
@@ -1474,83 +1870,101 @@ async def claudebranch_command(update: Update, context: ContextTypes.DEFAULT_TYP
         
         # Activate window
         window.activate()
-        time.sleep(0.5)
+        await asyncio.sleep(0.5)
         
         import pyautogui
         import pyperclip
-        
+
+        _load_win_deps()
+
+        # pywinauto connect is optional — OCR/coord fallbacks work without it.
+        claude_window = None
         try:
             app = Application(backend="uia").connect(title_re=".*Claude.*")
             claude_window = app.window(title_re=".*Claude.*")
-            
-            # Try to find the branch search box
-            try:
-                # Look for "Search branches" input box
-                branch_search = claude_window.child_window(title_re=".*[Ss]earch branches.*", control_type="Edit")
-                branch_search.click_input()
-                time.sleep(0.3)
-                
-                # Type branch name using clipboard
-                pyperclip.copy(branch_name)
-                branch_search.type_keys('^v')  # Ctrl+V
-                time.sleep(0.5)
-                
-                logger.info(f"Typed branch name '{branch_name}' in search box")
-                
-                # Now find and click the matching branch from the list
+        except Exception as exc:
+            logger.warning("pywinauto connect failed, using fallbacks: %s", exc)
+
+        # ── Step 1: open the branch selector ──────────────────────────
+        branch_opened = False
+        if claude_window:
+            bottom_threshold = window.top + window.height - 60
+            for btn in claude_window.descendants(control_type="Button"):
                 try:
-                    # Try to find the branch in the list
-                    branch_item = claude_window.child_window(title_re=f".*{branch_name}.*", control_type="ListItem")
-                    branch_item.click_input()
-                    logger.info(f"Clicked branch '{branch_name}' from list")
+                    rect = btn.rectangle()
+                    text = (btn.window_text() or "").strip()
+                    if rect.top < bottom_threshold:
+                        continue
+                    if ("/" in text or text.lower() in ("main", "master", "develop", "dev")
+                            or text.lower().startswith("feature")
+                            or text.lower().startswith("fix")):
+                        btn.click_input()
+                        branch_opened = True
+                        logger.info("Opened branch selector via pywinauto: '%s'", text)
+                        await asyncio.sleep(0.8)
+                        break
                 except Exception:
-                    # Fallback: just press Enter to select first match
-                    pyautogui.press('enter')
-                    logger.info(f"Selected branch using Enter key")
-                
-                time.sleep(0.5)
-                
-                await update.message.reply_text(
-                    f"✅ Branch '{branch_name}' selected!\n\n"
-                    f"Now you can start chatting with /claudeask or /claudechat."
-                )
-                logger.info(f"Selected branch: '{branch_name}'")
-                
-            except Exception as e:
-                logger.warning(f"Could not find branch search box: {e}, trying coordinate method")
-                
-                # Fallback: click in the center where branch selector usually appears
-                # Based on screenshot: branch selector is in the center of the window
-                click_x = window.left + (window.width // 2)
-                click_y = window.top + (window.height // 2) - 50  # Slightly above center
-                
+                    continue
+
+        if not branch_opened:
+            if not await _click_bottom_bar_ocr(
+                window, pyautogui,
+                ("main", "master", "feature", "develop", "branch"),
+            ):
+                click_x = window.left + int(window.width * _BOTTOM_X_BRANCH)
+                click_y = window.top + window.height - _BOTTOM_BAR_Y_OFFSET
                 pyautogui.click(click_x, click_y)
-                time.sleep(0.3)
-                
-                # Type branch name
-                pyperclip.copy(branch_name)
-                pyautogui.hotkey('ctrl', 'v')
-                time.sleep(0.5)
-                
-                # Press Enter to select
-                pyautogui.press('enter')
-                
-                await update.message.reply_text(
-                    f"✅ Attempted to select branch '{branch_name}'!\n\n"
-                    f"Use /claudescreen to verify the selection."
+                logger.info("Opened branch selector at coord fallback (%d, %d)", click_x, click_y)
+            await asyncio.sleep(0.8)
+
+        # ── Step 2: type in the search box ────────────────────────────
+        typed = False
+        if claude_window:
+            try:
+                branch_search = claude_window.child_window(
+                    title_re=".*[Ss]earch.*[Bb]ranch.*", control_type="Edit"
                 )
-                logger.info(f"Selected branch using coordinates: '{branch_name}'")
-            
-        except Exception as e:
-            logger.error(f"Error selecting branch: {e}")
-            await update.message.reply_text(
-                f"❌ Could not select branch.\n\n"
-                f"Make sure:\n"
-                f"• You're in a new session (use /claudenew)\n"
-                f"• You haven't started chatting yet\n"
-                f"• The branch selector is visible\n\n"
-                f"Error: {str(e)}"
-            )
+                branch_search.click_input()
+                await asyncio.sleep(0.3)
+                pyperclip.copy(branch_name)
+                branch_search.type_keys("^v")
+                typed = True
+                logger.info("Typed branch name via pywinauto edit control")
+            except Exception:
+                pass
+
+        if not typed:
+            click_x = window.left + window.width // 2
+            click_y = window.top + window.height // 2 - 50
+            pyautogui.click(click_x, click_y)
+            await asyncio.sleep(0.3)
+            pyperclip.copy(branch_name)
+            pyautogui.hotkey("ctrl", "v")
+            logger.info("Typed branch name via coordinate+paste fallback")
+
+        await asyncio.sleep(0.5)
+
+        # ── Step 3: select from list ──────────────────────────────────
+        if claude_window:
+            try:
+                branch_item = claude_window.child_window(
+                    title_re=f".*{re.escape(branch_name)}.*", control_type="ListItem"
+                )
+                branch_item.click_input()
+                logger.info("Clicked branch ListItem via pywinauto")
+            except Exception:
+                pyautogui.press("enter")
+                logger.info("Selected branch via Enter key")
+        else:
+            pyautogui.press("enter")
+            logger.info("Selected branch via Enter key (no pywinauto)")
+
+        await asyncio.sleep(0.5)
+        await update.message.reply_text(
+            f"✅ Branch '{branch_name}' selected!\n\n"
+            "Use /claudeask or /claudechat to start chatting."
+        )
+        logger.info("Selected branch: '%s'", branch_name)
         
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {str(e)}")
@@ -1586,7 +2000,7 @@ async def check_repo_selection(update: Update, context: ContextTypes.DEFAULT_TYP
             return True
         
         window.activate()
-        time.sleep(0.5)
+        await asyncio.sleep(0.5)
         
         import pyautogui
         import pyperclip
@@ -1628,7 +2042,7 @@ async def check_repo_selection(update: Update, context: ContextTypes.DEFAULT_TYP
                     pyautogui.click(click_x, click_y)
                     logger.info(f"Clicked recent repo at position {position} using fallback coordinates")
                 
-                time.sleep(1.5)  # Wait for repo to load
+                await asyncio.sleep(1.5)  # Wait for repo to load
                 
                 # Take screenshot to confirm selection
                 screenshot = capture_claude_screenshot()
@@ -1669,7 +2083,7 @@ async def check_repo_selection(update: Update, context: ContextTypes.DEFAULT_TYP
                 recent_item.click_input()
                 logger.info(f"Clicked Recent repo matching '{selection}' using pywinauto")
                 matched_recent = True
-                time.sleep(1.5)
+                await asyncio.sleep(1.5)
                 
                 # Take screenshot to confirm
                 screenshot = capture_claude_screenshot()
@@ -1742,53 +2156,49 @@ async def clauderepo_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
             return
         
         window.activate()
-        time.sleep(0.5)
+        await asyncio.sleep(0.5)
         
         import pyautogui
         
-        # Click on repository selector to open the dropdown/modal
+        # Click the repository selector button in the bottom status bar.
+        _load_win_deps()
+        repo_clicked = False
         try:
             app = Application(backend="uia").connect(title_re=".*Claude.*")
             claude_window = app.window(title_re=".*Claude.*")
-            
-            # Try to find repository selector button
-            try:
-                # Method 1: Look for button with repo path pattern (e.g., "techgniouse/gigs-jobs-swipe")
-                repo_btn = claude_window.child_window(title_re=".*/.+", control_type="Button")
-                repo_btn.click_input()
-                logger.info("Clicked repository selector button (remote repo) using pywinauto")
-                time.sleep(1.5)  # Wait for modal to open
-            except Exception:
+            bottom_threshold = window.top + window.height - 60
+
+            # Walk buttons in bottom bar; skip known non-repo labels.
+            _skip = {"local", "worktree", "accept edits", "auto accept edits",
+                     "plan mode", "bypass permissions", "ask permissions"}
+            for btn in claude_window.descendants(control_type="Button"):
                 try:
-                    # Method 2: Look for button with local folder name (e.g., "MyDigitalStudio")
-                    # This handles when a local folder is already selected
-                    repo_btn = claude_window.child_window(title_re=".*", control_type="Button", found_index=-1)
-                    # Try to find button near bottom of window
-                    for btn in claude_window.descendants(control_type="Button"):
-                        btn_rect = btn.rectangle()
-                        # Check if button is in bottom area of window (last 100px)
-                        if btn_rect.bottom > window.top + window.height - 100:
-                            try:
-                                btn.click_input()
-                                logger.info(f"Clicked repository selector button (local folder): {btn.window_text()}")
-                                time.sleep(1.5)
-                                break
-                            except Exception:
-                                continue
-                    else:
-                        raise Exception("No repo button found in bottom area")
+                    rect = btn.rectangle()
+                    text = (btn.window_text() or "").strip()
+                    if rect.top < bottom_threshold:
+                        continue
+                    if not text or text.lower() in _skip:
+                        continue
+                    # Skip model names and branch-like names already handled elsewhere.
+                    if any(k in text.lower() for k in _MODEL_KEYWORDS):
+                        continue
+                    btn.click_input()
+                    repo_clicked = True
+                    logger.info("Clicked repo button '%s' via pywinauto", text)
+                    await asyncio.sleep(1.5)
+                    break
                 except Exception:
-                    # Method 3: Fallback to coordinate-based clicking
-                    # Click at bottom left where repo selector is located
-                    click_x = window.left + 400
-                    click_y = window.top + window.height - 40  # 40px from bottom
-                    
-                    pyautogui.click(click_x, click_y)
-                    logger.info(f"Clicked repository selector at ({click_x}, {click_y})")
-                    time.sleep(1.5)  # Wait for modal to open
-        
-        except Exception as e:
-            logger.warning(f"Could not click repo selector: {e}, continuing anyway...")
+                    continue
+        except Exception as exc:
+            logger.warning("pywinauto repo click failed: %s", exc)
+
+        if not repo_clicked:
+            if not await _click_bottom_bar_ocr(window, pyautogui, ("pdagent", "repo", "project")):
+                click_x = window.left + int(window.width * _BOTTOM_X_REPO)
+                click_y = window.top + window.height - _BOTTOM_BAR_Y_OFFSET
+                pyautogui.click(click_x, click_y)
+                logger.info("Clicked repo at coordinate fallback (%d, %d)", click_x, click_y)
+            await asyncio.sleep(1.5)  # wait for modal regardless of click method
         
         # Take screenshot of repo selector
         screenshot = capture_claude_screenshot()
@@ -1894,16 +2304,16 @@ async def clauderepo_select_path(update: Update, window, claude_window, repo_pat
         choose_folder_btn = claude_window.child_window(title_re=".*Choose a different folder.*")
         choose_folder_btn.click_input()
         logger.info("Clicked 'Choose a different folder' button")
-        time.sleep(1.5)  # Wait for file dialog to open
+        await asyncio.sleep(1.5)  # Wait for file dialog to open
         
         # Type the path in the folder path box
         pyperclip.copy(repo_path)
         pyautogui.hotkey('ctrl', 'l')  # Focus address bar in file dialog
-        time.sleep(0.3)
+        await asyncio.sleep(0.3)
         pyautogui.hotkey('ctrl', 'v')  # Paste path
-        time.sleep(0.3)
+        await asyncio.sleep(0.3)
         pyautogui.press('enter')  # Navigate to path
-        time.sleep(0.8)  # Wait for folder to load
+        await asyncio.sleep(0.8)  # Wait for folder to load
         
         # Click "Select Folder" button - try multiple methods
         select_folder_clicked = False
@@ -1915,7 +2325,7 @@ async def clauderepo_select_path(update: Update, window, claude_window, repo_pat
             select_btn.click_input()
             logger.info("Clicked 'Select Folder' button using pywinauto")
             select_folder_clicked = True
-            time.sleep(1.0)
+            await asyncio.sleep(1.0)
         except Exception:
             pass
         
@@ -1923,11 +2333,11 @@ async def clauderepo_select_path(update: Update, window, claude_window, repo_pat
         if not select_folder_clicked:
             try:
                 pyautogui.press('tab')  # Tab to Select Folder button
-                time.sleep(0.2)
+                await asyncio.sleep(0.2)
                 pyautogui.press('enter')  # Click it
                 logger.info("Clicked 'Select Folder' using Tab+Enter")
                 select_folder_clicked = True
-                time.sleep(1.0)
+                await asyncio.sleep(1.0)
             except Exception:
                 pass
         
@@ -1937,16 +2347,16 @@ async def clauderepo_select_path(update: Update, window, claude_window, repo_pat
                 pyautogui.hotkey('alt', 's')
                 logger.info("Clicked 'Select Folder' using Alt+S")
                 select_folder_clicked = True
-                time.sleep(1.0)
+                await asyncio.sleep(1.0)
             except Exception:
                 pass
         
         if not select_folder_clicked:
             logger.warning("Could not click 'Select Folder' button, trying to continue...")
-            time.sleep(1.0)
+            await asyncio.sleep(1.0)
         
         # Wait for Claude to process the selection
-        time.sleep(1.5)
+        await asyncio.sleep(1.5)
         
         # Take screenshot to confirm selection
         screenshot = capture_claude_screenshot()
@@ -1990,7 +2400,7 @@ async def clauderepo_browse(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         window.activate()
-        time.sleep(0.5)
+        await asyncio.sleep(0.5)
         
         import pyautogui
         

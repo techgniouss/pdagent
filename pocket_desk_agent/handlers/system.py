@@ -8,15 +8,20 @@ import subprocess
 import asyncio
 import time
 import io
+import uuid
 import psutil
 from typing import Optional
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
+from pocket_desk_agent.app_catalog import build_builtin_app_catalog, resolve_app_query
+from pocket_desk_agent.app_control import close_desktop_app, launch_desktop_app
 
 from pocket_desk_agent.handlers._shared import (
     PYWINAUTO_AVAILABLE,
     record_action_if_active,
     window_switch_options,
+    app_selection_options,
+    app_forceclose_options,
 )
 
 logger = logging.getLogger(__name__)
@@ -107,6 +112,183 @@ def _normalize_privacy_mode_action(args: list[str]) -> str:
         "state": "status",
     }
     return aliases.get(action, "invalid")
+
+
+def _new_request_id() -> str:
+    """Return a unique request token for inline app-selection callbacks."""
+    return uuid.uuid4().hex
+
+
+def _build_app_picker_keyboard(
+    action: str,
+    request_id: str,
+    app_ids: dict[int, str],
+) -> InlineKeyboardMarkup:
+    """Return an inline keyboard for app selections."""
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    str(index),
+                    callback_data=f"appselect_{request_id}_{action}_{index}",
+                )
+            ]
+            for index in app_ids
+        ]
+    )
+
+
+def _build_force_close_keyboard(app_id: str) -> InlineKeyboardMarkup:
+    """Return the inline keyboard for one force-close confirmation."""
+    return InlineKeyboardMarkup(
+        [[InlineKeyboardButton("Force close", callback_data=f"appforceclose:{app_id}")]]
+    )
+
+
+def _popular_app_entries():
+    """Return a short picker list of common safe apps."""
+    wanted = {"chrome", "edge", "firefox", "brave", "notepad", "calculator"}
+    return [entry for entry in build_builtin_app_catalog() if entry.app_id in wanted]
+
+
+async def openapp_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /openapp command - search and open a safe desktop app."""
+    if not update.message:
+        return
+
+    if platform.system() != "Windows":
+        await update.message.reply_text(
+            "Desktop app launching is currently only supported on Windows."
+        )
+        return
+
+    user_id = update.effective_user.id
+    if not context.args:
+        popular_entries = _popular_app_entries()
+        request_id = _new_request_id()
+        app_selection_options[user_id] = {
+            "request_id": request_id,
+            "action": "open",
+            "entries": {
+                index: entry.app_id for index, entry in enumerate(popular_entries, start=1)
+            },
+        }
+        names = ", ".join(entry.display_name for entry in popular_entries)
+        await update.message.reply_text(
+            "Open app\n\n"
+            "Use `/openapp <name>` to search installed desktop apps, or tap one of the popular options below.\n\n"
+            f"Popular apps: {names}",
+            parse_mode="Markdown",
+            reply_markup=_build_app_picker_keyboard(
+                "open",
+                request_id,
+                app_selection_options[user_id]["entries"],
+            ),
+        )
+        return
+
+    query = " ".join(context.args).strip()
+    result = resolve_app_query(query)
+    if not result.matches:
+        await update.message.reply_text(
+            f"No launchable desktop apps matched '{query}'."
+        )
+        return
+
+    if result.selected:
+        success, message = launch_desktop_app(result.selected)
+        await update.message.reply_text(message)
+        if not success:
+            logger.warning("openapp failed for %s: %s", result.selected.app_id, message)
+        return
+
+    request_id = _new_request_id()
+    app_selection_options[user_id] = {
+        "request_id": request_id,
+        "action": "open",
+        "entries": {
+            index: entry.app_id for index, entry in enumerate(result.matches[:8], start=1)
+        },
+    }
+    listing = "\n".join(
+        f"{index}. {entry.display_name}"
+        for index, entry in enumerate(result.matches[:8], start=1)
+    )
+    await update.message.reply_text(
+        "Multiple apps matched your search.\n\n"
+        f"{listing}\n\n"
+        "Tap a number below to choose which app to open.",
+        reply_markup=_build_app_picker_keyboard(
+            "open",
+            request_id,
+            app_selection_options[user_id]["entries"],
+        ),
+    )
+
+
+async def closeapp_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /closeapp command - gracefully close a matching desktop app."""
+    if not update.message:
+        return
+
+    if platform.system() != "Windows":
+        await update.message.reply_text(
+            "Desktop app closing is currently only supported on Windows."
+        )
+        return
+
+    if not context.args:
+        await update.message.reply_text(
+            "Usage: /closeapp <app name>\n\n"
+            "Example: /closeapp spotify"
+        )
+        return
+
+    user_id = update.effective_user.id
+    query = " ".join(context.args).strip()
+    result = resolve_app_query(query)
+    if not result.matches:
+        await update.message.reply_text(
+            f"No running or installed app matched '{query}'."
+        )
+        return
+
+    if not result.selected:
+        request_id = _new_request_id()
+        app_selection_options[user_id] = {
+            "request_id": request_id,
+            "action": "close",
+            "entries": {
+                index: entry.app_id for index, entry in enumerate(result.matches[:8], start=1)
+            },
+        }
+        listing = "\n".join(
+            f"{index}. {entry.display_name}"
+            for index, entry in enumerate(result.matches[:8], start=1)
+        )
+        await update.message.reply_text(
+            "Multiple apps matched your search.\n\n"
+            f"{listing}\n\n"
+            "Tap a number below to choose which app to close.",
+            reply_markup=_build_app_picker_keyboard(
+                "close",
+                request_id,
+                app_selection_options[user_id]["entries"],
+            ),
+        )
+        return
+
+    close_result = close_desktop_app(result.selected, force=False)
+    if close_result.requires_force:
+        app_forceclose_options[user_id] = {"app_id": result.selected.app_id}
+        await update.message.reply_text(
+            f"{close_result.message}\n\n"
+            "If you want, I can force close the remaining process now.",
+            reply_markup=_build_force_close_keyboard(result.selected.app_id),
+        )
+        return
+
+    await update.message.reply_text(close_result.message)
 
 async def stopbot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /stopbot command - stop the bot process with confirmation."""
@@ -458,7 +640,7 @@ async def hotkey_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pyperclip.copy(clipboard_text)
             logger.info(f"Copied to clipboard: {clipboard_text[:50]}")
             await update.message.reply_text(f"\U0001f4cb Copied to clipboard: {clipboard_text[:100]}{'...' if len(clipboard_text) > 100 else ''}")
-            time.sleep(0.2)
+            await asyncio.sleep(0.2)
         
         # Map the keys using utility function
         from pocket_desk_agent.automation_utils import (
@@ -480,7 +662,7 @@ async def hotkey_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             send_hotkey(pyautogui, *mapped_keys)
         
-        time.sleep(0.3)
+        await asyncio.sleep(0.3)
         
         result_msg = f"\u2705 Hotkey executed: {hotkey_str}"
         if clipboard_text:
@@ -647,7 +829,7 @@ async def clipboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         pyperclip.copy(text)
-        time.sleep(0.2)
+        await asyncio.sleep(0.2)
         
         # Verify it was copied
         if pyperclip.paste() == text:
