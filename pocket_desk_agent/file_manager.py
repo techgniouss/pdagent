@@ -12,6 +12,10 @@ logger = logging.getLogger(__name__)
 
 class FileManager:
     """Manages file system access within approved directory."""
+
+    _BLOCKED_DOWNLOAD_EXTENSIONS = frozenset(
+        {".exe", ".msi", ".bat", ".cmd", ".ps1", ".com", ".scr"}
+    )
     
     def __init__(self):
         self.approved_dirs = [Path(path) for path in Config.APPROVED_DIRECTORIES]
@@ -57,6 +61,37 @@ class FileManager:
             else:
                 self.current_dirs[user_id] = self.approved_dirs[0] if self.approved_dirs else Path.home()
         return self.current_dirs[user_id]
+
+    @classmethod
+    def is_blocked_download_file(cls, path: Path) -> bool:
+        """Return True when the file extension is blocked for /getfile downloads."""
+        return path.suffix.lower() in cls._BLOCKED_DOWNLOAD_EXTENSIONS
+
+    def resolve_downloadable_file(self, user_id: int, path: str) -> tuple[bool, Path | str]:
+        """Resolve a candidate file path for /getfile within the approved sandbox."""
+        try:
+            current = self.get_current_dir(user_id)
+
+            if os.path.isabs(path):
+                target = Path(path)
+            else:
+                target = current / path
+
+            resolved = target.resolve()
+
+            if not self._is_safe_path(resolved):
+                return False, "Access denied: Path outside approved directory"
+
+            if not resolved.exists():
+                return False, f"File not found: {path}"
+
+            if not resolved.is_file():
+                return False, f"Not a file: {path}"
+
+            return True, resolved
+        except Exception as e:
+            logger.error(f"Error resolving downloadable file: {e}")
+            return False, f"Error: {str(e)}"
     
     def set_current_dir(self, user_id: int, path: str) -> Tuple[bool, str]:
         """Change user's current directory."""

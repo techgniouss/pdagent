@@ -47,8 +47,10 @@ from pocket_desk_agent.handlers.filesystem import (  # noqa: F401
     cd_command,
     ls_command,
     cat_command,
+    getfile_command,
     find_command,
     info_command,
+    check_getfile_selection,
 )
 
 # ── System Control ──────────────────────────────────────────────────────────

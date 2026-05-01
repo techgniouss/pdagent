@@ -112,6 +112,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/cd <path> - Change directory\n"
         "/ls [path] - List directory contents\n"
         "/cat <file> - Read file contents\n"
+        "/getfile [path] - Download a file or browse interactively\n"
         "/find <pattern> - Search for files\n"
         "/info <path> - Get file/directory info\n\n"
         "🔌 System Commands:\n"
@@ -331,11 +332,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = update.effective_user.id
 
-    # Check authentication
-    if not auth_client.is_authenticated(user_id):
-        await update.message.reply_text("Please authenticate first using /start")
-        return
-
     # Check if this is a repo selection (before Gemini processing)
     # Deferred imports to avoid circular dependencies between handler modules.
     from pocket_desk_agent.handlers.claude import check_repo_selection, check_model_selection
@@ -343,6 +339,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         check_build_selection,
         check_apk_retrieval_selection,
     )
+    from pocket_desk_agent.handlers.filesystem import check_getfile_selection
     from pocket_desk_agent.handlers.custom_commands import execute_custom_command
 
     if await check_repo_selection(update, context):
@@ -359,6 +356,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if await check_apk_retrieval_selection(update, context):
         return
 
+    # Check if this is part of generic file retrieval workflow
+    if await check_getfile_selection(update, context):
+        return
+
     # Check if this is a custom command (starts with /)
     user_message = update.message.text
     if user_message.startswith("/"):
@@ -372,6 +373,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if registry.command_exists(command_name):
             await execute_custom_command(update, context, command_name)
             return
+
+    # Check authentication only after non-Gemini reply workflows are handled.
+    if not auth_client.is_authenticated(user_id):
+        await update.message.reply_text("Please authenticate first using /start")
+        return
 
     # Show typing indicator
     await context.bot.send_chat_action(

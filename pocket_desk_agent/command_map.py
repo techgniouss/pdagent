@@ -21,6 +21,7 @@ COMMAND_REGISTRY = [
     ("cd", handlers.cd_command, "Change directory"),
     ("ls", handlers.ls_command, "List files"),
     ("cat", handlers.cat_command, "View file content"),
+    ("getfile", handlers.getfile_command, "Download a file"),
     ("find", handlers.find_command, "Search files"),
     ("info", handlers.info_command, "Get file info"),
     # Remote Desktop Commands

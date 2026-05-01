@@ -60,6 +60,7 @@ build_monitor_state = {}         # {request_id|legacy_user_id: pending screensho
 build_screenshot_tasks = {}      # {user_id: asyncio.Task} — active screenshot monitors
 large_file_upload_state = {}     # Upload choice state
 apk_retrieval_state = {}         # APK retrieval flow
+getfile_retrieval_state = {}     # Generic file retrieval flow
 
 # Default repository base path
 from pocket_desk_agent.config import Config
