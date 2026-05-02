@@ -15,12 +15,14 @@ COMMAND_REGISTRY = [
     ("new", handlers.new_command, "Start new chat"),
     ("enhance", handlers.enhance_command, "Enhance prompt"),
     ("sync", handlers.sync_commands_command, "Sync command list with Telegram"),
+    ("selftest", handlers.selftest_command, "Run non-GUI functional self-checks"),
     ("update", handlers.update_command, "Upgrade and restart the bot"),
     # File System Commands
     ("pwd", handlers.pwd_command, "Current directory"),
     ("cd", handlers.cd_command, "Change directory"),
     ("ls", handlers.ls_command, "List files"),
     ("cat", handlers.cat_command, "View file content"),
+    ("getfile", handlers.getfile_command, "Download a file"),
     ("find", handlers.find_command, "Search files"),
     ("info", handlers.info_command, "Get file info"),
     # Remote Desktop Commands
@@ -33,6 +35,11 @@ COMMAND_REGISTRY = [
         "stopremote",
         handlers.stopremote_command,
         "Stop the active remote desktop session",
+    ),
+    (
+        "remoteinfo",
+        handlers.remoteinfo_command,
+        "Show active remote desktop session status",
     ),
     # System Control Commands
     ("openapp", handlers.openapp_command, "Open a safe desktop app"),
@@ -48,6 +55,16 @@ COMMAND_REGISTRY = [
     ("windows", handlers.windows_command, "List open application windows"),
     ("focuswindow", handlers.focuswindow_command, "Activate a listed window"),
     ("clipboard", handlers.clipboard_command, "Set PC clipboard"),
+    (
+        "pasteimage",
+        handlers.pasteimage_command,
+        "Reply to an image and paste it into active app",
+    ),
+    (
+        "pasteimages",
+        handlers.pasteimages_command,
+        "Reply to an album image and paste all images",
+    ),
     ("viewclipboard", handlers.viewclipboard_command, "View PC clipboard"),
     # UI Automation Commands
     ("clicktext", handlers.clicktext_command, "Click text on screen"),
@@ -142,6 +159,16 @@ COMMAND_REGISTRY = [
         "Watch the screen for text and send a hotkey",
     ),
     (
+        "watchnotify",
+        handlers.watchnotify_command,
+        "Watch screen or app text and notify in Telegram",
+    ),
+    (
+        "watchstatus",
+        handlers.watchstatus_command,
+        "Show active watcher tasks only",
+    ),
+    (
         "stopscreenwatch",
         handlers.stopscreenwatch_command,
         "Stop one or all active screen watchers",
@@ -162,4 +189,27 @@ COMMAND_REGISTRY = [
         handlers.cancelschedule_command,
         "Cancel a pending scheduled task",
     ),
+    # Workflow Recipe Commands
+    ("recipecreate", handlers.recipecreate_command, "Create a reusable workflow recipe"),
+    (
+        "recipeaddcommand",
+        handlers.recipeaddcommand_command,
+        "Add a saved custom command step to a recipe",
+    ),
+    (
+        "recipeaddclaude",
+        handlers.recipeaddclaude_command,
+        "Add a Claude prompt step to a recipe",
+    ),
+    ("recipeaddwait", handlers.recipeaddwait_command, "Add a wait-duration step to a recipe"),
+    (
+        "recipeaddwaittext",
+        handlers.recipeaddwaittext_command,
+        "Add a wait-until-text step to a recipe",
+    ),
+    ("recipeaddnotify", handlers.recipeaddnotify_command, "Add a Telegram notify step to a recipe"),
+    ("recipelist", handlers.recipelist_command, "List workflow recipes"),
+    ("recipeshow", handlers.recipeshow_command, "Show recipe steps"),
+    ("recipedelete", handlers.recipedelete_command, "Delete a workflow recipe"),
+    ("reciperun", handlers.reciperun_command, "Run a workflow recipe"),
 ]

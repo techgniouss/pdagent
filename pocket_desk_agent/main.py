@@ -15,6 +15,7 @@ from pocket_desk_agent.handlers import (
     button_callback,
     handle_message,
     handle_photo,
+    handle_image_document,
     error_handler,
     get_bot_commands,
     cleanup_scheduled_task_artifacts,
@@ -363,6 +364,9 @@ def main():
     # Message handlers — also protected
     application.add_handler(MessageHandler(filters.TEXT, safe_command(handle_message)))
     application.add_handler(MessageHandler(filters.PHOTO, safe_command(handle_photo)))
+    application.add_handler(
+        MessageHandler(filters.Document.IMAGE, safe_command(handle_image_document))
+    )
     
     # Global error handler — catches anything that still slips through
     # (e.g. networking errors during polling, internal PTB errors)

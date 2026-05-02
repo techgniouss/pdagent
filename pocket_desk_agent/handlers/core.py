@@ -13,6 +13,7 @@ from pocket_desk_agent.handlers._shared import (
     file_manager,
     recording_sessions,
     record_action_if_active,
+    register_media_group_item,
     PYWINAUTO_AVAILABLE,
 )
 from pocket_desk_agent.updater import (
@@ -107,11 +108,14 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/checkauth - Verify authentication status\n"
         "/logout - Sign out and clear tokens\n"
         "/status - Check your session status\n\n"
+        "🧪 Diagnostics:\n"
+        "/selftest - Run non-GUI functional self-checks\n\n"
         "📁 File System Commands:\n"
         "/pwd - Show current directory\n"
         "/cd <path> - Change directory\n"
         "/ls [path] - List directory contents\n"
         "/cat <file> - Read file contents\n"
+        "/getfile [path] - Download a file or browse interactively\n"
         "/find <pattern> - Search for files\n"
         "/info <path> - Get file/directory info\n\n"
         "🔌 System Commands:\n"
@@ -127,6 +131,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/screenshot - Capture current screen\n"
         "/hotkey <keys> [text] - Execute shortcuts & type text\n"
         "/clipboard <text> - Set PC clipboard content\n"
+        "/pasteimage - Reply to Telegram image and paste into focused app (auto-clears image clipboard in 2m)\n"
+        "/pasteimages - Reply to album photo/image doc and paste all images (auto-clears image clipboard in 2m)\n"
         "/viewclipboard - View current PC clipboard\n"
         "/findtext <text> - Find text and show coordinates\n"
         "/clicktext <x> <y> - Click at screen coordinates\n"
@@ -139,6 +145,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/scrolldown [amount] - Hover centrally and scroll down\n\n"
         "🖥️ Remote Desktop:\n"
         "/remote - Start a live browser-based remote control session (HTTPS URL + QR)\n"
+        "/remoteinfo - Show active remote session details\n"
         "/stopremote - Stop the active remote desktop session\n\n"
         "🎯 Custom Commands:\n"
         "/savecommand <name> - Start recording command sequence\n"
@@ -147,6 +154,17 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/listcommands - Show all saved commands\n"
         "/deletecommand <name> - Delete a saved command\n"
         "/<custom_name> - Execute a saved custom command\n\n"
+        "🧩 Workflow Recipes:\n"
+        "/recipecreate <name> - Create a workflow recipe\n"
+        "/recipeaddcommand <name> <saved_command> - Add recorded command step\n"
+        "/recipeaddclaude <name> <prompt> - Add Claude prompt step\n"
+        "/recipeaddwait <name> <duration> - Add fixed wait step\n"
+        "/recipeaddwaittext <name> <text> | timeout=2m scope=claude - Add OCR wait step\n"
+        "/recipeaddnotify <name> <message> - Add Telegram notification step\n"
+        "/recipelist - List recipes\n"
+        "/recipeshow <name> - Show recipe steps\n"
+        "/reciperun <name> [key=value ...] - Run recipe with optional variables\n"
+        "/recipedelete <name> - Delete recipe\n\n"
         "🤖 Claude Desktop Control:\n"
         "/claudeask <message> - Send message to Claude desktop\n"
         "/claudenew [message] - Create new chat (optionally with first message)\n"
@@ -183,6 +201,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/repeatschedule every <interval> for <duration> - Repeat a recorded automation\n"
         "/watchperm <target> every <interval> for <duration> - Auto-click app approval prompts\n"
         "/watchscreen <text> every <interval> press <hotkey> - Watch screen/app text and send a hotkey\n"
+        "/watchnotify <text> every <interval> - Watch screen/app text and notify only\n"
+        "/watchstatus - Show active watchers only\n"
         "/stopscreenwatch [task_id|all] - Stop one or all active screen watchers\n"
         "/claudeschedule <time> <msg> - Schedule a prompt for Claude\n"
         "/listschedules - View all pending scheduled tasks\n"
@@ -331,11 +351,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = update.effective_user.id
 
-    # Check authentication
-    if not auth_client.is_authenticated(user_id):
-        await update.message.reply_text("Please authenticate first using /start")
-        return
-
     # Check if this is a repo selection (before Gemini processing)
     # Deferred imports to avoid circular dependencies between handler modules.
     from pocket_desk_agent.handlers.claude import check_repo_selection, check_model_selection
@@ -343,6 +358,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         check_build_selection,
         check_apk_retrieval_selection,
     )
+    from pocket_desk_agent.handlers.filesystem import check_getfile_selection
     from pocket_desk_agent.handlers.custom_commands import execute_custom_command
 
     if await check_repo_selection(update, context):
@@ -359,6 +375,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if await check_apk_retrieval_selection(update, context):
         return
 
+    # Check if this is part of generic file retrieval workflow
+    if await check_getfile_selection(update, context):
+        return
+
     # Check if this is a custom command (starts with /)
     user_message = update.message.text
     if user_message.startswith("/"):
@@ -372,6 +392,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if registry.command_exists(command_name):
             await execute_custom_command(update, context, command_name)
             return
+
+    # Check authentication only after non-Gemini reply workflows are handled.
+    if not auth_client.is_authenticated(user_id):
+        await update.message.reply_text("Please authenticate first using /start")
+        return
 
     # Show typing indicator
     await context.bot.send_chat_action(
@@ -401,6 +426,14 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = update.effective_user.id
 
+    if update.message.photo and update.message.media_group_id:
+        register_media_group_item(
+            user_id=user_id,
+            media_group_id=str(update.message.media_group_id),
+            message_id=update.message.message_id,
+            file_id=update.message.photo[-1].file_id,
+        )
+
     if not auth_client.is_authenticated(user_id):
         await update.message.reply_text("Please authenticate first using /start")
         return
@@ -408,9 +441,60 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Get the largest photo
     photo = update.message.photo[-1]
     photo_file = await photo.get_file()
-    photo_bytes = await photo_file.download_as_bytearray()
+    photo_bytes = bytes(await photo_file.download_as_bytearray())
+    await _reply_with_gemini_image_analysis(
+        update=update,
+        context=context,
+        user_id=user_id,
+        image_bytes=photo_bytes,
+    )
 
-    # Get caption or default message
+
+async def handle_image_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle image document messages (including document-based Telegram albums)."""
+    if not update.effective_user or not update.message or not update.message.document:
+        return
+
+    document = update.message.document
+    mime_type = str(document.mime_type or "").lower()
+    if not mime_type.startswith("image/"):
+        return
+
+    user_id = update.effective_user.id
+
+    if update.message.media_group_id:
+        register_media_group_item(
+            user_id=user_id,
+            media_group_id=str(update.message.media_group_id),
+            message_id=update.message.message_id,
+            file_id=document.file_id,
+        )
+
+    if not auth_client.is_authenticated(user_id):
+        await update.message.reply_text("Please authenticate first using /start")
+        return
+
+    document_file = await document.get_file()
+    image_bytes = bytes(await document_file.download_as_bytearray())
+    await _reply_with_gemini_image_analysis(
+        update=update,
+        context=context,
+        user_id=user_id,
+        image_bytes=image_bytes,
+    )
+
+
+async def _reply_with_gemini_image_analysis(
+    *,
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    user_id: int,
+    image_bytes: bytes,
+) -> None:
+    """Send image bytes + caption to Gemini and relay response to Telegram."""
+    if not update.message:
+        return
+
     caption = update.message.caption or "What's in this image?"
 
     await context.bot.send_chat_action(
@@ -418,16 +502,13 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     auth_mode, oauth = _get_gemini_auth_context(user_id)
-
-    # Send to Gemini
     response = await gemini_client.send_message_with_image(
         user_id,
         caption,
-        bytes(photo_bytes),
+        image_bytes,
         auth_mode=auth_mode,
         oauth=oauth,
     )
-
     await update.message.reply_text(response)
 
 
@@ -487,6 +568,157 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
 
 
 # File System Commands
+
+
+def _run_selftest_checks(user_id: int) -> list[tuple[str, bool, str]]:
+    """Run non-GUI functional checks and return (name, ok, detail)."""
+    checks: list[tuple[str, bool, str]] = []
+
+    try:
+        from pocket_desk_agent.command_map import COMMAND_REGISTRY
+
+        required = {
+            "remoteinfo",
+            "watchnotify",
+            "watchstatus",
+            "pasteimage",
+            "pasteimages",
+            "recipecreate",
+            "recipeaddwaittext",
+            "reciperun",
+            "selftest",
+        }
+        registered = {cmd for cmd, _, _ in COMMAND_REGISTRY}
+        missing = sorted(required - registered)
+        checks.append(
+            (
+                "command_registry",
+                not missing,
+                "all required commands registered"
+                if not missing
+                else f"missing commands: {', '.join(missing)}",
+            )
+        )
+    except Exception as exc:
+        checks.append(("command_registry", False, f"registry check error: {exc}"))
+
+    try:
+        bot_commands = get_bot_commands()
+        from pocket_desk_agent.command_map import COMMAND_REGISTRY
+
+        ok = len(bot_commands) == len(COMMAND_REGISTRY)
+        detail = (
+            f"menu size matches registry ({len(bot_commands)})"
+            if ok
+            else (
+                "menu size mismatch: "
+                f"menu={len(bot_commands)}, registry={len(COMMAND_REGISTRY)}"
+            )
+        )
+        checks.append(("telegram_menu", ok, detail))
+    except Exception as exc:
+        checks.append(("telegram_menu", False, f"menu check error: {exc}"))
+
+    try:
+        from pocket_desk_agent.handlers.scheduling import parse_screen_notify_request
+
+        cases = [
+            (
+                "Usage limit reached every 30s in claude cooldown 2m",
+                ("Usage limit reached", 30, "claude", 120),
+            ),
+            (
+                "text every 10s on antigravity",
+                ("text", 10, "antigravity", 0),
+            ),
+            (
+                "text every 10s",
+                ("text", 10, "screen", 0),
+            ),
+        ]
+        parsed_ok = True
+        for raw, expected in cases:
+            if parse_screen_notify_request(raw) != expected:
+                parsed_ok = False
+                break
+        checks.append(
+            (
+                "watchnotify_parser",
+                parsed_ok,
+                "suffix parsing for scope/cooldown works"
+                if parsed_ok
+                else "unexpected parse result for watchnotify expression",
+            )
+        )
+    except Exception as exc:
+        checks.append(
+            ("watchnotify_parser", False, f"watchnotify parser check error: {exc}")
+        )
+
+    try:
+        from pocket_desk_agent.remote.session import ACTIVE_SESSIONS
+        from pocket_desk_agent.handlers.remote import sanitized_status
+
+        status = sanitized_status(user_id)
+        is_dict = isinstance(status, dict)
+        has_active_key = "active" in status if is_dict else False
+        active_count = len(ACTIVE_SESSIONS)
+        checks.append(
+            (
+                "remote_status",
+                is_dict and has_active_key,
+                f"status shape valid; active_sessions={active_count}",
+            )
+        )
+    except Exception as exc:
+        checks.append(("remote_status", False, f"remote status check error: {exc}"))
+
+    try:
+        from pocket_desk_agent.recipe_registry import get_recipe_registry
+
+        recipes = get_recipe_registry().list_recipes()
+        checks.append(
+            (
+                "recipe_registry",
+                True,
+                f"recipe registry loaded ({len(recipes)} recipes)",
+            )
+        )
+    except Exception as exc:
+        checks.append(
+            ("recipe_registry", False, f"recipe registry check error: {exc}")
+        )
+
+    return checks
+
+
+async def selftest_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /selftest - run safe non-GUI functional checks."""
+    if not update.message or not update.effective_user:
+        return
+
+    await update.message.reply_text("Running non-GUI selftest checks...")
+    results = _run_selftest_checks(update.effective_user.id)
+
+    passed = sum(1 for _, ok, _ in results if ok)
+    failed = len(results) - passed
+    status = "PASS" if failed == 0 else "FAIL"
+
+    lines = [f"Selftest: {status} ({passed}/{len(results)} checks passed)", ""]
+    for name, ok, detail in results:
+        marker = "OK" if ok else "FAIL"
+        lines.append(f"- {marker} {name}: {detail}")
+
+    if failed:
+        lines.extend(
+            [
+                "",
+                "Note: this command validates non-GUI functional paths only.",
+                "Use live commands (/claudeask, /watchnotify, /remoteinfo) for desktop-level validation.",
+            ]
+        )
+
+    await update.message.reply_text("\n".join(lines))
 
 
 async def sync_commands_command(update: Update, context: ContextTypes.DEFAULT_TYPE):

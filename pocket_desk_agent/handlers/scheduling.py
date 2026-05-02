@@ -18,6 +18,11 @@ from pocket_desk_agent.handlers._shared import (
     RECORDING_TIMEOUT_SECS,
     recording_sessions,
 )
+from pocket_desk_agent.desktop_adapters import (
+    activate_adapter_window,
+    find_adapter_window,
+    window_region,
+)
 from pocket_desk_agent.scheduler_registry import ScheduledTask, get_scheduler_registry
 from pocket_desk_agent.scheduling_utils import (
     format_duration,
@@ -69,10 +74,14 @@ def describe_task(task: ScheduledTask) -> str:
     if task.task_type == "screen_watch":
         metadata = task.metadata or {}
         search_text = str(metadata.get("search_text", "")).strip() or "screen text"
-        hotkey = str(metadata.get("hotkey", "")).strip() or "hotkey"
+        action_mode = str(metadata.get("action_mode", "hotkey")).strip().lower()
+        hotkey = str(metadata.get("hotkey", "")).strip()
         scope = str(metadata.get("scope", "screen")).strip().lower() or "screen"
         cooldown_seconds = int(metadata.get("cooldown_seconds", 0) or 0)
-        summary = f"Screen watcher ({scope}): '{search_text}' -> {hotkey}"
+        if action_mode == "notify":
+            summary = f"Screen watcher ({scope}): '{search_text}' -> notify"
+        else:
+            summary = f"Screen watcher ({scope}): '{search_text}' -> {hotkey or 'hotkey'}"
         if cooldown_seconds > 0:
             summary += f" [cooldown {format_duration(cooldown_seconds)}]"
         return summary
@@ -180,22 +189,83 @@ def parse_screen_watch_request(
     )
 
 
+def parse_screen_notify_request(
+    raw_text: str,
+) -> Optional[tuple[str, int, str, int]]:
+    """Parse ``<text> every <interval>`` with optional scope/cooldown."""
+    normalized = " ".join(raw_text.strip().split())
+    match = re.fullmatch(
+        r"(.+?)\s+every\s+([^\s]+)(.*)",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return None
+
+    search_text = match.group(1).strip()
+    interval_spec = match.group(2).strip()
+    suffix = (match.group(3) or "").strip()
+    scope = "screen"
+    cooldown_seconds = 0
+
+    while suffix:
+        cooldown_match = re.search(
+            r"(?:^|\s)cooldown\s+([^\s]+)\s*$", suffix, flags=re.IGNORECASE
+        )
+        if cooldown_match:
+            cooldown_delta = parse_duration_spec(cooldown_match.group(1).strip())
+            if not cooldown_delta:
+                return None
+            cooldown_seconds = int(cooldown_delta.total_seconds())
+            suffix = suffix[: cooldown_match.start()].strip()
+            continue
+
+        scope_match = re.search(
+            r"(?:^|\s)(?:in|within|on)\s+(screen|claude|antigravity)\s*$",
+            suffix,
+            flags=re.IGNORECASE,
+        )
+        if scope_match:
+            scope = scope_match.group(1).strip().lower()
+            suffix = suffix[: scope_match.start()].strip()
+            continue
+        break
+
+    interval_delta = parse_duration_spec(interval_spec)
+    if (
+        not search_text
+        or not interval_delta
+        or scope not in SCREEN_WATCH_SCOPES
+    ):
+        return None
+    return (
+        search_text,
+        int(interval_delta.total_seconds()),
+        scope,
+        cooldown_seconds,
+    )
+
+
 def start_screen_watch_task(
     user_id: int,
     search_text: str,
     interval_seconds: int,
-    hotkey: str,
+    hotkey: str = "",
     *,
     scope: str = "screen",
     cooldown_seconds: int = 0,
+    action_mode: str = "hotkey",
 ) -> tuple[bool, str]:
     """Create a long-running screen watcher that repeats until manually stopped."""
     cleaned_text = search_text.strip()
     cleaned_hotkey = hotkey.strip()
     cleaned_scope = scope.strip().lower() or "screen"
+    cleaned_action_mode = action_mode.strip().lower() or "hotkey"
     if not cleaned_text:
         return False, "Please provide the screen text to monitor."
-    if not cleaned_hotkey:
+    if cleaned_action_mode not in {"hotkey", "notify"}:
+        return False, "Action mode must be either 'hotkey' or 'notify'."
+    if cleaned_action_mode == "hotkey" and not cleaned_hotkey:
         return False, "Please provide the hotkey to send when the text appears."
     if cleaned_scope not in SCREEN_WATCH_SCOPES:
         supported = ", ".join(sorted(SCREEN_WATCH_SCOPES))
@@ -224,6 +294,7 @@ def start_screen_watch_task(
             "hotkey": cleaned_hotkey,
             "scope": cleaned_scope,
             "cooldown_seconds": cooldown_seconds,
+            "action_mode": cleaned_action_mode,
             "until_stopped": True,
         },
     )
@@ -234,8 +305,11 @@ def start_screen_watch_task(
         f"Watching for: {cleaned_text}\n"
         f"Scope: {cleaned_scope}\n"
         f"Checks every: {format_duration(interval_seconds)}\n"
-        f"Action: {cleaned_hotkey}\n"
     )
+    if cleaned_action_mode == "notify":
+        message += "Action: notify in Telegram\n"
+    else:
+        message += f"Action: {cleaned_hotkey}\n"
     if cooldown_seconds > 0:
         message += f"Cooldown: {format_duration(cooldown_seconds)}\n"
     message += (
@@ -615,6 +689,76 @@ async def watchscreen_command(
         )
 
 
+async def watchnotify_command(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Handle /watchnotify <text> every <interval>."""
+    if not update.message:
+        return
+
+    if platform.system() != "Windows":
+        await update.message.reply_text(
+            "/watchnotify is currently only available on Windows."
+        )
+        return
+
+    raw_text = update.message.text.partition(" ")[2].strip()
+    parsed = parse_screen_notify_request(raw_text)
+    if not parsed:
+        await update.message.reply_text(
+            "Usage: /watchnotify <text> every <interval>\n"
+            "Example: /watchnotify Usage limit reached every 30s in claude cooldown 2m\n\n"
+            "Optional suffixes:\n"
+            "- in <screen|claude|antigravity>\n"
+            "- cooldown <duration>\n\n"
+            "The watcher keeps running until you stop it with /stopscreenwatch."
+        )
+        return
+
+    search_text, interval_seconds, scope, cooldown_seconds = parsed
+    success, message = start_screen_watch_task(
+        user_id=update.effective_user.id,
+        search_text=search_text,
+        interval_seconds=interval_seconds,
+        hotkey="",
+        scope=scope,
+        cooldown_seconds=cooldown_seconds,
+        action_mode="notify",
+    )
+    await update.message.reply_text(message)
+    if not success:
+        logger.warning(
+            "watchnotify rejected for user %s: %s", update.effective_user.id, message
+        )
+
+
+async def watchstatus_command(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Handle /watchstatus by listing active watcher tasks only."""
+    if not update.message:
+        return
+
+    user_id = update.effective_user.id
+    pending = [
+        ScheduledTask.from_dict(task)
+        for task in get_scheduler_registry().get_all_pending()
+        if task.get("user_id") == user_id
+        and task.get("task_type") in {"screen_watch", "permission_watch"}
+    ]
+    if not pending:
+        await update.message.reply_text("No active watchers. Use /watchscreen, /watchnotify, or /watchperm.")
+        return
+
+    lines = ["Active watchers:\n"]
+    for task in pending:
+        lines.append(f"- {describe_task(task)}")
+        lines.append(f"  Task ID: {task.id}")
+    lines.append("")
+    lines.append("Stop with /stopscreenwatch <task_id> or /cancelschedule <task_id>")
+    await update.message.reply_text("\n".join(lines))
+
+
 async def stopscreenwatch_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
@@ -944,9 +1088,14 @@ async def _execute_screen_watch(task: ScheduledTask, bot) -> tuple[bool, Optiona
     search_text = str(metadata.get("search_text", "")).strip()
     hotkey = str(metadata.get("hotkey", "")).strip()
     scope = str(metadata.get("scope", "screen")).strip().lower() or "screen"
+    action_mode = str(metadata.get("action_mode", "hotkey")).strip().lower() or "hotkey"
     cooldown_seconds = int(metadata.get("cooldown_seconds", 0) or 0)
-    if not search_text or not hotkey:
-        return False, "Screen watcher metadata is missing search_text or hotkey."
+    if not search_text:
+        return False, "Screen watcher metadata is missing search_text."
+    if action_mode not in {"hotkey", "notify"}:
+        return False, "Screen watcher action_mode must be hotkey or notify."
+    if action_mode == "hotkey" and not hotkey:
+        return False, "Screen watcher metadata is missing hotkey."
     if scope not in SCREEN_WATCH_SCOPES:
         return (
             False,
@@ -1001,36 +1150,48 @@ async def _execute_screen_watch(task: ScheduledTask, bot) -> tuple[bool, Optiona
                     "Screen watcher cooldown active for user %s: '%s' -> %s",
                     task.user_id,
                     search_text,
-                    hotkey,
+                    hotkey if action_mode == "hotkey" else "notify",
                 )
                 return True, None
 
-    keys = map_keys_to_pyautogui(hotkey)
-    if not keys:
-        return False, f"Could not parse hotkey '{hotkey}'."
+    if action_mode == "hotkey":
+        keys = map_keys_to_pyautogui(hotkey)
+        if not keys:
+            return False, f"Could not parse hotkey '{hotkey}'."
 
-    if len(keys) == 1:
-        press_key(pyautogui, keys[0])
-    else:
-        send_hotkey(pyautogui, *keys)
+        if len(keys) == 1:
+            press_key(pyautogui, keys[0])
+        else:
+            send_hotkey(pyautogui, *keys)
 
-    if cooldown_seconds > 0:
+    if cooldown_seconds > 0 and action_mode != "notify":
         metadata["last_triggered_at"] = local_now().isoformat()
         get_scheduler_registry().update_task_metadata(task.id, metadata)
+
+    if action_mode == "notify":
+        action_text = "posted a notification"
+        detail_text = f"Screen watcher detected '{search_text}' in {scope}."
+    else:
+        action_text = f"sent '{hotkey}'"
+        detail_text = (
+            f"Screen watcher detected '{search_text}' in {scope} and sent '{hotkey}'."
+        )
 
     await bot.send_message(
         chat_id=task.user_id,
         text=(
-            f"Screen watcher detected '{search_text}' in {scope} and sent '{hotkey}'.\n"
-            f"Matches found: {len(matches)}"
+            f"{detail_text}\nMatches found: {len(matches)}"
         ),
     )
+    if cooldown_seconds > 0 and action_mode == "notify":
+        metadata["last_triggered_at"] = local_now().isoformat()
+        get_scheduler_registry().update_task_metadata(task.id, metadata)
     logger.info(
         "Screen watcher triggered for user %s in %s: '%s' -> %s (%s matches)",
         task.user_id,
         scope,
         search_text,
-        hotkey,
+        action_text,
         len(matches),
     )
     return True, None
@@ -1171,36 +1332,15 @@ def _normalize_permission_labels(raw_labels) -> list[str]:
 
 
 def _find_permission_target_window(target: str):
-    if target == "claude":
-        from pocket_desk_agent.handlers.claude import find_claude_window
-
-        return find_claude_window()
-
-    from pocket_desk_agent.handlers.antigravity import find_antigravity_window
-
-    return find_antigravity_window()
+    return find_adapter_window(target)
 
 
 async def _activate_window(window) -> None:
-    try:
-        if getattr(window, "isMinimized", False):
-            window.restore()
-            await asyncio.sleep(0.4)
-        window.activate()
-        await asyncio.sleep(0.3)
-    except Exception as exc:
-        logger.debug("Window activation skipped: %s", exc)
+    await activate_adapter_window(window)
 
 
 def _window_region(window) -> Optional[tuple[int, int, int, int]]:
-    try:
-        left = max(0, int(window.left))
-        top = max(0, int(window.top))
-        width = max(1, int(window.width))
-        height = max(1, int(window.height))
-    except Exception:
-        return None
-    return left, top, width, height
+    return window_region(window)
 
 
 def _scroll_active_window(pyautogui, amount: int) -> None:

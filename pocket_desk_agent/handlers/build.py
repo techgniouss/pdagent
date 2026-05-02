@@ -1393,4 +1393,76 @@ async def send_apk_file(update: Update, context: ContextTypes.DEFAULT_TYPE, apk_
         await update.message.reply_text(f"❌ Error sending APK: {str(e)}")
         logger.error(f"Error in send_apk_file: {e}")
 
+def _build_large_file_upload_markup(user_id: int) -> InlineKeyboardMarkup:
+    """Create the inline keyboard used for large-file upload fallbacks."""
+    keyboard = [
+        [
+            InlineKeyboardButton(
+                "⚡ TempFile (Auto-delete)",
+                callback_data=f"upload_tempfile_{user_id}",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                "☁️ Dropbox (Permanent)",
+                callback_data=f"upload_dropbox_{user_id}",
+            ),
+        ],
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+async def send_document_with_upload_fallback(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    file_path: str,
+    *,
+    caption: str,
+    kind_label: str = "file",
+    source: str = "download",
+    success_message: str | None = None,
+) -> None:
+    """Send a file through Telegram or offer large-file upload fallbacks."""
+    file_size = os.path.getsize(file_path)
+    file_size_mb = file_size / (1024 * 1024)
+
+    if file_size_mb > 50:
+        user_id = update.effective_user.id
+        large_file_upload_state[user_id] = {
+            "file_path": file_path,
+            "file_size_mb": file_size_mb,
+            "timestamp": time.time(),
+            "source": source,
+            "file_kind": kind_label,
+        }
+
+        await update.message.reply_text(
+            f"⚠️ {kind_label} is too large ({file_size_mb:.2f} MB) for Telegram (max 50 MB).\n\n"
+            f"📤 Choose upload method:\n\n"
+            f"⚡ TempFile.org\n"
+            f"  • Fast upload (max 100MB)\n"
+            f"  • Auto-deletes after {Config.UPLOAD_EXPIRY_TIME}\n"
+            f"  • No setup required\n\n"
+            f"☁️ Dropbox\n"
+            f"  • Unlimited file size\n"
+            f"  • Permanent storage\n"
+            f"  • Requires DROPBOX_ACCESS_TOKEN in .env\n\n"
+            f"Select an option below:",
+            reply_markup=_build_large_file_upload_markup(user_id),
+        )
+        return
+
+    await update.message.reply_text("📤 Uploading to Telegram...")
+
+    with open(file_path, "rb") as f:
+        await update.message.reply_document(
+            document=f,
+            filename=os.path.basename(file_path),
+            caption=caption,
+        )
+
+    logger.info("Sent %s via Telegram: %s", kind_label.lower(), file_path)
+    await update.message.reply_text(success_message or f"✅ {kind_label} sent successfully!")
+
+
 # Scheduler Commands

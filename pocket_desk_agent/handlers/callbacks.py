@@ -637,6 +637,8 @@ async def handle_upload_choice(
 
         file_path = large_file_upload_state[user_id]["file_path"]
         file_size_mb = large_file_upload_state[user_id]["file_size_mb"]
+        file_kind = large_file_upload_state[user_id].get("file_kind", "APK")
+        file_kind_lower = str(file_kind).lower()
 
         # Determine which service was chosen
         if query.data.startswith("upload_tempfile_"):
@@ -669,12 +671,17 @@ async def handle_upload_choice(
 
             message_text = (
                 f"Upload successful!\n\n"
-                f"Download your APK:\n{upload_result['link']}\n\n"
+                f"Download your {file_kind_lower}:\n{upload_result['link']}\n\n"
                 f"Service: {service_used}\n"
-                f"Expires: {expiry}\n\n"
-                f"Tip: Open the link on your Android device to install directly!\n\n"
-                f"Local path (if needed):\n{file_path}"
+                f"Expires: {expiry}\n"
             )
+
+            if file_kind_lower.startswith("apk"):
+                message_text += (
+                    "\nTip: Open the link on your Android device to install directly!\n"
+                )
+
+            message_text += f"\nLocal path (if needed):\n{file_path}"
 
             # Add delete button for Dropbox uploads
             if service == "dropbox":
@@ -702,7 +709,11 @@ async def handle_upload_choice(
                 )
 
             logger.info(
-                f"Uploaded large APK to {service_used}: {file_path} ({file_size_mb:.2f} MB)"
+                "Uploaded large %s to %s: %s (%.2f MB)",
+                file_kind_lower,
+                service_used,
+                file_path,
+                file_size_mb,
             )
         else:
             await context.bot.send_message(

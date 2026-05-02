@@ -16,6 +16,7 @@ This document covers all commands organized by capability.
 - [Antigravity Controller](#antigravity-controller)
 - [Browser Automation](#browser-automation)
 - [Task Scheduling](#task-scheduling)
+- [Workflow Recipes](#workflow-recipes)
 - [Workflow Builder](#workflow-builder)
 - [Access & Security Notes](#access--security-notes)
 
@@ -37,6 +38,7 @@ Manage the fundamental runtime state, session lifecycle, and system capabilities
 | `/new` | Purge current Gemini chat history and start a fresh session. | `/new` |
 | `/enhance <text>` | Ask Gemini to rewrite or improve a prompt. | `/enhance write an email to my boss` |
 | `/sync` | Force-sync the command list with Telegram's bot menu. Use this after saving a new macro or if the `/help` menu looks stale. | `/sync` |
+| `/selftest` | Run safe non-GUI functional checks for command wiring and parser/runtime paths. | `/selftest` |
 | `/update` | Upgrade the installed package and restart the bot. | `/update` |
 | `/stopbot` | Shut down the bot process gracefully (requires confirmation). | `/stopbot` |
 
@@ -47,7 +49,7 @@ Manage the fundamental runtime state, session lifecycle, and system capabilities
 You do not need a slash command to talk to the AI.
 
 - **Text**: Send any message directly to chat with Gemini 2.0 Flash.
-- **Vision**: Attach a photo and ask a question — Gemini will analyze the image.
+- **Vision**: Attach a photo or image document and ask a question — Gemini will analyze the image.
 - **Agentic Automation**: Gemini is equipped with tool-calling capabilities to actively browse files, capture screenshots, and automate UI tasks (clicking, typing, opening apps, scheduling actions) on your host PC via natural language. All destructive or system-altering actions require explicit human-in-the-loop approval via inline confirmation buttons.
 
 ---
@@ -78,6 +80,8 @@ Direct Windows system management.
 | `/windows` | List open application windows and present numbered switch targets. | `/windows` |
 | `/focuswindow <number>` | Activate a window from the most recent `/windows` list. | `/focuswindow 3` |
 | `/clipboard <text>` | Overwrite the host clipboard with the given text. | `/clipboard https://example.com` |
+| `/pasteimage` | Reply to a Telegram photo/image and paste it into the currently focused desktop app via `Ctrl+V`. Clipboard image is auto-cleared after 2 minutes if unchanged. | `/pasteimage` |
+| `/pasteimages` | Reply to a Telegram album photo/image document and paste all images from that album one-by-one into the currently focused app. Clipboard image is auto-cleared after 2 minutes if unchanged. | `/pasteimages` |
 | `/viewclipboard` | Read and return whatever is currently in the clipboard. | `/viewclipboard` |
 | `/battery` | Check battery percentage and charging status. | `/battery` |
 | `/privacy <on\|off\|status>` | Blank the display or wake it without locking the Windows session. | `/privacy on` |
@@ -116,6 +120,7 @@ Stream your desktop to a mobile browser and control mouse + keyboard from anywhe
 | Command | Description | Example |
 | :--- | :--- | :--- |
 | `/remote` | Start a live remote-control session. Returns a public HTTPS URL and a QR code. The first browser that opens the link is bound to the session. | `/remote` |
+| `/remoteinfo` | Show the active remote session URL and runtime details (idle time, FPS, quality, width, start time). | `/remoteinfo` |
 | `/stopremote` | Stop the active remote session for this user. | `/stopremote` |
 
 **Prerequisites:** `cloudflared` must be available. If it is missing, `/remote` detects this and offers to install it automatically via `winget` (Windows only) — approve with the inline button. To install manually: `winget install Cloudflare.cloudflared`. Set `CLOUDFLARED_PATH` in `~/.pdagent/config` to point to a custom binary location.
@@ -152,7 +157,7 @@ Record, save, and replay multi-step automation workflows.
 
 **Recordable actions:** `/hotkey`, `/clipboard`, `/findtext`, `/smartclick`, `/clicktext`, `/clickelement`, `/pasteenter`, `/typeenter`, `/scrollup`, `/scrolldown`, `/openclaude`, and more.
 
-> **Non-recordable commands** (such as `/screenshot`, `/ls`, or Gemini chat messages) sent during recording are executed immediately as normal — they are not added to the macro sequence.
+> **Non-recordable commands** (such as `/screenshot`, `/ls`, `/pasteimage`, `/pasteimages`, or Gemini chat messages) sent during recording are executed immediately as normal — they are not added to the macro sequence.
 
 | Command | Description | Example |
 | :--- | :--- | :--- |
@@ -241,6 +246,8 @@ Schedule one-shot or repeating automations, Claude prompts, and temporary permis
 | `/repeatschedule every <interval> for <duration>` | Record an automation sequence that starts immediately after `/done` and repeats for a limited time. | `/repeatschedule every 1m for 15m` |
 | `/watchperm <claude\|antigravity> every <interval> for <duration> [labels=...]` | Repeatedly scan the Claude or Antigravity window for approval buttons like `Allow` or `Run` and click them when there is exactly one strong match. | `/watchperm claude every 1m for 15m` |
 | `/watchscreen <text> every <interval> press <hotkey>` | Repeatedly scan the full screen or a target app for visible text and send a hotkey whenever it appears, until you stop the watcher. Optional suffixes: `in <screen\|claude\|antigravity>` and `cooldown <duration>`. | `/watchscreen Allow command every 1m press ctrl+enter in claude cooldown 30s` |
+| `/watchnotify <text> every <interval>` | Repeatedly scan the full screen or a target app for visible text and send a Telegram notification when it appears. Optional suffixes: `in <screen\|claude\|antigravity>` and `cooldown <duration>`. | `/watchnotify Usage limit reached every 30s in claude cooldown 2m` |
+| `/watchstatus` | Show only active watcher tasks (`/watchperm`, `/watchscreen`, `/watchnotify`) with quick task IDs for stop/cancel actions. | `/watchstatus` |
 | `/stopscreenwatch [task_id\|all]` | Stop one active screen watcher by task ID or stop all active screen watchers for your account. | `/stopscreenwatch all` |
 | `/claudeschedule <HH:MM> <text>` | Schedule a prompt to be sent to Claude at a specific time. | `/claudeschedule 02:00 run tests and summarize` |
 | `/listschedules` | View all pending scheduled tasks with countdown timers. | `/listschedules` |
@@ -255,7 +262,26 @@ Schedule one-shot or repeating automations, Claude prompts, and temporary permis
 - `every 30s for 10m`
 - `every 2h for 6h`
 
-`/watchperm` and `/watchscreen` are Windows-only and require Tesseract OCR. `/watchperm` only clicks when the target app window has a single clear OCR match among the configured labels. `/watchscreen` can watch the whole screen or just Claude/Antigravity, and an optional cooldown can suppress repeated triggers while the same dialog stays visible.
+`/watchperm`, `/watchscreen`, and `/watchnotify` are Windows-only and require Tesseract OCR. `/watchperm` only clicks when the target app window has a single clear OCR match among the configured labels. `/watchscreen` and `/watchnotify` can watch the whole screen or just Claude/Antigravity, and an optional cooldown can suppress repeated triggers while the same dialog stays visible.
+
+---
+
+## Workflow Recipes
+
+Build reusable multi-step workflows and run them with optional template variables (`{repo}`, `{branch}`, etc.).
+
+| Command | Description | Example |
+| :--- | :--- | :--- |
+| `/recipecreate <name>` | Create an empty recipe shell. | `/recipecreate claude_fix` |
+| `/recipeaddcommand <recipe> <saved_custom_command>` | Append a saved custom command as a recipe step. | `/recipeaddcommand claude_fix collect_logs` |
+| `/recipeaddclaude <recipe> <prompt template>` | Append a Claude prompt step with optional `{variables}`. | `/recipeaddclaude claude_fix Review {repo} on branch {branch}` |
+| `/recipeaddwait <recipe> <duration>` | Append a fixed wait step (`10s`, `2m`, `1h`). | `/recipeaddwait claude_fix 20s` |
+| `/recipeaddwaittext <recipe> <text> \| timeout=... [scope=...] [interval=...]` | Append an OCR polling wait step until target text appears in `screen`, `claude`, or `antigravity`. | `/recipeaddwaittext claude_fix Build complete \| timeout=5m scope=claude interval=10s` |
+| `/recipeaddnotify <recipe> <message template>` | Append a Telegram notification step with optional `{variables}`. | `/recipeaddnotify claude_fix Finished {repo} on {branch}` |
+| `/recipelist` | List all recipes with step count and usage stats. | `/recipelist` |
+| `/recipeshow <recipe>` | Show all steps in a recipe. | `/recipeshow claude_fix` |
+| `/reciperun <recipe> [key=value ...]` | Execute recipe steps sequentially with optional template variables. | `/reciperun claude_fix repo=pdagent branch=main` |
+| `/recipedelete <recipe>` | Delete a recipe permanently. | `/recipedelete claude_fix` |
 
 ---
 

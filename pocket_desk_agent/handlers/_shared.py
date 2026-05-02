@@ -4,6 +4,7 @@ import logging
 import platform
 import time
 import functools
+from typing import Optional
 from telegram import Update
 from telegram.ext import ContextTypes
 
@@ -60,10 +61,75 @@ build_monitor_state = {}         # {request_id|legacy_user_id: pending screensho
 build_screenshot_tasks = {}      # {user_id: asyncio.Task} — active screenshot monitors
 large_file_upload_state = {}     # Upload choice state
 apk_retrieval_state = {}         # APK retrieval flow
+getfile_retrieval_state = {}     # Generic file retrieval flow
+recent_media_groups = {}         # {user_id: {media_group_id: {"created_at": float, "items": [{"message_id": int, "file_id": str}]}}}
+MEDIA_GROUP_TTL_SECS = 3600
+MEDIA_GROUP_MAX_PER_USER = 40
 
 # Default repository base path
 from pocket_desk_agent.config import Config
 DEFAULT_REPO_PATH = Config.CLAUDE_DEFAULT_REPO_PATH
+
+
+def _prune_media_groups(user_id: int) -> None:
+    groups = recent_media_groups.get(user_id)
+    if not groups:
+        return
+
+    cutoff = time.time() - MEDIA_GROUP_TTL_SECS
+    expired = [group_id for group_id, data in groups.items() if data.get("created_at", 0) < cutoff]
+    for group_id in expired:
+        groups.pop(group_id, None)
+
+    if len(groups) <= MEDIA_GROUP_MAX_PER_USER:
+        return
+
+    ordered = sorted(
+        groups.items(),
+        key=lambda item: float(item[1].get("created_at", 0)),
+        reverse=True,
+    )
+    keep = dict(ordered[:MEDIA_GROUP_MAX_PER_USER])
+    recent_media_groups[user_id] = keep
+
+
+def register_media_group_item(
+    user_id: int,
+    media_group_id: Optional[str],
+    message_id: int,
+    file_id: str,
+) -> None:
+    """Record one photo message that belongs to a Telegram media group."""
+    group_id = str(media_group_id or "").strip()
+    if not group_id or not file_id:
+        return
+
+    user_groups = recent_media_groups.setdefault(user_id, {})
+    group = user_groups.setdefault(
+        group_id,
+        {"created_at": time.time(), "items": []},
+    )
+    if any(item.get("message_id") == message_id for item in group["items"]):
+        return
+
+    group["items"].append({"message_id": message_id, "file_id": file_id})
+    group["items"].sort(key=lambda item: int(item.get("message_id", 0)))
+    group["created_at"] = time.time()
+    _prune_media_groups(user_id)
+
+
+def get_media_group_file_ids(user_id: int, media_group_id: Optional[str]) -> list[str]:
+    """Return ordered file_ids for a recently seen Telegram media group."""
+    _prune_media_groups(user_id)
+    group_id = str(media_group_id or "").strip()
+    if not group_id:
+        return []
+
+    user_groups = recent_media_groups.get(user_id, {})
+    group = user_groups.get(group_id)
+    if not group:
+        return []
+    return [str(item.get("file_id", "")).strip() for item in group.get("items", []) if item.get("file_id")]
 
 def safe_command(func):
     """
