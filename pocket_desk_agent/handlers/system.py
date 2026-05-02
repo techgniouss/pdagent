@@ -9,6 +9,7 @@ import asyncio
 import time
 import io
 import uuid
+import hashlib
 import psutil
 from typing import Optional
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -18,6 +19,7 @@ from pocket_desk_agent.app_control import close_desktop_app, launch_desktop_app
 
 from pocket_desk_agent.handlers._shared import (
     PYWINAUTO_AVAILABLE,
+    get_media_group_file_ids,
     record_action_if_active,
     window_switch_options,
     app_selection_options,
@@ -28,6 +30,8 @@ logger = logging.getLogger(__name__)
 
 _privacy_mode_requested = False
 _privacy_mode_changed_at: Optional[float] = None
+_IMAGE_CLIPBOARD_TTL_SECONDS = 120
+_image_clipboard_cleanup_tasks: dict[int, asyncio.Task] = {}
 
 
 def _set_privacy_mode_state(requested: bool) -> None:
@@ -117,6 +121,104 @@ def _normalize_privacy_mode_action(args: list[str]) -> str:
 def _new_request_id() -> str:
     """Return a unique request token for inline app-selection callbacks."""
     return uuid.uuid4().hex
+
+
+def _copy_image_bytes_to_windows_clipboard(image_bytes: bytes) -> str:
+    """Copy image bytes into the Windows clipboard as CF_DIB and return a digest."""
+    from PIL import Image
+    import win32clipboard
+
+    with Image.open(io.BytesIO(image_bytes)) as image:
+        output = io.BytesIO()
+        image.convert("RGB").save(output, "BMP")
+        dib_bytes = output.getvalue()[14:]
+    dib_hash = hashlib.sha256(dib_bytes).hexdigest()
+
+    last_error: Optional[Exception] = None
+    for _ in range(12):
+        opened = False
+        try:
+            win32clipboard.OpenClipboard()
+            opened = True
+            win32clipboard.EmptyClipboard()
+            win32clipboard.SetClipboardData(win32clipboard.CF_DIB, dib_bytes)
+            return dib_hash
+        except Exception as exc:
+            last_error = exc
+            time.sleep(0.05)
+        finally:
+            if opened:
+                try:
+                    win32clipboard.CloseClipboard()
+                except Exception:
+                    pass
+
+    raise RuntimeError(f"Could not access Windows clipboard: {last_error}")
+
+
+def _clear_windows_clipboard_if_image_hash_matches(expected_hash: str) -> bool:
+    """Clear clipboard only when CF_DIB image still matches expected_hash."""
+    import win32clipboard
+
+    last_error: Optional[Exception] = None
+    for _ in range(10):
+        opened = False
+        try:
+            win32clipboard.OpenClipboard()
+            opened = True
+            if not win32clipboard.IsClipboardFormatAvailable(win32clipboard.CF_DIB):
+                return False
+            dib_bytes = win32clipboard.GetClipboardData(win32clipboard.CF_DIB)
+            current_hash = hashlib.sha256(bytes(dib_bytes)).hexdigest()
+            if current_hash != expected_hash:
+                return False
+            win32clipboard.EmptyClipboard()
+            return True
+        except Exception as exc:
+            last_error = exc
+            time.sleep(0.05)
+        finally:
+            if opened:
+                try:
+                    win32clipboard.CloseClipboard()
+                except Exception:
+                    pass
+
+    raise RuntimeError(f"Could not clear Windows clipboard image: {last_error}")
+
+
+async def _expire_image_clipboard_after_ttl(user_id: int, expected_hash: str) -> None:
+    """After TTL, clear image clipboard if unchanged."""
+    try:
+        await asyncio.sleep(_IMAGE_CLIPBOARD_TTL_SECONDS)
+        cleared = _clear_windows_clipboard_if_image_hash_matches(expected_hash)
+        if cleared:
+            logger.info(
+                "Auto-cleared Telegram image from clipboard after %ss for user %s",
+                _IMAGE_CLIPBOARD_TTL_SECONDS,
+                user_id,
+            )
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        logger.warning("Image clipboard auto-clear failed for user %s: %s", user_id, exc)
+
+
+def _schedule_image_clipboard_expiry(user_id: int, expected_hash: str) -> None:
+    """Schedule image clipboard auto-clear and replace any previous pending task."""
+    previous = _image_clipboard_cleanup_tasks.get(user_id)
+    if previous and not previous.done():
+        previous.cancel()
+
+    task = asyncio.create_task(_expire_image_clipboard_after_ttl(user_id, expected_hash))
+    _image_clipboard_cleanup_tasks[user_id] = task
+
+    def _cleanup_done_callback(done_task: asyncio.Task) -> None:
+        current = _image_clipboard_cleanup_tasks.get(user_id)
+        if current is done_task:
+            _image_clipboard_cleanup_tasks.pop(user_id, None)
+
+    task.add_done_callback(_cleanup_done_callback)
 
 
 def _build_app_picker_keyboard(
@@ -845,6 +947,167 @@ async def clipboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"\u274c Error copying to clipboard: {str(e)}")
         logger.error(f"Error in clipboard_command: {e}", exc_info=True)
+
+
+async def pasteimage_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /pasteimage by pasting a replied Telegram image into active app."""
+    if not update.message:
+        return
+
+    if platform.system() != "Windows":
+        await update.message.reply_text(
+            "/pasteimage is currently only supported on Windows."
+        )
+        return
+
+    replied = update.message.reply_to_message
+    if not replied:
+        await update.message.reply_text(
+            "Usage: reply to a Telegram image with /pasteimage\n\n"
+            "Steps:\n"
+            "1. Send one image in Telegram\n"
+            "2. Reply to that image with /pasteimage\n"
+            "3. Keep your target app textbox focused on PC"
+        )
+        return
+
+    media = None
+    media_label = "photo"
+    if replied.photo:
+        media = replied.photo[-1]
+    elif replied.document and str(replied.document.mime_type or "").startswith("image/"):
+        media = replied.document
+        media_label = "image document"
+
+    if not media:
+        await update.message.reply_text(
+            "Please reply to a Telegram photo or image document."
+        )
+        return
+
+    await update.message.reply_text(
+        f"Preparing {media_label} from Telegram and pasting into active app..."
+    )
+
+    try:
+        media_file = await media.get_file()
+        image_bytes = bytes(await media_file.download_as_bytearray())
+        if not image_bytes:
+            await update.message.reply_text("Could not download the image bytes.")
+            return
+
+        dib_hash = _copy_image_bytes_to_windows_clipboard(image_bytes)
+        _schedule_image_clipboard_expiry(update.effective_user.id, dib_hash)
+
+        import pyautogui
+        from pocket_desk_agent.automation_utils import send_hotkey
+
+        await asyncio.sleep(0.15)
+        send_hotkey(pyautogui, "ctrl", "v")
+
+        await update.message.reply_text(
+            "Image pasted with Ctrl+V into the currently focused desktop app.\n"
+            "Clipboard image will auto-clear in 2 minutes if unchanged."
+        )
+        logger.info(
+            "Pasted replied Telegram image for user %s (%s bytes)",
+            update.effective_user.id,
+            len(image_bytes),
+        )
+    except ImportError as exc:
+        await update.message.reply_text(
+            f"Missing dependency for /pasteimage: {exc}\n\n"
+            "Install/reinstall required desktop dependencies and restart the bot."
+        )
+        logger.warning("pasteimage dependency error: %s", exc)
+    except Exception as exc:
+        await update.message.reply_text(f"Failed to paste image: {exc}")
+        logger.error("Error in pasteimage_command: %s", exc, exc_info=True)
+
+
+async def pasteimages_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /pasteimages by pasting all images from a replied media group."""
+    if not update.message:
+        return
+
+    if platform.system() != "Windows":
+        await update.message.reply_text(
+            "/pasteimages is currently only supported on Windows."
+        )
+        return
+
+    replied = update.message.reply_to_message
+    if not replied:
+        await update.message.reply_text(
+            "Usage: reply to a Telegram album photo/image document with /pasteimages\n\n"
+            "For a single image, use /pasteimage."
+        )
+        return
+
+    user_id = update.effective_user.id
+    media_group_id = str(replied.media_group_id or "").strip()
+    file_ids: list[str] = []
+    if media_group_id:
+        file_ids = get_media_group_file_ids(user_id, media_group_id)
+
+    if not file_ids:
+        # Fallback to one image when group context is unavailable.
+        if replied.photo:
+            file_ids = [replied.photo[-1].file_id]
+        elif replied.document and str(replied.document.mime_type or "").startswith("image/"):
+            file_ids = [replied.document.file_id]
+
+    if not file_ids:
+        await update.message.reply_text(
+            "Please reply to a Telegram photo/image document or an image inside an album."
+        )
+        return
+
+    if len(file_ids) == 1:
+        await update.message.reply_text(
+            "Only one image was found for that reply. Pasting one image..."
+        )
+    else:
+        await update.message.reply_text(
+            f"Pasting {len(file_ids)} images into the active app one-by-one..."
+        )
+
+    try:
+        from pocket_desk_agent.automation_utils import send_hotkey
+        import pyautogui
+
+        pasted = 0
+        for index, file_id in enumerate(file_ids, start=1):
+            media_file = await context.bot.get_file(file_id)
+            image_bytes = bytes(await media_file.download_as_bytearray())
+            if not image_bytes:
+                raise RuntimeError(f"Image #{index} download returned empty bytes.")
+
+            dib_hash = _copy_image_bytes_to_windows_clipboard(image_bytes)
+            _schedule_image_clipboard_expiry(user_id, dib_hash)
+            await asyncio.sleep(0.12)
+            send_hotkey(pyautogui, "ctrl", "v")
+            pasted += 1
+            await asyncio.sleep(0.35)
+
+        await update.message.reply_text(
+            f"Completed: pasted {pasted} image(s) into the focused desktop app.\n"
+            "Clipboard image will auto-clear in 2 minutes if unchanged."
+        )
+        logger.info(
+            "Pasted %s Telegram image(s) for user %s via /pasteimages",
+            pasted,
+            user_id,
+        )
+    except ImportError as exc:
+        await update.message.reply_text(
+            f"Missing dependency for /pasteimages: {exc}\n\n"
+            "Install/reinstall required desktop dependencies and restart the bot."
+        )
+        logger.warning("pasteimages dependency error: %s", exc)
+    except Exception as exc:
+        await update.message.reply_text(f"Failed while pasting images: {exc}")
+        logger.error("Error in pasteimages_command: %s", exc, exc_info=True)
 
 
 async def viewclipboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE):

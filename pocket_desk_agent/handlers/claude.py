@@ -249,6 +249,52 @@ def _click_claude_input(window, pyautogui) -> None:
                 )
             )
             text_data = pytesseract.image_to_data(screenshot, output_type=pytesseract.Output.DICT)
+            line_words: list[tuple[str, int, int, int, int]] = []
+            for index, raw_word in enumerate(text_data["text"]):
+                word = (raw_word or "").strip().lower()
+                if not word:
+                    continue
+                left = int(text_data["left"][index])
+                top = int(text_data["top"][index])
+                width = int(text_data["width"][index])
+                height = int(text_data["height"][index])
+                line_words.append((word, left, top, width, height))
+
+            # First pass: look for the exact placeholder phrase ("Type / for command").
+            line_words.sort(key=lambda item: (item[2], item[1]))
+            phrase_found = False
+            for index in range(len(line_words)):
+                word = line_words[index][0]
+                if "type" not in word:
+                    continue
+                window_slice = line_words[index : index + 6]
+                sequence = " ".join(item[0] for item in window_slice)
+                if "/" not in sequence or "command" not in sequence:
+                    continue
+                phrase_left = min(item[1] for item in window_slice)
+                phrase_top = min(item[2] for item in window_slice)
+                phrase_right = max(item[1] + item[3] for item in window_slice)
+                phrase_bottom = max(item[2] + item[4] for item in window_slice)
+                click_x = window.left + ((phrase_left + phrase_right) // 2)
+                # Click inside the textbox body (slightly below placeholder text baseline).
+                click_y = window.top + window.height - bottom_height + phrase_bottom + max(
+                    18,
+                    int((phrase_bottom - phrase_top) * 0.8),
+                )
+                click_y = min(window.top + window.height - 20, click_y)
+                pyautogui.click(click_x, click_y)
+                time.sleep(0.4)
+                logger.info(
+                    "Focused Claude input via OCR placeholder phrase at (%s, %s)",
+                    click_x,
+                    click_y,
+                )
+                phrase_found = True
+                break
+
+            if phrase_found:
+                return
+
             best_match = None
             for index, raw_word in enumerate(text_data["text"]):
                 word = (raw_word or "").strip().lower()

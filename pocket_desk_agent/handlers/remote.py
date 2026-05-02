@@ -19,6 +19,7 @@ idle bot never pays for them.
 from __future__ import annotations
 
 import asyncio
+import datetime as dt
 import io
 import logging
 import socket
@@ -451,6 +452,38 @@ async def remote_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await update.message.reply_text(message)
     if not success:
         logger.info("[remote] /remote start failed for user %s: %s", user_id, message.splitlines()[0])
+
+
+@safe_command
+async def remoteinfo_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """``/remoteinfo`` - show status for the caller's remote session."""
+    if not update.message or not update.effective_user:
+        return
+
+    status = sanitized_status(update.effective_user.id)
+    if not status.get("active"):
+        await update.message.reply_text(
+            "No active remote session.\n\nUse /remote to start one."
+        )
+        return
+
+    started_at = status.get("started_at")
+    started_text = "unknown"
+    if isinstance(started_at, int) and started_at > 0:
+        started_text = dt.datetime.fromtimestamp(started_at).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+
+    await update.message.reply_text(
+        "Remote session status:\n\n"
+        f"URL: {status.get('url', 'unknown')}\n"
+        f"Idle: {status.get('idle_seconds', 0)}s\n"
+        f"FPS: {status.get('fps', 'unknown')}\n"
+        f"Quality: {status.get('quality', 'unknown')}\n"
+        f"Max width: {status.get('max_width', 'unknown')}\n"
+        f"Started: {started_text}\n\n"
+        "Use /stopremote to end this session."
+    )
 
 
 @safe_command

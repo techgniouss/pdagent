@@ -36,8 +36,10 @@ from pocket_desk_agent.handlers.core import (  # noqa: F401
     update_command,
     handle_message,
     handle_photo,
+    handle_image_document,
     error_handler,
     sync_commands_command,
+    selftest_command,
     get_bot_commands,
 )
 
@@ -68,6 +70,8 @@ from pocket_desk_agent.handlers.system import (  # noqa: F401
     windows_command,
     focuswindow_command,
     clipboard_command,
+    pasteimage_command,
+    pasteimages_command,
     viewclipboard_command,
 )
 
@@ -162,6 +166,8 @@ from pocket_desk_agent.handlers.scheduling import (  # noqa: F401
     repeatschedule_command,
     watchperm_command,
     watchscreen_command,
+    watchnotify_command,
+    watchstatus_command,
     stopscreenwatch_command,
     listschedules_command,
     cancelschedule_command,
@@ -182,8 +188,23 @@ from pocket_desk_agent.handlers.callbacks import (  # noqa: F401
 # ── Remote Desktop ─────────────────────────────────────────────────────────
 from pocket_desk_agent.handlers.remote import (  # noqa: F401
     remote_command,
+    remoteinfo_command,
     stopremote_command,
     start_remote_session,
     stop_remote_session,
     teardown_all_sessions,
+)
+
+# Workflow Recipes
+from pocket_desk_agent.handlers.workflow_recipes import (  # noqa: F401
+    recipecreate_command,
+    recipeaddcommand_command,
+    recipeaddclaude_command,
+    recipeaddwait_command,
+    recipeaddwaittext_command,
+    recipeaddnotify_command,
+    recipelist_command,
+    recipeshow_command,
+    recipedelete_command,
+    reciperun_command,
 )
