@@ -138,6 +138,7 @@ class RecipeRegistry:
         if key in self.recipes:
             return False, f"Recipe '{normalized}' already exists."
 
+        previous_recipes = self.recipes.copy()
         now = time.time()
         recipe = RecipeDefinition(
             name=normalized,
@@ -146,15 +147,22 @@ class RecipeRegistry:
             steps=[],
         )
         self.recipes[key] = recipe.to_dict()
-        self.save()
+        result = self.save()
+        if not result:
+            self.recipes = previous_recipes
+            return False, f"Failed to create recipe '{normalized}'."
         return True, f"Recipe '{normalized}' created."
 
     def delete_recipe(self, name: str) -> tuple[bool, str]:
         key = name.strip().lower()
         if key not in self.recipes:
             return False, f"Recipe '{name}' was not found."
+        previous_recipes = self.recipes.copy()
         del self.recipes[key]
-        self.save()
+        result = self.save()
+        if not result:
+            self.recipes = previous_recipes
+            return False, f"Failed to delete recipe '{name}'."
         return True, f"Recipe '{name}' deleted."
 
     def append_step(self, name: str, step: RecipeStep) -> tuple[bool, str]:
@@ -167,19 +175,28 @@ class RecipeRegistry:
 
         recipe.steps.append(step)
         recipe.updated_at = time.time()
+        previous_recipes = self.recipes.copy()
         self.recipes[recipe.name.strip().lower()] = recipe.to_dict()
-        self.save()
+        result = self.save()
+        if not result:
+            self.recipes = previous_recipes
+            return False, f"Failed to add {step.kind} step to '{recipe.name}'."
         return True, f"Added {step.kind} step to '{recipe.name}'."
 
-    def mark_used(self, name: str) -> None:
+    def mark_used(self, name: str) -> bool:
         recipe = self.get_recipe(name)
         if not recipe:
-            return
+            return False
         recipe.use_count += 1
         recipe.last_used_at = time.time()
         recipe.updated_at = time.time()
+        previous_recipes = self.recipes.copy()
         self.recipes[recipe.name.strip().lower()] = recipe.to_dict()
-        self.save()
+        result = self.save()
+        if not result:
+            self.recipes = previous_recipes
+            return False
+        return True
 
 
 _recipe_registry: Optional[RecipeRegistry] = None

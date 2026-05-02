@@ -31,7 +31,9 @@ logger = logging.getLogger(__name__)
 _privacy_mode_requested = False
 _privacy_mode_changed_at: Optional[float] = None
 _IMAGE_CLIPBOARD_TTL_SECONDS = 120
-_image_clipboard_cleanup_tasks: dict[int, asyncio.Task] = {}
+_global_image_clipboard_task: Optional[asyncio.Task] = None
+_global_image_clipboard_generation = 0
+_global_image_clipboard_hash: Optional[str] = None
 
 
 def _set_privacy_mode_state(requested: bool) -> None:
@@ -187,36 +189,55 @@ def _clear_windows_clipboard_if_image_hash_matches(expected_hash: str) -> bool:
     raise RuntimeError(f"Could not clear Windows clipboard image: {last_error}")
 
 
-async def _expire_image_clipboard_after_ttl(user_id: int, expected_hash: str) -> None:
+async def _expire_image_clipboard_after_ttl(
+    generation: int, expected_hash: str
+) -> None:
     """After TTL, clear image clipboard if unchanged."""
     try:
         await asyncio.sleep(_IMAGE_CLIPBOARD_TTL_SECONDS)
+        if (
+            generation != _global_image_clipboard_generation
+            or expected_hash != _global_image_clipboard_hash
+        ):
+            return
         cleared = _clear_windows_clipboard_if_image_hash_matches(expected_hash)
         if cleared:
             logger.info(
-                "Auto-cleared Telegram image from clipboard after %ss for user %s",
+                "Auto-cleared Telegram image from clipboard after %ss",
                 _IMAGE_CLIPBOARD_TTL_SECONDS,
-                user_id,
             )
     except asyncio.CancelledError:
         raise
     except Exception as exc:
-        logger.warning("Image clipboard auto-clear failed for user %s: %s", user_id, exc)
+        logger.warning("Image clipboard auto-clear failed: %s", exc)
 
 
-def _schedule_image_clipboard_expiry(user_id: int, expected_hash: str) -> None:
+def _schedule_image_clipboard_expiry(expected_hash: str) -> None:
     """Schedule image clipboard auto-clear and replace any previous pending task."""
-    previous = _image_clipboard_cleanup_tasks.get(user_id)
+    global _global_image_clipboard_task
+    global _global_image_clipboard_generation
+    global _global_image_clipboard_hash
+
+    previous = _global_image_clipboard_task
     if previous and not previous.done():
         previous.cancel()
 
-    task = asyncio.create_task(_expire_image_clipboard_after_ttl(user_id, expected_hash))
-    _image_clipboard_cleanup_tasks[user_id] = task
+    _global_image_clipboard_generation += 1
+    current_generation = _global_image_clipboard_generation
+    _global_image_clipboard_hash = expected_hash
+    task = asyncio.create_task(
+        _expire_image_clipboard_after_ttl(current_generation, expected_hash)
+    )
+    _global_image_clipboard_task = task
 
     def _cleanup_done_callback(done_task: asyncio.Task) -> None:
-        current = _image_clipboard_cleanup_tasks.get(user_id)
-        if current is done_task:
-            _image_clipboard_cleanup_tasks.pop(user_id, None)
+        global _global_image_clipboard_task
+        if (
+            _global_image_clipboard_task is done_task
+            and current_generation == _global_image_clipboard_generation
+            and expected_hash == _global_image_clipboard_hash
+        ):
+            _global_image_clipboard_task = None
 
     task.add_done_callback(_cleanup_done_callback)
 
@@ -997,7 +1018,7 @@ async def pasteimage_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
             return
 
         dib_hash = _copy_image_bytes_to_windows_clipboard(image_bytes)
-        _schedule_image_clipboard_expiry(update.effective_user.id, dib_hash)
+        _schedule_image_clipboard_expiry(dib_hash)
 
         import pyautogui
         from pocket_desk_agent.automation_utils import send_hotkey
@@ -1084,7 +1105,7 @@ async def pasteimages_command(update: Update, context: ContextTypes.DEFAULT_TYPE
                 raise RuntimeError(f"Image #{index} download returned empty bytes.")
 
             dib_hash = _copy_image_bytes_to_windows_clipboard(image_bytes)
-            _schedule_image_clipboard_expiry(user_id, dib_hash)
+            _schedule_image_clipboard_expiry(dib_hash)
             await asyncio.sleep(0.12)
             send_hotkey(pyautogui, "ctrl", "v")
             pasted += 1

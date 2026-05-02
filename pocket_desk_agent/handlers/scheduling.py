@@ -1164,7 +1164,7 @@ async def _execute_screen_watch(task: ScheduledTask, bot) -> tuple[bool, Optiona
         else:
             send_hotkey(pyautogui, *keys)
 
-    if cooldown_seconds > 0:
+    if cooldown_seconds > 0 and action_mode != "notify":
         metadata["last_triggered_at"] = local_now().isoformat()
         get_scheduler_registry().update_task_metadata(task.id, metadata)
 
@@ -1183,6 +1183,9 @@ async def _execute_screen_watch(task: ScheduledTask, bot) -> tuple[bool, Optiona
             f"{detail_text}\nMatches found: {len(matches)}"
         ),
     )
+    if cooldown_seconds > 0 and action_mode == "notify":
+        metadata["last_triggered_at"] = local_now().isoformat()
+        get_scheduler_registry().update_task_metadata(task.id, metadata)
     logger.info(
         "Screen watcher triggered for user %s in %s: '%s' -> %s (%s matches)",
         task.user_id,

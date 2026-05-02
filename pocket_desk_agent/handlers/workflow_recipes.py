@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from typing import Optional
 
@@ -27,6 +28,8 @@ from pocket_desk_agent.recipe_registry import (
     get_recipe_registry,
 )
 from pocket_desk_agent.scheduling_utils import parse_duration_spec
+
+logger = logging.getLogger(__name__)
 
 
 _WAIT_TEXT_SCOPE_PATTERN = re.compile(r"(?:^|\s)scope=([a-zA-Z_]+)(?:\s|$)")
@@ -339,7 +342,12 @@ async def reciperun_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     ok, message = await _execute_recipe(recipe, variables, update, context)
     await update.message.reply_text(message)
     if ok:
-        get_recipe_registry().mark_used(recipe.name)
+        usage_saved = get_recipe_registry().mark_used(recipe.name)
+        if not usage_saved:
+            await update.message.reply_text(
+                "Recipe run completed, but usage stats could not be saved."
+            )
+            logger.warning("Failed to persist recipe usage for '%s'", recipe.name)
 
 
 async def _execute_recipe(recipe, variables: dict[str, str], update: Update, context: ContextTypes.DEFAULT_TYPE) -> tuple[bool, str]:
