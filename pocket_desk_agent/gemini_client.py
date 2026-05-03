@@ -1,6 +1,5 @@
 """Gemini AI client with multi-auth support (Antigravity OAuth, Gemini CLI OAuth, API Key)."""
 
-import json
 import uuid
 import logging
 import asyncio
@@ -697,12 +696,6 @@ class GeminiClient:
                 self._oauth._save_tokens()
             else:
                 logger.warning("No saved tokens.")
-
-    def _get_token(self) -> str:
-        if self._auth_mode == AUTH_MODE_APIKEY:
-            return ""
-        self._oauth.ensure_valid_token()
-        return self._oauth.access_token
 
     def _resolve_auth_context(
         self,

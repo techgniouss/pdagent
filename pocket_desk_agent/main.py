@@ -110,7 +110,7 @@ async def post_init(application: Application):
     """Sync commands with Telegram on startup and launch background tasks."""
     # Use the helper that pulls from COMMAND_REGISTRY
     await application.bot.set_my_commands(get_bot_commands())
-    logger.info("Self-sync completed: All commands in registry updated on Telegram.")
+    logger.info("Command menu sync completed.")
 
     # ── Tesseract OCR check ───────────────────────────────────────────────
     if not _tesseract_available():

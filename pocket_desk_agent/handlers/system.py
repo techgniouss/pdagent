@@ -1,8 +1,6 @@
 """System control command handlers."""
 
 import logging
-import os
-import sys
 import platform
 import subprocess
 import asyncio
@@ -18,7 +16,6 @@ from pocket_desk_agent.app_catalog import build_builtin_app_catalog, resolve_app
 from pocket_desk_agent.app_control import close_desktop_app, launch_desktop_app
 
 from pocket_desk_agent.handlers._shared import (
-    PYWINAUTO_AVAILABLE,
     get_media_group_file_ids,
     record_action_if_active,
     window_switch_options,

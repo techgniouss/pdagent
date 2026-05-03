@@ -222,16 +222,6 @@ class AntigravityOAuth:
             json.dumps(payload).encode('utf-8')
         ).decode('utf-8').rstrip('=')
     
-    def _decode_state(self, state: str) -> Tuple[str, str]:
-        """Decode state parameter to extract verifier and project ID"""
-        padding = 4 - len(state) % 4
-        if padding != 4:
-            state += '=' * padding
-        
-        decoded = base64.urlsafe_b64decode(state).decode('utf-8')
-        data = json.loads(decoded)
-        return data.get('verifier', ''), data.get('projectId', '')
-    
     def build_authorization_url(self) -> Tuple[str, str]:
         """Build the OAuth authorization URL with PKCE"""
         verifier, challenge = PKCEGenerator.generate()

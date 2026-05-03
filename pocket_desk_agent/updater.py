@@ -260,7 +260,6 @@ def _apply_git_update() -> tuple[bool, str]:
                 logger.warning(f"[updater] pip install had warnings: {pip.stderr[:300]}")
                 # Not fatal — continue
 
-        new_sha = get_local_short_sha()
         new_version = get_version_string()
 
         # Count files changed

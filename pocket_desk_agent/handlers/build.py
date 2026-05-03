@@ -14,13 +14,11 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
 from pocket_desk_agent.handlers._shared import (
-    PYWINAUTO_AVAILABLE,
     build_state,
     build_monitor_state,
     build_screenshot_tasks,
     large_file_upload_state,
     apk_retrieval_state,
-    DEFAULT_REPO_PATH,
     file_manager,
     safe_command,
 )

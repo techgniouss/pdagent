@@ -3,14 +3,12 @@
 import logging
 import os
 import platform
-import time
 import io
 import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
 from pocket_desk_agent.handlers._shared import (
-    PYWINAUTO_AVAILABLE,
     findui_options,
     record_action_if_active,
 )
