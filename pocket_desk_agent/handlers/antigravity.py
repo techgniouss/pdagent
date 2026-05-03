@@ -15,7 +15,6 @@ from pocket_desk_agent.handlers._shared import (
     PYWINAUTO_AVAILABLE,
     openfolder_options,
     claudecli_options,
-    DEFAULT_REPO_PATH,
 )
 from pocket_desk_agent.config import Config
 

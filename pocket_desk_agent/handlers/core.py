@@ -11,10 +11,8 @@ from pocket_desk_agent.handlers._shared import (
     auth_client,
     gemini_client,
     file_manager,
-    recording_sessions,
     record_action_if_active,
     register_media_group_item,
-    PYWINAUTO_AVAILABLE,
 )
 from pocket_desk_agent.updater import (
     get_version_string,
@@ -23,6 +21,10 @@ from pocket_desk_agent.updater import (
 )
 from pocket_desk_agent.config import Config
 from pocket_desk_agent.constants import AUTH_MODE_APIKEY
+from pocket_desk_agent.telegram_commands import (
+    TELEGRAM_MAX_BOT_COMMANDS,
+    trim_registry_for_telegram,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -606,13 +608,20 @@ def _run_selftest_checks(user_id: int) -> list[tuple[str, bool, str]]:
         bot_commands = get_bot_commands()
         from pocket_desk_agent.command_map import COMMAND_REGISTRY
 
-        ok = len(bot_commands) == len(COMMAND_REGISTRY)
+        expected_menu_size = min(len(COMMAND_REGISTRY), TELEGRAM_MAX_BOT_COMMANDS)
+        dropped = max(0, len(COMMAND_REGISTRY) - TELEGRAM_MAX_BOT_COMMANDS)
+        ok = len(bot_commands) == expected_menu_size
         detail = (
-            f"menu size matches registry ({len(bot_commands)})"
+            (
+                "menu size matches Telegram API cap: "
+                f"menu={len(bot_commands)}, registry={len(COMMAND_REGISTRY)}, "
+                f"dropped={dropped}"
+            )
             if ok
             else (
                 "menu size mismatch: "
-                f"menu={len(bot_commands)}, registry={len(COMMAND_REGISTRY)}"
+                f"menu={len(bot_commands)}, expected={expected_menu_size}, "
+                f"registry={len(COMMAND_REGISTRY)}"
             )
         )
         checks.append(("telegram_menu", ok, detail))
@@ -764,7 +773,15 @@ def get_bot_commands():
     """Return a list of BotCommand objects for the Telegram menu."""
     from pocket_desk_agent.command_map import COMMAND_REGISTRY
 
-    return [BotCommand(cmd, desc) for cmd, _, desc in COMMAND_REGISTRY]
+    command_specs, dropped = trim_registry_for_telegram(COMMAND_REGISTRY)
+    if dropped:
+        logger.warning(
+            "Telegram command menu capped at %d: registry=%d, dropped=%d",
+            TELEGRAM_MAX_BOT_COMMANDS,
+            len(COMMAND_REGISTRY),
+            dropped,
+        )
+    return [BotCommand(cmd, desc) for cmd, desc in command_specs]
 
 
 # Antigravity Automation Commands

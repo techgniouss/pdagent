@@ -1,8 +1,6 @@
 """Custom command recording and execution handlers."""
 
 import logging
-import os
-import platform
 import time
 import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -10,9 +8,6 @@ from telegram.ext import ContextTypes
 
 from pocket_desk_agent.handlers._shared import (
     recording_sessions,
-    RECORDING_TIMEOUT_SECS,
-    PYWINAUTO_AVAILABLE,
-    record_action_if_active,
 )
 
 logger = logging.getLogger(__name__)
@@ -188,7 +183,7 @@ async def done_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.info(f"Scheduled task '{command_name}' with {len(actions)} actions at {scheduled_at}")
     else:
         # ── SAVECOMMAND SESSION: save to command registry for on-demand use ──
-        from pocket_desk_agent.command_registry import get_registry, CommandAction
+        from pocket_desk_agent.command_registry import get_registry
         registry = get_registry()
         success = registry.add_command(command_name, actions)
         

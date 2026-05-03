@@ -3,14 +3,12 @@
 import logging
 import os
 import re
-import sys
 import platform
 import subprocess
 import asyncio
 import time
 import io
-import json
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update
 from telegram.ext import ContextTypes
 
 from pocket_desk_agent.handlers._shared import (
@@ -19,7 +17,6 @@ from pocket_desk_agent.handlers._shared import (
     repo_lists,
     repo_selection_state,
     safe_command,
-    record_action_if_active,
     file_manager,
 )
 
@@ -2088,7 +2085,6 @@ async def check_repo_selection(update: Update, context: ContextTypes.DEFAULT_TYP
         await asyncio.sleep(0.5)
         
         import pyautogui
-        import pyperclip
         
         app = Application(backend="uia").connect(title_re=".*Claude.*")
         claude_window = app.window(title_re=".*Claude.*")
@@ -2159,15 +2155,12 @@ async def check_repo_selection(update: Update, context: ContextTypes.DEFAULT_TYP
         
         else:
             # Text selection - try to match from Recent repos first, then local repos
-            matched_recent = False
-            
             # Try to find matching text in Recent repos using pywinauto
             try:
                 # Look for ListItem or Text elements containing the selection text
                 recent_item = claude_window.child_window(title_re=f".*{selection}.*", control_type="ListItem")
                 recent_item.click_input()
                 logger.info(f"Clicked Recent repo matching '{selection}' using pywinauto")
-                matched_recent = True
                 await asyncio.sleep(1.5)
                 
                 # Take screenshot to confirm

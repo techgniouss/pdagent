@@ -177,7 +177,6 @@ def safe_command(func):
         try:
             await func(update, context)
         except Exception as exc:
-            import traceback as _tb
             logger.error(
                 f"[safe_command] Unhandled error in {func.__name__}: {exc}",
                 exc_info=True,

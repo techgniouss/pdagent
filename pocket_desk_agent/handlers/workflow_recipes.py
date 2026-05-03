@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from typing import Optional
 
 from telegram import Update
 from telegram.ext import ContextTypes

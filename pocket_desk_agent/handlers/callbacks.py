@@ -18,7 +18,6 @@ from pocket_desk_agent.handlers.system import perform_system_shutdown
 from pocket_desk_agent.scheduler_registry import ScheduledTask, get_scheduler_registry
 from pocket_desk_agent.scheduling_utils import parse_iso_datetime
 from pocket_desk_agent.handlers._shared import (
-    auth_client,
     recording_sessions,
     openfolder_options,
     claudecli_options,
