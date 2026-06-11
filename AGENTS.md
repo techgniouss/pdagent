@@ -38,10 +38,10 @@ pocket-desk-agent/
 │   │   ├── core.py             # /start, /help, /status, /new, /enhance, /sync, etc.
 │   │   ├── filesystem.py       # /pwd, /cd, /ls, /cat, /find, /info
 │   │   ├── system.py           # /screenshot, /hotkey, /clipboard, /battery, /shutdown, etc.
-│   │   ├── automation.py       # /clicktext, /findtext, /smartclick, /findelements, etc.
+│   │   ├── automation.py       # /clicktext, /findtext, /smartclick, etc.
 │   │   ├── custom_commands.py  # /savecommand, /done, /listcommands, /deletecommand
-│   │   ├── claude.py          # /claudeask, /clauderepo, /claudechat, /clauderemote, etc.
-│   │   ├── antigravity.py      # /openantigravity, /antigravitychat, /claudecli, etc.
+│   │   ├── claude.py          # /openclaude, /claudescreen + Claude composer helpers
+│   │   ├── antigravity.py      # /openantigravity, /openclaudeinvscode, /claudecli, /openbrowser, etc.
 │   │   ├── build.py            # /build, /getapk
 │   │   ├── scheduling.py       # /schedule, /claudeschedule, /listschedules, /cancelschedule
 │   │   └── callbacks.py        # Inline keyboard button handlers
@@ -89,7 +89,6 @@ pocket-desk-agent/
 | AI | Google Gemini 2.0 Flash (via REST API) |
 | Auth | Multi-mode auth: Antigravity OAuth PKCE, Gemini CLI OAuth PKCE, or API key |
 | UI Automation | pywinauto, pyautogui, pygetwindow (Windows only) |
-| Computer Vision | opencv-python, numpy (contour detection for /findelements) |
 | OCR | pytesseract (Tesseract engine) |
 | File Uploads | Dropbox SDK |
 | Build Backend | hatchling (PEP 517) |
@@ -304,7 +303,6 @@ The bot is designed to be lightweight when running as a background daemon.
 
 Heavy dependencies are loaded **on-demand**, not at startup:
 
-- **opencv-python + numpy** (~60-80 MB) — loaded only when `/findelements` is used
 - **dropbox** (~10 MB) — loaded only when `/getapk` uploads to Dropbox
 - **pytesseract** (~1 MB) — loaded only when `/findtext` or `/smartclick` is used
 - **pyautogui** (~3 MB) — loaded only when `/screenshot`, `/hotkey`, etc. are used

@@ -11,6 +11,7 @@ import json
 import uuid
 import requests
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.error import TimedOut
 from telegram.ext import ContextTypes
 
 from pocket_desk_agent.handlers._shared import (
@@ -217,18 +218,49 @@ def prepare_build_workflow(
 
 
 
+_GRADLE_ROOT_MARKERS = (
+    "settings.gradle",
+    "settings.gradle.kts",
+    "build.gradle",
+    "build.gradle.kts",
+)
+
+
+def _android_outputs_base(repo_path: str) -> str | None:
+    """Return the Gradle build-outputs directory for an Android repo, or None.
+
+    Supports two project layouts:
+    * React Native / Capacitor / Cordova — Gradle project nested under
+      ``android/`` → outputs at ``android/app/build/outputs``.
+    * Native Android Studio (Java/Kotlin) — Gradle project at the repo root
+      → outputs at ``app/build/outputs``.
+    """
+    if os.path.isdir(os.path.join(repo_path, "android")):
+        return os.path.join(repo_path, "android", "app", "build", "outputs")
+
+    has_gradle_root = any(
+        os.path.exists(os.path.join(repo_path, marker)) for marker in _GRADLE_ROOT_MARKERS
+    )
+    if has_gradle_root and os.path.isdir(os.path.join(repo_path, "app")):
+        return os.path.join(repo_path, "app", "build", "outputs")
+
+    return None
+
+
+def _is_android_project(path: str) -> bool:
+    """Return True when ``path`` looks like a buildable Android project root."""
+    return _android_outputs_base(path) is not None
+
+
 def _discover_android_repositories(base_dir: str) -> list[str]:
-    """Return repositories under ``base_dir`` that contain an Android project."""
+    """Return Android project repositories under ``base_dir`` (RN or native Kotlin)."""
+    if _is_android_project(base_dir):
+        return [base_dir]
+
     repos: list[str] = []
-
-    android_path = os.path.join(base_dir, "android")
-    if os.path.exists(android_path):
-        repos.append(base_dir)
-        return repos
-
-    for item in os.listdir(base_dir):
+    for item in sorted(os.listdir(base_dir)):
         item_path = os.path.join(base_dir, item)
-        if os.path.isdir(item_path) and os.path.exists(os.path.join(item_path, "android")):
+        if os.path.isdir(item_path) and _is_android_project(item_path):
             repos.append(item_path)
 
     return repos
@@ -261,9 +293,11 @@ def _format_apk_folder_contents(folder_path: str) -> tuple[bool, str]:
 
     for index, filename in enumerate(sorted(files), len(folders) + 1):
         file_path = os.path.join(folder_path, filename)
-        if filename.endswith(".apk"):
+        lower_name = filename.lower()
+        if lower_name.endswith(".apk") or lower_name.endswith(".aab"):
             file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
-            message += f"{index}. [APK] {filename} ({file_size_mb:.2f} MB)\n"
+            tag = "APK" if lower_name.endswith(".apk") else "AAB"
+            message += f"{index}. [{tag}] {filename} ({file_size_mb:.2f} MB)\n"
         else:
             message += f"{index}. [FILE] {filename}\n"
 
@@ -301,7 +335,7 @@ def prepare_apk_retrieval_workflow(
         apk_retrieval_state.pop(user_id, None)
         return (
             False,
-            f"No projects with android folder found in:\n{current_path}\n\n"
+            f"No Android projects (React Native or native Gradle/Kotlin) found in:\n{current_path}\n\n"
             "Use /cd to navigate to your projects directory first.",
         )
 
@@ -326,9 +360,9 @@ def prepare_apk_retrieval_workflow(
 
     if len(filtered_repos) == 1:
         selected_repo = filtered_repos[0]
-        outputs_path = os.path.join(selected_repo, "android", "app", "build", "outputs")
+        outputs_path = _android_outputs_base(selected_repo)
 
-        if not os.path.exists(outputs_path):
+        if not outputs_path or not os.path.exists(outputs_path):
             apk_retrieval_state.pop(user_id, None)
             return (
                 False,
@@ -357,6 +391,7 @@ def prepare_apk_retrieval_workflow(
         apk_retrieval_state[user_id] = {
             "repos": filtered_repos,
             "selected_repo": selected_repo,
+            "outputs_base": outputs_path,
             "current_path": outputs_path,
             "step": "navigate",
             "timestamp": time.time(),
@@ -979,109 +1014,6 @@ def capture_window_screenshot(window):
 
 
 
-async def find_and_send_apk(update: Update, context: ContextTypes.DEFAULT_TYPE, repo_path: str, build_type: str):
-    """Find the APK file and send it via Telegram."""
-    try:
-        # Common APK locations
-        apk_search_paths = [
-            os.path.join(repo_path, 'android', 'app', 'build', 'outputs', 'apk', build_type),
-            os.path.join(repo_path, 'android', 'app', 'build', 'outputs', 'apk', build_type.capitalize()),
-        ]
-        
-        apk_file = None
-        
-        # Search for APK file
-        for search_path in apk_search_paths:
-            if os.path.exists(search_path):
-                for file in os.listdir(search_path):
-                    if file.endswith('.apk'):
-                        apk_file = os.path.join(search_path, file)
-                        break
-                if apk_file:
-                    break
-        
-        if not apk_file:
-            await update.message.reply_text(
-                f"⚠️ Build completed but APK file not found in expected locations:\n\n"
-                + "\n".join(f"• {path}" for path in apk_search_paths) +
-                f"\n\nPlease check the build output folder manually."
-            )
-            return
-        
-        # Get file info
-        file_size = os.path.getsize(apk_file)
-        file_size_mb = file_size / (1024 * 1024)
-        
-        await update.message.reply_text(
-            f"📦 Found APK file!\n\n"
-            f"File: {os.path.basename(apk_file)}\n"
-            f"Size: {file_size_mb:.2f} MB\n"
-            f"Path: {apk_file}\n\n"
-            f"Uploading to Telegram..."
-        )
-        
-        # Check file size (Telegram limit is 50MB for bots)
-        if file_size_mb > 50:
-            # Show upload options to user
-            user_id = update.effective_user.id
-            
-            # File too large for Telegram - let user choose upload method
-            large_file_upload_state[user_id] = {
-                'file_path': apk_file,
-                'file_size_mb': file_size_mb,
-                'timestamp': time.time(),
-                'source': 'build'
-            }
-            
-            # Create inline keyboard with options
-            keyboard = [
-                [
-                    InlineKeyboardButton("⚡ TempFile (Auto-delete)", callback_data=f"upload_tempfile_{user_id}"),
-                ],
-                [
-                    InlineKeyboardButton("☁️ Dropbox (Permanent)", callback_data=f"upload_dropbox_{user_id}"),
-                ]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await update.message.reply_text(
-                f"⚠️ APK file is too large ({file_size_mb:.2f} MB) for Telegram (max 50 MB).\n\n"
-                f"📤 Choose upload method:\n\n"
-                f"⚡ TempFile.org\n"
-                f"  • Fast upload (max 100MB)\n"
-                f"  • Auto-deletes after {Config.UPLOAD_EXPIRY_TIME}\n"
-                f"  • No setup required\n\n"
-                f"☁️ Dropbox\n"
-                f"  • Unlimited file size\n"
-                f"  • Permanent storage\n"
-                f"  • Requires DROPBOX_ACCESS_TOKEN in .env\n\n"
-                f"Select an option below:",
-                reply_markup=reply_markup
-            )
-            
-            return
-        
-        # Send the APK file
-        with open(apk_file, 'rb') as f:
-            await update.message.reply_document(
-                document=f,
-                filename=os.path.basename(apk_file),
-                caption=f"✅ {os.path.basename(repo_path)} - {build_type.capitalize()} Build"
-            )
-        
-        logger.info(f"Sent APK file: {apk_file}")
-        
-        await update.message.reply_text(
-            f"✅ Build workflow completed!\n\n"
-            f"APK file sent successfully."
-        )
-        
-    except Exception as e:
-        await update.message.reply_text(f"❌ Error finding/sending APK: {str(e)}")
-        logger.error(f"Error in find_and_send_apk: {e}")
-
-
-
 # APK Retrieval Commands
 
 async def getapk_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1145,80 +1077,44 @@ async def check_apk_retrieval_selection(update: Update, context: ContextTypes.DE
             )
             return True
         
-        # Check for APK output folder
-        outputs_path = os.path.join(selected_repo, 'android', 'app', 'build', 'outputs')
-        
-        if not os.path.exists(outputs_path):
+        # Resolve the build-outputs folder (RN or native Kotlin layout).
+        outputs_path = _android_outputs_base(selected_repo)
+
+        if not outputs_path or not os.path.exists(outputs_path):
             await update.message.reply_text(
                 f"❌ No build outputs found for {os.path.basename(selected_repo)}\n\n"
-                f"Path doesn't exist:\n{outputs_path}\n\n"
+                f"Path doesn't exist:\n{outputs_path or '(android/app/build/outputs or app/build/outputs)'}\n\n"
                 f"Build the app first using /build command."
             )
             del apk_retrieval_state[user_id]
             return True
-        
-        # List contents of outputs folder
+
         try:
-            items = os.listdir(outputs_path)
-            
-            if not items:
+            if not os.listdir(outputs_path):
                 await update.message.reply_text(
                     f"❌ Build outputs folder is empty for {os.path.basename(selected_repo)}\n\n"
                     f"Build the app first using /build command."
                 )
                 del apk_retrieval_state[user_id]
                 return True
-            
-            # Update state
-            apk_retrieval_state[user_id].update({
-                'selected_repo': selected_repo,
-                'current_path': outputs_path,
-                'step': 'navigate',
-                'timestamp': time.time()
-            })
-            
-            # Build message with folder contents
-            repo_name = os.path.basename(selected_repo)
-            message = f"✅ Selected: {repo_name}\n\n"
-            message += f"📂 Contents of outputs folder:\n\n"
-            
-            folders = []
-            files = []
-            
-            for item in items:
-                item_path = os.path.join(outputs_path, item)
-                if os.path.isdir(item_path):
-                    folders.append(item)
-                else:
-                    files.append(item)
-            
-            # Show folders first
-            for i, folder in enumerate(sorted(folders), 1):
-                message += f"{i}. 📁 {folder}/\n"
-            
-            # Show files
-            for i, file in enumerate(sorted(files), len(folders) + 1):
-                file_size = os.path.getsize(os.path.join(outputs_path, file))
-                file_size_mb = file_size / (1024 * 1024)
-                if file.endswith('.apk'):
-                    message += f"{i}. 📦 {file} ({file_size_mb:.2f} MB)\n"
-                else:
-                    message += f"{i}. 📄 {file}\n"
-            
-            message += f"\n💡 Reply with:\n"
-            message += f"• Number to navigate into folder or select APK\n"
-            message += f"• 'back' to go up one level\n"
-            message += f"• 'cancel' to exit\n\n"
-            message += f"Current path: {outputs_path}"
-            
-            await update.message.reply_text(message)
-            logger.info(f"Showed outputs folder for {repo_name}")
-            
         except Exception as e:
             await update.message.reply_text(f"❌ Error reading folder: {str(e)}")
             logger.error(f"Error reading outputs folder: {e}")
             del apk_retrieval_state[user_id]
-        
+            return True
+
+        apk_retrieval_state[user_id].update({
+            'selected_repo': selected_repo,
+            'outputs_base': outputs_path,
+            'current_path': outputs_path,
+            'step': 'navigate',
+            'timestamp': time.time(),
+        })
+
+        repo_name = os.path.basename(selected_repo)
+        success, folder_message = _format_apk_folder_contents(outputs_path)
+        await update.message.reply_text(f"✅ Selected: {repo_name}\n\n{folder_message}")
+        logger.info("Showed outputs folder for %s", repo_name)
         return True
     
     # Step 2: Navigation and file selection
@@ -1235,8 +1131,10 @@ async def check_apk_retrieval_selection(update: Update, context: ContextTypes.DE
         if selection.lower() == 'back':
             # Go up one level
             parent_path = os.path.dirname(current_path)
-            outputs_base = os.path.join(selected_repo, 'android', 'app', 'build', 'outputs')
-            
+            outputs_base = apk_retrieval_state[user_id].get(
+                'outputs_base'
+            ) or _android_outputs_base(selected_repo) or current_path
+
             # Don't go above outputs folder
             if not parent_path.startswith(outputs_base):
                 await update.message.reply_text(
@@ -1284,16 +1182,15 @@ async def check_apk_retrieval_selection(update: Update, context: ContextTypes.DE
                 await show_folder_contents(update, user_id, selected_item_path)
                 return True
             
-            # If it's a file, check if it's an APK
-            if selected_item.endswith('.apk'):
-                # Send the APK
+            # If it's an installable Android artifact, send it.
+            if selected_item.lower().endswith(('.apk', '.aab')):
                 await send_apk_file(update, context, selected_item_path)
                 del apk_retrieval_state[user_id]
                 return True
             else:
                 await update.message.reply_text(
-                    f"⚠️ Selected file is not an APK: {selected_item}\n\n"
-                    f"Please select an APK file (.apk extension)."
+                    f"⚠️ Selected file is not an Android artifact: {selected_item}\n\n"
+                    f"Please select an .apk or .aab file."
                 )
                 return True
         
@@ -1316,80 +1213,27 @@ async def show_folder_contents(update: Update, user_id: int, folder_path: str):
 
 
 async def send_apk_file(update: Update, context: ContextTypes.DEFAULT_TYPE, apk_path: str):
-    """Send APK file via Telegram or file.io."""
-    try:
-        # Get file info
-        file_size = os.path.getsize(apk_path)
-        file_size_mb = file_size / (1024 * 1024)
-        
-        await update.message.reply_text(
-            f"📦 Found APK file!\n\n"
-            f"File: {os.path.basename(apk_path)}\n"
-            f"Size: {file_size_mb:.2f} MB\n"
-            f"Path: {apk_path}\n\n"
-            f"Preparing to send..."
-        )
-        
-        # Check file size (Telegram limit is 50MB for bots)
-        if file_size_mb > 50:
-            # Show upload options to user
-            user_id = update.effective_user.id
-            
-            # Store file info for callback
-            large_file_upload_state[user_id] = {
-                'file_path': apk_path,
-                'file_size_mb': file_size_mb,
-                'timestamp': time.time(),
-                'source': 'getapk'
-            }
-            
-            # File too large for Telegram - let user choose upload method
-            keyboard = [
-                [
-                    InlineKeyboardButton("⚡ TempFile (Auto-delete)", callback_data=f"upload_tempfile_{user_id}"),
-                ],
-                [
-                    InlineKeyboardButton("☁️ Dropbox (Permanent)", callback_data=f"upload_dropbox_{user_id}"),
-                ]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await update.message.reply_text(
-                f"⚠️ APK file is too large ({file_size_mb:.2f} MB) for Telegram (max 50 MB).\n\n"
-                f"📤 Choose upload method:\n\n"
-                f"⚡ TempFile.org\n"
-                f"  • Fast upload (max 100MB)\n"
-                f"  • Auto-deletes after {Config.UPLOAD_EXPIRY_TIME}\n"
-                f"  • No setup required\n\n"
-                f"☁️ Dropbox\n"
-                f"  • Unlimited file size\n"
-                f"  • Permanent storage\n"
-                f"  • Requires DROPBOX_ACCESS_TOKEN in .env\n\n"
-                f"Select an option below:",
-                reply_markup=reply_markup
-            )
-            
-            return
-        
-        # Send the APK file via Telegram
-        await update.message.reply_text("📤 Uploading to Telegram...")
-        
-        with open(apk_path, 'rb') as f:
-            await update.message.reply_document(
-                document=f,
-                filename=os.path.basename(apk_path),
-                caption=f"📦 {os.path.basename(apk_path)}"
-            )
-        
-        logger.info(f"Sent APK file: {apk_path}")
-        
-        await update.message.reply_text(
-            f"✅ APK file sent successfully!"
-        )
-        
-    except Exception as e:
-        await update.message.reply_text(f"❌ Error sending APK: {str(e)}")
-        logger.error(f"Error in send_apk_file: {e}")
+    """Send an APK/AAB artifact via Telegram, with the large-file fallback."""
+    artifact_label = "AAB" if apk_path.lower().endswith(".aab") else "APK"
+    file_size_mb = os.path.getsize(apk_path) / (1024 * 1024)
+
+    await update.message.reply_text(
+        f"📦 Found {artifact_label} file!\n\n"
+        f"File: {os.path.basename(apk_path)}\n"
+        f"Size: {file_size_mb:.2f} MB\n"
+        f"Path: {apk_path}\n\n"
+        f"Preparing to send..."
+    )
+
+    await send_document_with_upload_fallback(
+        update,
+        context,
+        apk_path,
+        caption=f"📦 {os.path.basename(apk_path)}",
+        kind_label=artifact_label,
+        source="getapk",
+        success_message=f"✅ {artifact_label} file sent successfully!",
+    )
 
 def _build_large_file_upload_markup(user_id: int) -> InlineKeyboardMarkup:
     """Create the inline keyboard used for large-file upload fallbacks."""
@@ -1452,12 +1296,38 @@ async def send_document_with_upload_fallback(
 
     await update.message.reply_text("📤 Uploading to Telegram...")
 
-    with open(file_path, "rb") as f:
-        await update.message.reply_document(
-            document=f,
-            filename=os.path.basename(file_path),
-            caption=caption,
+    # Large uploads need generous per-call timeouts. The bot's default write
+    # timeout is far shorter than the time it takes to push tens of MB over a
+    # slow uplink. Without these, the upload completes but the client times out
+    # waiting for Telegram's confirmation — the file still arrives while the
+    # user sees a spurious error.
+    try:
+        with open(file_path, "rb") as f:
+            await update.message.reply_document(
+                document=f,
+                filename=os.path.basename(file_path),
+                caption=caption,
+                read_timeout=600,
+                write_timeout=600,
+                connect_timeout=60,
+                pool_timeout=60,
+            )
+    except TimedOut:
+        # The transfer almost always still completes on Telegram's side; only
+        # the confirmation read timed out. Tell the user the truth instead of
+        # surfacing a hard error through safe_command.
+        logger.warning(
+            "Timed out awaiting Telegram confirmation for %s (%.2f MB) — file likely delivered.",
+            file_path,
+            file_size_mb,
         )
+        await update.message.reply_text(
+            f"⏳ Telegram is taking a while to confirm the upload of "
+            f"{os.path.basename(file_path)} ({file_size_mb:.2f} MB).\n\n"
+            "The file usually still arrives above within a minute. "
+            "If it doesn't show up, run the command again."
+        )
+        return
 
     logger.info("Sent %s via Telegram: %s", kind_label.lower(), file_path)
     await update.message.reply_text(success_message or f"✅ {kind_label} sent successfully!")

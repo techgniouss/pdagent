@@ -890,7 +890,7 @@ _SELECTIVE_MENU: list[tuple[str, object]] = [
     ("Telegram Bot Token         — bot credential from @BotFather", _update_bot_token),
     ("Gemini Auth Mode           — OAuth vs API key", _update_gemini_auth),
     ("Telegram Bot Username      — your bot's @username", _update_bot_username),
-    ("Default Projects Directory — used by /clauderepo and similar", _update_projects_directory),
+    ("Default Projects Directory — used by /build, /getapk, /claudecli and similar", _update_projects_directory),
     ("Dropbox Access Token       — for large file uploads", _update_dropbox_token),
 ]
 

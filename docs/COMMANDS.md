@@ -93,22 +93,20 @@ Direct Windows system management.
 
 ## Vision & UI Automation
 
-Robotic Process Automation using OCR and computer vision.
+Robotic Process Automation using OCR.
 
 | Command | Description | Example |
 | :--- | :--- | :--- |
 | `/clicktext <x> <y>` | Click at specific screen coordinates. | `/clicktext 500 800` |
 | `/findtext <text>` | Locate visible on-screen text with OCR and return click coordinates. | `/findtext Submit` |
 | `/smartclick <text>` | Find visible on-screen text with OCR and let you choose which match to click. | `/smartclick Cancel` |
-| `/findelements` | Scan the screen with computer vision and number all interactive icons/UI elements. | `/findelements` |
-| `/clickelement <id>` | Click a numbered element from the last `/findelements` scan. | `/clickelement 4` |
 | `/typeenter <text>` | Type text character-by-character and press Enter. | `/typeenter admin123` |
 | `/pasteenter` | Paste the current clipboard contents and press Enter. | `/pasteenter` |
 | `/scrollup [amount]` | Scroll up in the active window. | `/scrollup 500` |
 | `/scrolldown [amount]` | Scroll down in the active window. | `/scrolldown 1200` |
 
 > **Note:** OCR commands (`/findtext`, `/smartclick`) require Tesseract OCR installed on the host.
-> `/findelements` uses computer vision (included in the standard installation).
+> For icons/symbols without text, use `/remote` and tap the element directly.
 > `/windows` and `/focuswindow` switch top-level application windows, not browser tabs within a single app.
 
 ---
@@ -130,9 +128,11 @@ Stream your desktop to a mobile browser and control mouse + keyboard from anywhe
 | Control | Action |
 | :--- | :--- |
 | Tap | Left click |
-| Drag | Click-and-drag |
-| Long-press (500 ms) | Right click |
-| Two-finger vertical scroll | Scroll up/down |
+| Swipe | Move cursor without dragging/selecting |
+| Long-press (500 ms), then release | Right click |
+| Two-finger vertical scroll | Scroll up/down with larger wheel steps |
+| Pinch in / out | Zoom the viewer in/out around your fingers (digital zoom, 1.0×–3.0×) |
+| **drag** button | Toggle intentional click-and-drag mode |
 | **keys** button | Open on-screen keyboard input |
 | **right click** button | Next tap sends a right click instead of left |
 | **mouse pad** button | Toggle trackpad panel — drag to move cursor, tap to click, two-finger to scroll |
@@ -155,7 +155,7 @@ See [docs/REMOTE.md](REMOTE.md) for the full setup, security, and troubleshootin
 
 Record, save, and replay multi-step automation workflows.
 
-**Recordable actions:** `/hotkey`, `/clipboard`, `/findtext`, `/smartclick`, `/clicktext`, `/clickelement`, `/pasteenter`, `/typeenter`, `/scrollup`, `/scrolldown`, `/openclaude`, and more.
+**Recordable actions:** `/hotkey`, `/clipboard`, `/findtext`, `/smartclick`, `/clicktext`, `/pasteenter`, `/typeenter`, `/scrollup`, `/scrolldown`, `/openclaude`, and more.
 
 > **Non-recordable commands** (such as `/screenshot`, `/ls`, `/pasteimage`, `/pasteimages`, or Gemini chat messages) sent during recording are executed immediately as normal — they are not added to the macro sequence.
 
@@ -180,18 +180,12 @@ Control the Anthropic Claude Desktop app and Claude Code CLI from your phone.
 | Command | Description | Example |
 | :--- | :--- | :--- |
 | `/openclaude` | Launch or focus the Claude Desktop application. | `/openclaude` |
-| `/stopclaude` | Stop the active `claude remote-control` terminal session. | `/stopclaude` |
 | `/claudescreen` | Capture a screenshot of the Claude Desktop window. | `/claudescreen` |
 
-### Interactions
-
-| Command | Description | Example |
-| :--- | :--- | :--- |
-| `/clauderemote` | Open a cmd terminal at the current bot working directory (`/pwd`) and run `claude remote-control`. | `/clauderemote` |
-| `/claudeask <prompt>` | Send a detailed multiline prompt to Claude Desktop. | `/claudeask optimize auth.py` |
-| `/claudechat <msg>` | Append a message to the active Claude chat. | `/claudechat continue` |
-| `/claudenew` | Open a new Claude Desktop chat session. | `/claudenew` |
-| `/claudelatest` | Retrieve Claude's last response from the Desktop app. | `/claudelatest` |
+> **Note:** The brittle OCR/pixel desktop-automation commands (`/claudeask`, `/claudenew`,
+> `/claudechat`, `/claudelatest`, `/clauderepo`, `/claudebranch`, `/claudeselect`,
+> `/claudemode`, `/claudeacceptedits`, `/claudemodel`, `/claudesearch`, `/clauderemote`,
+> `/stopclaude`) were removed. Use the **Claude CLI** commands below (robust) or `/remote`.
 
 ### CLI & Context
 
@@ -199,13 +193,6 @@ Control the Anthropic Claude Desktop app and Claude Code CLI from your phone.
 | :--- | :--- | :--- |
 | `/claudecli [path-or-name] [optional prompt]` | If the first argument resolves to a folder, open Claude CLI there and optionally send the remaining text as the first prompt. Otherwise show a folder picker and treat all args as an optional prompt. | `/claudecli myrepo run tests` |
 | `/claudeclisend <text>` | Send a prompt to an already-open Claude Code CLI session. | `/claudeclisend run the tests` |
-| `/clauderepo` | Select the active repository for Claude context. | `/clauderepo` |
-| `/claudebranch` | Switch the git branch for the active Claude session. | `/claudebranch` |
-| `/claudeselect` | Switch between predefined desktop workspaces. | `/claudeselect` |
-| `/claudemode` | Cycle Claude's agentic or conversational mode. | `/claudemode` |
-| `/claudeacceptedits` | Toggle Claude's accept-edits mode via the bottom status bar. | `/claudeacceptedits` |
-| `/claudemodel` | Scan the bottom status bar with OCR and switch the active Claude model. | `/claudemodel` |
-| `/claudesearch <query>` | Search your Claude conversation history. | `/claudesearch python` |
 
 ---
 
@@ -216,10 +203,6 @@ Bridge the bot to VS Code via the Antigravity desktop extension.
 | Command | Description | Example |
 | :--- | :--- | :--- |
 | `/openantigravity` | Launch or focus the Antigravity window. | `/openantigravity` |
-| `/antigravitychat` | Focus the Antigravity chat input. | `/antigravitychat` |
-| `/antigravitymode` | Toggle Antigravity context mode (agentic/chat). | `/antigravitymode` |
-| `/antigravitymodel` | Switch the Antigravity AI model backend. | `/antigravitymodel` |
-| `/antigravityclaudecodeopen` | Focus the Claude Code panel in VS Code. | `/antigravityclaudecodeopen` |
 | `/openclaudeinvscode` | Run `Claude Code: Open` from the VS Code command palette. | `/openclaudeinvscode` |
 | `/antigravityopenfolder [path-or-name]` | Open a project folder directly when an argument is provided, or show a picker when no argument is provided. | `/antigravityopenfolder myrepo` |
 
@@ -292,7 +275,7 @@ CI/CD commands for React Native Android build pipelines.
 | Command | Description | Example |
 | :--- | :--- | :--- |
 | `/build` | Start the React Native / Android build workflow. When the build starts, you are asked whether to enable screenshot monitoring. | `/build` |
-| `/getapk` | Retrieve the latest built APK and deliver it through Telegram or a large-file upload option. | `/getapk` |
+| `/getapk` | Browse build outputs and deliver an `.apk`/`.aab` via Telegram or a large-file upload option. Works on React Native (`android/`) and native Gradle/Kotlin (`app/`) projects. | `/getapk` |
 | `/stopbuildscreenshot` | Cancel the active build screenshot monitoring started during `/build`. | `/stopbuildscreenshot` |
 
 See [BUILD_WORKFLOW.md](BUILD_WORKFLOW.md) for the full build guide.
@@ -303,7 +286,7 @@ See [BUILD_WORKFLOW.md](BUILD_WORKFLOW.md) for the full build guide.
 
 - **Authorization:** Only Telegram user IDs in `AUTHORIZED_USER_IDS` (set via `pdagent configure` or `.env`) can use the bot. All others are silently rejected.
 - **Directory sandboxing:** File operations (`/cat`, `/ls`, `/find`, etc.) are restricted to `APPROVED_DIRECTORIES` using strict path validation. Run `pdagent configure` and select **2) Approved Directories** to add or remove individual paths without re-entering all settings.
-- **Implicit sandbox expansion:** `CLAUDE_DEFAULT_REPO_PATH` (the Default Projects Directory) is **always** appended to the approved sandbox at runtime by `FileManager`, even if it is not listed in `APPROVED_DIRECTORIES`. This ensures commands like `/clauderepo`, `/claudecli`, and `/build` can always reach your projects folder.
+- **Implicit sandbox expansion:** `CLAUDE_DEFAULT_REPO_PATH` (the Default Projects Directory) is **always** appended to the approved sandbox at runtime by `FileManager`, even if it is not listed in `APPROVED_DIRECTORIES`. This ensures commands like `/claudecli`, `/getapk`, and `/build` can always reach your projects folder.
 - **Rate limiting:** All commands are rate-limited per user. Dangerous commands (e.g., `/shutdown`) have much stricter limits.
-- **OS requirements:** UI automation commands (`/screenshot`, `/hotkey`, `/smartclick`, `/findelements`, etc.) require Windows.
+- **OS requirements:** UI automation commands (`/screenshot`, `/hotkey`, `/smartclick`, etc.) require Windows.
 - **OCR requirement:** `/findtext` and `/smartclick` additionally require [Tesseract OCR](https://github.com/UB-Mannheim/tesseract/wiki) installed on the host.

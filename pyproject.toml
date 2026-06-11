@@ -45,8 +45,6 @@ dependencies = [
     "pyperclip>=1.8.2",
     "pytesseract>=0.3.10",
     "dropbox>=11.36.0",
-    "opencv-python>=4.8.0",
-    "numpy>=1.24.0",
     # Live remote desktop (/remote) — lazy-imported, see docs/REMOTE.md.
     "aiohttp>=3.9.0",
     "qrcode[pil]>=7.4.0",
@@ -69,6 +67,8 @@ dev = [
     "mypy>=1.8.0",
     "build>=1.0.0",
     "twine>=5.0.0",
+    # Used by the dev-only live reloader in main.py (start_reloader).
+    "watchfiles>=0.21.0",
 ]
 
 [project.urls]

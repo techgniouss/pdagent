@@ -48,14 +48,9 @@ RECORDING_TIMEOUT_SECS = 600  # 10 minutes
 # ── Per-domain state dicts ──────────────────────────────────────────────────
 openfolder_options = {}          # {user_id: {index: path}}
 claudecli_options = {}           # {user_id: {"paths": {index: path}, "prompt": str}}
-findui_options = {}              # {user_id: {num: (x, y)}}
 window_switch_options = {}       # {user_id: {num: {"handle": int, "title": str}}}
 app_selection_options = {}       # {user_id: {"request_id": str, "action": str, "entries": {index: app_id}}}
 app_forceclose_options = {}      # {user_id: {"app_id": str}}
-search_results = {}              # Claude search results
-repo_lists = {}                  # Claude repo listings
-repo_selection_state = {}        # Claude repo selection flow
-model_selection_state = {}       # Claude model scan+select flow
 build_state = {}                 # Build workflow state
 build_monitor_state = {}         # {request_id|legacy_user_id: pending screenshot monitor params}
 build_screenshot_tasks = {}      # {user_id: asyncio.Task} — active screenshot monitors

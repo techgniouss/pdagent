@@ -38,10 +38,10 @@ pocket-desk-agent/
 │   │   ├── core.py             # /start, /help, /status, /new, /enhance, /sync, etc.
 │   │   ├── filesystem.py       # /pwd, /cd, /ls, /cat, /find, /info
 │   │   ├── system.py           # /screenshot, /hotkey, /clipboard, /battery, /shutdown, etc.
-│   │   ├── automation.py       # /clicktext, /findtext, /smartclick, /findelements, etc.
+│   │   ├── automation.py       # /clicktext, /findtext, /smartclick, etc.
 │   │   ├── custom_commands.py  # /savecommand, /done, /listcommands, /deletecommand
-│   │   ├── claude.py           # /claudeask, /clauderepo, /claudechat, /clauderemote, etc.
-│   │   ├── antigravity.py      # /openantigravity, /antigravitychat, /claudecli, etc.
+│   │   ├── claude.py           # /openclaude, /claudescreen + Claude composer helpers
+│   │   ├── antigravity.py      # /openantigravity, /openclaudeinvscode, /claudecli, /openbrowser, etc.
 │   │   ├── build.py            # /build, /getapk, /stopbuildscreenshot
 │   │   ├── scheduling.py       # /schedule, /scheduleshutdown, /claudeschedule, /listschedules, /cancelschedule
 │   │   ├── remote.py           # /remote, /stopremote, session lifecycle + auto-install flow
@@ -99,7 +99,6 @@ pocket-desk-agent/
 | AI | Google Gemini 2.0 Flash (via REST API) |
 | Auth | Multi-mode auth: Antigravity OAuth PKCE, Gemini CLI OAuth PKCE, or API key |
 | UI Automation | pywinauto, pyautogui, pygetwindow (Windows only) |
-| Computer Vision | opencv-python, numpy (contour detection for /findelements) |
 | OCR | pytesseract (Tesseract engine) |
 | Remote Desktop | aiohttp (WebSocket server), mss (screen capture), cloudflared (HTTPS tunnel) |
 | File Uploads | Dropbox SDK |
@@ -333,7 +332,6 @@ The bot is designed to be lightweight when running as a background daemon.
 
 Heavy dependencies are loaded **on-demand**, not at startup:
 
-- **opencv-python + numpy** (~60-80 MB) — loaded only when `/findelements` is used
 - **aiohttp** (~5 MB) — loaded only when `/remote` starts the WebSocket server
 - **mss** (~1 MB) — loaded only when `/remote` starts screen capture
 - **qrcode** (~1 MB) — loaded only when `/remote` generates a QR code

@@ -110,8 +110,16 @@ class InputDispatcher:
                 button = self._button(event)
                 pyautogui.click(button=button, _pause=False)
             elif etype == "scroll":
-                delta = int(event.get("dy", 0))
-                pyautogui.scroll(delta)
+                dy = int(event.get("dy", 0))
+                dx = int(event.get("dx", 0))
+                if dy:
+                    pyautogui.scroll(dy, _pause=False)
+                if dx:
+                    # hscroll is unavailable on some platforms; ignore failures.
+                    try:
+                        pyautogui.hscroll(dx, _pause=False)
+                    except Exception:
+                        pass
             elif etype == "key":
                 key = str(event.get("key", "")).strip()
                 if not key:

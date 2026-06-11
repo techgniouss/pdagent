@@ -141,7 +141,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Give time for message to send
         await asyncio.sleep(1)
         # Stop the bot gracefully via the application's shutdown mechanism
-        asyncio.get_event_loop().call_soon(lambda: sys.exit(0))
+        asyncio.get_running_loop().call_soon(lambda: sys.exit(0))
 
     elif query.data == "cancel_stopbot":
         await query.edit_message_text("Bot stop cancelled. Bot is still running.")

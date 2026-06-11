@@ -126,8 +126,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/sleep - Put PC to sleep (bot stays awake)\n"
         "/privacy <on|off|status> - Blank or wake the display without locking\n"
         "/wakeup - Info about waking up PC\n"
-        "/clauderemote - Run claude remote-control in default repo\n"
-        "/stopclaude - Stop claude remote-control\n"
         "/openclaude - Open Claude desktop app\n"
         "/battery - Check battery status\n"
         "/screenshot - Capture current screen\n"
@@ -139,8 +137,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/findtext <text> - Find text and show coordinates\n"
         "/clicktext <x> <y> - Click at screen coordinates\n"
         "/smartclick <text> - Find and click text (with selection)\n"
-        "/findelements - Find and label all UI icons/symbols on screen\n"
-        "/clickelement <num> - Click a labeled UI element from /findelements\n"
         "/pasteenter - Paste clipboard and press Enter\n"
         "/typeenter <text> - Type words without spaces and press Enter\n"
         "/scrollup [amount] - Hover centrally and scroll up\n"
@@ -167,32 +163,22 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/recipeshow <name> - Show recipe steps\n"
         "/reciperun <name> [key=value ...] - Run recipe with optional variables\n"
         "/recipedelete <name> - Delete recipe\n\n"
-        "🤖 Claude Desktop Control:\n"
-        "/claudeask <message> - Send message to Claude desktop\n"
-        "/claudenew [message] - Create new chat (optionally with first message)\n"
-        "/clauderepo - Show repo selector and list (reply with number/name)\n"
-        "/claudebranch <name> - Select git branch (use in new session only)\n"
-        "/claudelatest [section] - Open latest session (today/yesterday/older)\n"
-        "/claudesearch [query] - Search conversations and show results\n"
-        "/claudeselect <number/text> - Select conversation from search\n"
-        "/claudemode [number] - Change Claude mode (list modes if no number)\n"
-        "/claudemodel [number] - Change Claude model (list models if no number)\n"
+        "🤖 Claude / Antigravity (launchers + CLI):\n"
+        "/openclaude - Open Claude desktop app\n"
         "/claudescreen - Get screenshot of Claude desktop\n"
-        "/claudechat <message> - Send message and get screenshot\n\n"
-        "🌌 Antigravity Control:\n"
         "/openantigravity - Open or bring Antigravity to front\n"
-        "/antigravitychat - Open Antigravity agent chat\n"
-        "/antigravitymode <planning|fast> - Select agent mode\n"
-        "/antigravitymodel [name] - Select specific AI model\n"
-        "/antigravityclaudecodeopen - Focus Claude Code input in VS Code\n"
-        "/openclaudeinvscode - Run Claude Code: Open in VS Code\n\n"
+        "/openclaudeinvscode - Run Claude Code: Open in VS Code\n"
+        "/claudecli [folder] - Open Claude CLI in a folder (or pick one)\n"
+        "/claudeclisend <prompt> - Send a prompt to the active Claude CLI\n"
+        "/antigravityopenfolder [folder] - Open a folder in VS Code\n"
+        "/openbrowser <name> - Open Edge/Chrome/Firefox/Brave\n\n"
         "🔨 Build Workflow:\n"
         "/build - Start React Native build workflow\n"
         "  → Lists local repos with package.json\n"
         "  → Shows available npm scripts\n"
         "  → Executes build and monitors progress\n"
-        "  → Finds and sends APK file\n\n"
-        "/getapk - Retrieve existing APK files\n"
+        "  → Then use /getapk to retrieve the artifact\n\n"
+        "/getapk - Retrieve built APK/AAB (React Native or native Kotlin)\n"
         "  → Browse local repositories\n"
         "  → Navigate build output folders\n"
         "  → Select and download APK files\n"
@@ -353,21 +339,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = update.effective_user.id
 
-    # Check if this is a repo selection (before Gemini processing)
     # Deferred imports to avoid circular dependencies between handler modules.
-    from pocket_desk_agent.handlers.claude import check_repo_selection, check_model_selection
     from pocket_desk_agent.handlers.build import (
         check_build_selection,
         check_apk_retrieval_selection,
     )
     from pocket_desk_agent.handlers.filesystem import check_getfile_selection
     from pocket_desk_agent.handlers.custom_commands import execute_custom_command
-
-    if await check_repo_selection(update, context):
-        return
-
-    if await check_model_selection(update, context):
-        return
 
     # Check if this is part of build workflow
     if await check_build_selection(update, context):
@@ -723,7 +701,7 @@ async def selftest_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [
                 "",
                 "Note: this command validates non-GUI functional paths only.",
-                "Use live commands (/claudeask, /watchnotify, /remoteinfo) for desktop-level validation.",
+                "Use live commands (/claudescreen, /watchnotify, /remoteinfo) for desktop-level validation.",
             ]
         )
 

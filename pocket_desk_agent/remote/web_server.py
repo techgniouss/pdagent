@@ -305,6 +305,7 @@ _VIEWER_HTML = r"""<!doctype html>
   <div id="toolbar">
     <button id="kbBtn" title="Open keyboard input">keys</button>
     <button id="rcBtn" title="Use right click on next tap">right click</button>
+    <button id="dragBtn" title="Toggle click-and-drag mode">drag off</button>
     <button id="mouseBtn" title="Toggle mouse pad mode">mouse pad off</button>
     <button id="zoomBtn">zoom 1.0x</button>
     <button id="modeBtn" title="When zoomed, drag to move viewport">view pan off</button>
@@ -327,6 +328,7 @@ _VIEWER_HTML = r"""<!doctype html>
   var slider = document.getElementById('slider');
   var kbBtn = document.getElementById('kbBtn');
   var rcBtn = document.getElementById('rcBtn');
+  var dragBtn = document.getElementById('dragBtn');
   var mouseBtn = document.getElementById('mouseBtn');
   var zoomBtn = document.getElementById('zoomBtn');
   var modeBtn = document.getElementById('modeBtn');
@@ -346,16 +348,20 @@ _VIEWER_HTML = r"""<!doctype html>
   var panMode = false;
   var panDrag = null;
   var ZOOM_STEPS = [1.0, 1.5, 2.0, 3.0];
+  var dragMode = false;
   var mouseMode = false;
   var padTouch = null;
   var padMouseDrag = null;
   var padTwoFingerY = 0;
+  var padScrollCarryY = 0;
   var padLongTimer = null;
   var PAD_GAIN = 1.35;
   var PAD_MAX_STEP = 24;
   var padDeltaX = 0;
   var padDeltaY = 0;
   var padFlushQueued = false;
+  var TOUCH_SCROLL_THRESHOLD = 14;
+  var TOUCH_SCROLL_UNIT = 120;
 
   function resize() {
     var ar = vw / vh;
@@ -416,6 +422,37 @@ _VIEWER_HTML = r"""<!doctype html>
     }
   }
 
+  function updateDragUi() {
+    dragBtn.textContent = dragMode ? 'drag on' : 'drag off';
+  }
+
+  function emitScroll(amount) {
+    amount = amount | 0;
+    if (!amount) return;
+    send({type:'scroll', dy: amount});
+  }
+
+  function consumeScrollCarry(deltaY, currentCarry) {
+    currentCarry += deltaY;
+    var steps = 0;
+    if (currentCarry >= TOUCH_SCROLL_THRESHOLD) {
+      steps = Math.floor(currentCarry / TOUCH_SCROLL_THRESHOLD);
+    } else if (currentCarry <= -TOUCH_SCROLL_THRESHOLD) {
+      steps = Math.ceil(currentCarry / TOUCH_SCROLL_THRESHOLD);
+    }
+    if (!steps) return {carry: currentCarry, amount: 0};
+
+    steps = clamp(steps, -6, 6);
+    currentCarry -= steps * TOUCH_SCROLL_THRESHOLD;
+    return {carry: currentCarry, amount: steps * TOUCH_SCROLL_UNIT};
+  }
+
+  function desktopWheelAmount(deltaY) {
+    if (!deltaY) return 0;
+    var steps = Math.max(1, Math.min(8, Math.round(Math.abs(deltaY) / 48)));
+    return (deltaY > 0 ? -1 : 1) * steps * TOUCH_SCROLL_UNIT;
+  }
+
   function updateMouseUi() {
     mouseBtn.textContent = mouseMode ? 'mouse pad on' : 'mouse pad off';
     if (mouseMode) {
@@ -428,6 +465,7 @@ _VIEWER_HTML = r"""<!doctype html>
       padMouseDrag = null;
       padDeltaX = 0;
       padDeltaY = 0;
+      padScrollCarryY = 0;
       padFlushQueued = false;
       clearPadLong();
     }
@@ -587,8 +625,63 @@ _VIEWER_HTML = r"""<!doctype html>
   var dragging = false;
   var twoFinger = false;
   var twoFingerY = 0;
+  var scrollCarryY = 0;
+  var twoFingerMode = null;   // 'pinch' | 'scroll' | null (undecided)
+  var pinchStartDist = 0;
+  var pinchStartZoom = 1.0;
+  var pinchFocus = {x:0.5, y:0.5};
   var LONG_PRESS_MS = 500;
   var DRAG_THRESHOLD = 8; // px
+  var PINCH_THRESHOLD = 18; // px change in finger spread before zooming
+
+  function touchDist(e) {
+    var dx = e.touches[0].clientX - e.touches[1].clientX;
+    var dy = e.touches[0].clientY - e.touches[1].clientY;
+    return Math.hypot(dx, dy);
+  }
+
+  function touchMidY(e) {
+    return (e.touches[0].clientY + e.touches[1].clientY) / 2;
+  }
+
+  function touchFocusNorm(e) {
+    var rect = canvas.getBoundingClientRect();
+    var mx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+    var my = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    return {
+      x: clamp((mx - rect.left) / Math.max(1, rect.width), 0, 1),
+      y: clamp((my - rect.top) / Math.max(1, rect.height), 0, 1)
+    };
+  }
+
+  // Zoom toward a focal display point so the pixel under the fingers stays put.
+  function setZoomAt(nextZoom, focus) {
+    nextZoom = clamp(nextZoom, 1.0, 3.0);
+    if (Math.abs(nextZoom - viewZoom) < 0.001) return;
+    var vp = getViewport();
+    var srcX = vp.x + focus.x * vp.w;
+    var srcY = vp.y + focus.y * vp.h;
+    viewZoom = nextZoom;
+    viewPanX = srcX - focus.x * (vw / viewZoom);
+    viewPanY = srcY - focus.y * (vh / viewZoom);
+    getViewport();
+    updateZoomUi();
+  }
+
+  function clearDesktopLongPress() {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+    }
+  }
+
+  function resetDesktopTouchState() {
+    clearDesktopLongPress();
+    touchStart = null;
+    dragging = false;
+    twoFinger = false;
+    scrollCarryY = 0;
+  }
 
   canvas.addEventListener('touchstart', function(e){
     if (panMode) {
@@ -611,21 +704,35 @@ _VIEWER_HTML = r"""<!doctype html>
     }
 
     e.preventDefault();
+    clearDesktopLongPress();
     if (e.touches.length === 2) {
       twoFinger = true;
-      twoFingerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-      clearTimeout(longPressTimer);
+      twoFingerMode = null;
+      twoFingerY = touchMidY(e);
+      pinchStartDist = touchDist(e);
+      pinchStartZoom = viewZoom;
+      pinchFocus = touchFocusNorm(e);
+      scrollCarryY = 0;
+      touchStart = null;
+      dragging = false;
       return;
     }
     twoFinger = false;
     var n = remoteNormalized(e);
-    touchStart = {x:n.x, y:n.y, raw:{cx:e.touches[0].clientX, cy:e.touches[0].clientY}, t:Date.now()};
+    touchStart = {
+      x:n.x,
+      y:n.y,
+      raw:{cx:e.touches[0].clientX, cy:e.touches[0].clientY},
+      t:Date.now(),
+      moved:false,
+      longPressReady:false
+    };
     dragging = false;
     send({type:'move', x:n.x, y:n.y});
     longPressTimer = setTimeout(function(){
-      if (!dragging && touchStart) {
-        send({type:'click', x:touchStart.x, y:touchStart.y, button:'right'});
-        touchStart = null;
+      if (touchStart && !touchStart.moved && !dragging && !twoFinger) {
+        touchStart.longPressReady = true;
+        showStatus('Release for right-click');
       }
     }, LONG_PRESS_MS);
   }, {passive:false});
@@ -646,22 +753,47 @@ _VIEWER_HTML = r"""<!doctype html>
     e.preventDefault();
     if (e.touches.length === 2) {
       twoFinger = true;
-      var midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-      var dy = midY - twoFingerY;
-      if (Math.abs(dy) > 6) {
-        send({type:'scroll', dy: dy < 0 ? -3 : 3});
+      clearDesktopLongPress();
+      var dist = touchDist(e);
+      var midY = touchMidY(e);
+      if (twoFingerMode === null) {
+        var distDelta = Math.abs(dist - pinchStartDist);
+        var moveDelta = Math.abs(midY - twoFingerY);
+        if (distDelta > PINCH_THRESHOLD && distDelta >= moveDelta) {
+          twoFingerMode = 'pinch';
+        } else if (moveDelta > TOUCH_SCROLL_THRESHOLD) {
+          twoFingerMode = 'scroll';
+        }
+      }
+      if (twoFingerMode === 'pinch') {
+        if (pinchStartDist > 0) {
+          setZoomAt(pinchStartZoom * (dist / pinchStartDist), pinchFocus);
+        }
+      } else if (twoFingerMode === 'scroll') {
+        var scroll = consumeScrollCarry(midY - twoFingerY, scrollCarryY);
+        scrollCarryY = scroll.carry;
+        emitScroll(scroll.amount);
         twoFingerY = midY;
       }
       return;
     }
     if (!touchStart) return;
     var n = remoteNormalized(e);
+    var dx = e.touches[0].clientX - touchStart.raw.cx;
+    var dy2 = e.touches[0].clientY - touchStart.raw.cy;
+    if (Math.hypot(dx, dy2) > DRAG_THRESHOLD) {
+      touchStart.moved = true;
+      clearDesktopLongPress();
+    }
+    if (!dragMode) {
+      if (touchStart.moved) {
+        send({type:'move', x:n.x, y:n.y});
+      }
+      return;
+    }
     if (!dragging) {
-      var dx = e.touches[0].clientX - touchStart.raw.cx;
-      var dy2 = e.touches[0].clientY - touchStart.raw.cy;
       if (Math.hypot(dx, dy2) > DRAG_THRESHOLD) {
         dragging = true;
-        clearTimeout(longPressTimer);
         send({type:'down', x:touchStart.x, y:touchStart.y, button:'left'});
       }
     }
@@ -678,19 +810,37 @@ _VIEWER_HTML = r"""<!doctype html>
     }
 
     e.preventDefault();
-    clearTimeout(longPressTimer);
-    if (twoFinger) { twoFinger = false; return; }
+    clearDesktopLongPress();
+    if (twoFinger) {
+      // Stay in two-finger mode until all fingers lift, so the leftover finger
+      // after a pinch/scroll doesn't fire a stray tap-click.
+      if (e.touches && e.touches.length > 0) return;
+      twoFinger = false;
+      twoFingerMode = null;
+      scrollCarryY = 0;
+      return;
+    }
     if (!touchStart) return;
     var n = remoteNormalized(e);
+    var heldMs = Date.now() - touchStart.t;
     if (dragging) {
       send({type:'up', x:n.x, y:n.y, button:'left'});
+    } else if (!touchStart.moved && heldMs >= LONG_PRESS_MS) {
+      send({type:'click', x:n.x, y:n.y, button:'right'});
     } else {
       var btn = rightClickMode ? 'right' : 'left';
       send({type:'click', x:touchStart.x, y:touchStart.y, button:btn});
       if (rightClickMode) { rightClickMode = false; rcBtn.textContent = 'right click'; }
     }
-    touchStart = null;
-    dragging = false;
+    resetDesktopTouchState();
+  }, {passive:false});
+
+  canvas.addEventListener('touchcancel', function(e){
+    e.preventDefault();
+    if (dragging && touchStart) {
+      send({type:'up', x:touchStart.x, y:touchStart.y, button:'left'});
+    }
+    resetDesktopTouchState();
   }, {passive:false});
 
   // ── Mouse fallback (desktop browsers) ───────────────────────────
@@ -711,7 +861,7 @@ _VIEWER_HTML = r"""<!doctype html>
   canvas.addEventListener('contextmenu', function(e){ e.preventDefault(); });
   canvas.addEventListener('wheel', function(e){
     e.preventDefault();
-    send({type:'scroll', dy: e.deltaY > 0 ? -3 : 3});
+    emitScroll(desktopWheelAmount(e.deltaY));
   }, {passive:false});
 
   // ── Keyboard via hidden input ────────────────────────────────────
@@ -754,6 +904,12 @@ _VIEWER_HTML = r"""<!doctype html>
     showStatus(rightClickMode ? 'Next tap will right-click' : 'Right-click mode off');
   });
 
+  dragBtn.addEventListener('click', function(){
+    dragMode = !dragMode;
+    updateDragUi();
+    showStatus(dragMode ? 'Drag mode on: swipe to left-drag' : 'Drag mode off: swipe moves cursor only');
+  });
+
   mouseBtn.addEventListener('click', function(){
     mouseMode = !mouseMode;
     updateMouseUi();
@@ -768,16 +924,18 @@ _VIEWER_HTML = r"""<!doctype html>
         x: e.touches[0].clientX,
         y: e.touches[0].clientY,
         moved: false,
+        t: Date.now(),
       };
       padLongTimer = setTimeout(function(){
         if (padTouch && !padTouch.moved) {
-          send({type:'pointer_click', button:'right'});
-          padTouch = null;
+          padTouch.longPressReady = true;
+          showStatus('Release for right-click');
         }
       }, 500);
     } else if (e.touches.length === 2) {
       padTouch = null;
       padTwoFingerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      padScrollCarryY = 0;
     }
   }, {passive:false});
 
@@ -786,11 +944,10 @@ _VIEWER_HTML = r"""<!doctype html>
     if (e.touches.length === 2) {
       clearPadLong();
       var midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-      var dy = midY - padTwoFingerY;
-      if (Math.abs(dy) > 6) {
-        send({type:'scroll', dy: dy < 0 ? -3 : 3});
-        padTwoFingerY = midY;
-      }
+      var scroll = consumeScrollCarry(midY - padTwoFingerY, padScrollCarryY);
+      padScrollCarryY = scroll.carry;
+      emitScroll(scroll.amount);
+      padTwoFingerY = midY;
       return;
     }
 
@@ -812,10 +969,20 @@ _VIEWER_HTML = r"""<!doctype html>
   trackpad.addEventListener('touchend', function(e){
     e.preventDefault();
     clearPadLong();
-    if (padTouch && !padTouch.moved) {
+    if (padTouch && !padTouch.moved && (Date.now() - padTouch.t) >= LONG_PRESS_MS) {
+      send({type:'pointer_click', button:'right'});
+    } else if (padTouch && !padTouch.moved) {
       send({type:'pointer_click', button:'left'});
     }
     padTouch = null;
+    padScrollCarryY = 0;
+  }, {passive:false});
+
+  trackpad.addEventListener('touchcancel', function(e){
+    e.preventDefault();
+    clearPadLong();
+    padTouch = null;
+    padScrollCarryY = 0;
   }, {passive:false});
 
   trackpad.addEventListener('mousedown', function(e){
@@ -874,6 +1041,7 @@ _VIEWER_HTML = r"""<!doctype html>
   });
   updateZoomUi();
   updateMouseUi();
+  updateDragUi();
 
   // ── Quality slider (debounced) ──────────────────────────────────
   var qTimer = null;

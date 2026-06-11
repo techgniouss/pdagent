@@ -2,7 +2,9 @@
 
 ## Overview
 
-Pocket Desk Agent can start a React Native Android build from Telegram, monitor the build, locate the generated APK, and help deliver it back to you.
+Pocket Desk Agent can start a React Native Android build from Telegram (via npm scripts), monitor the build, then locate and deliver the generated artifact.
+
+> `/build` drives npm-script builds (React Native). `/getapk` retrieval works for **both** React Native (`android/`) and native Gradle/Kotlin (`app/`) projects — for native Kotlin projects, build with Android Studio / Gradle, then use `/getapk`.
 
 Typical flow:
 
@@ -77,16 +79,20 @@ The bot starts the build command and sends progress updates with recent output a
 
 ### 5. Receive the APK
 
-After a successful build, the bot searches common React Native APK output locations, including:
+After a successful build, run `/getapk` and browse the build-outputs folder. The
+browser auto-detects both project layouts:
 
-- `android/app/build/outputs/apk/debug/`
-- `android/app/build/outputs/apk/release/`
+- React Native / Capacitor / Cordova: `android/app/build/outputs/…`
+- Native Gradle / Kotlin (Android Studio): `app/build/outputs/…`
 
-> **APK vs AAB:** The bot looks for `.apk` files specifically. If your build script produces an Android App Bundle (`.aab`) instead of an APK, the bot will report "APK not found". To get an APK, use a build variant that produces one (e.g., `assembleRelease` rather than `bundleRelease`).
+> **APK and AAB:** Both `.apk` and `.aab` (Android App Bundle) artifacts are
+> listed and can be delivered. Note that `.aab` files are for Play Store upload,
+> not direct sideloading — install an `.apk` on a device.
 
-> **Custom output paths:** If your project writes APKs to a non-standard location, retrieve the file manually using `/find *.apk` or `/cat` after the build completes.
+> **Custom output paths:** If your project writes artifacts to a non-standard
+> location, retrieve the file manually using `/find *.apk` or `/getfile <path>`.
 
-It then reports the file name, size, and local path before sending or uploading the APK.
+`/getapk` reports the file name, size, and local path before sending or uploading it.
 
 ---
 
@@ -161,7 +167,7 @@ Bot: Choose upload method:
 - Confirm `CLAUDE_DEFAULT_REPO_PATH` points to the correct root directory
 - Verify the directory exists and is readable
 - Make sure each target repository contains a `package.json`
-- For **monorepos or nested workspaces**: the bot scans one level deep from `CLAUDE_DEFAULT_REPO_PATH`. If your projects are nested further, set `CLAUDE_DEFAULT_REPO_PATH` to the subdirectory that directly contains them, or use `/clauderepo <path>` to set the project for the current session
+- For **monorepos or nested workspaces**: the bot scans one level deep from `CLAUDE_DEFAULT_REPO_PATH`. If your projects are nested further, set `CLAUDE_DEFAULT_REPO_PATH` to the subdirectory that directly contains them, or use `/cd <path>` to switch the bot's working directory for the current session
 
 ### Build fails
 

@@ -16,10 +16,10 @@ pocket-desk-agent/
 │   │   ├── core.py                 # /start, /help, /status, /new, /enhance, /sync, etc.
 │   │   ├── filesystem.py           # /pwd, /cd, /ls, /cat, /find, /info
 │   │   ├── system.py               # /screenshot, /hotkey, /clipboard, /battery, /shutdown, etc.
-│   │   ├── automation.py           # /clicktext, /findtext, /smartclick, /findelements, etc.
+│   │   ├── automation.py           # /clicktext, /findtext, /smartclick, etc.
 │   │   ├── custom_commands.py      # /savecommand, /done, /cancelrecord, /listcommands, etc.
-│   │   ├── claude.py               # /claudeask, /clauderepo, /claudechat, /clauderemote, etc.
-│   │   ├── antigravity.py          # /openantigravity, /antigravitychat, /claudecli, etc.
+│   │   ├── claude.py               # /openclaude, /claudescreen + Claude composer helpers
+│   │   ├── antigravity.py          # /openantigravity, /openclaudeinvscode, /claudecli, /openbrowser, etc.
 │   │   ├── build.py                # /build, /getapk
 │   │   ├── scheduling.py           # /schedule, /claudeschedule, /listschedules, /cancelschedule
 │   │   └── callbacks.py            # Inline keyboard button handlers
@@ -113,7 +113,6 @@ Multi-provider authentication stack. `auth.py` selects the active provider per u
 
 Heavy dependencies are imported **inside handler functions**, not at module level, so they don't add to idle RAM:
 
-- `opencv-python`, `numpy` — inside `automation_utils.py` functions
 - `dropbox` — inside `handlers/build.py` upload functions
 - `pytesseract` — inside `automation_utils.py` OCR functions
 - `pywinauto`, `pygetwindow`, `PIL.ImageGrab` — loaded on first use via `_load_win_deps()` in `handlers/claude.py` and `handlers/antigravity.py`

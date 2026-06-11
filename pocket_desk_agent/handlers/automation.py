@@ -9,7 +9,6 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
 from pocket_desk_agent.handlers._shared import (
-    findui_options,
     record_action_if_active,
 )
 
@@ -271,8 +270,7 @@ async def smartclick_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 "• Make sure the text is visible\n"
                 "• Try searching for single words\n"
                 "• Check spelling\n\n"
-                "💡 **Looking for a generic symbol or icon (like an 'X')?**\n"
-                "Try using `/findelements`! This uses computer vision to label all clickable symbols on the screen, letting you choose exactly which one to click via `/clickelement <num>`.",
+                "💡 For icons/symbols without text, use `/remote` and tap the element directly.",
                 parse_mode="Markdown"
             )
             logger.info(f"No matches found for '{search_text}'")
@@ -358,115 +356,6 @@ async def smartclick_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {str(e)}")
         logger.error(f"Error in smartclick_command: {e}", exc_info=True)
-
-
-async def findelements_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /findelements command - find all UI elements on screen and label them."""
-    if not update.message:
-        return
-        
-    user_id = update.effective_user.id
-    await update.message.reply_text("🔍 Scanning screen for UI icons and symbols...")
-    
-    try:
-        import pyautogui
-        from pocket_desk_agent.automation_utils import find_ui_elements, annotate_screenshot_with_markers
-        
-        screenshot = pyautogui.screenshot()
-        matches = find_ui_elements(screenshot)
-        
-        if not matches:
-            await update.message.reply_text("❌ No clickable UI elements found on the screen.")
-            return
-            
-        # Store in dict for clickelement
-        findui_options[user_id] = {}
-        for idx, match in enumerate(matches, start=1):
-            findui_options[user_id][idx] = (match.x, match.y)
-            
-        # Annotate and send image
-        annotated = annotate_screenshot_with_markers(screenshot, matches)
-        
-        img_byte_arr = io.BytesIO()
-        annotated.save(img_byte_arr, format='JPEG', quality=85)
-        img_byte_arr = img_byte_arr.getvalue()
-        
-        await update.message.reply_photo(
-            photo=img_byte_arr,
-            caption=(
-                f"✨ Found {len(matches)} potential graphical elements!\n\n"
-                "To click one, use: `/clickelement <number>`\n"
-                "Example: `/clickelement 5`"
-            ),
-            parse_mode="Markdown"
-        )
-        
-        logger.info(f"Found {len(matches)} UI elements for user {user_id}")
-        
-    except ImportError:
-        await update.message.reply_text(
-            "❌ opencv-python or numpy could not be imported. "
-            "Your installation may be incomplete or corrupted.\n\n"
-            "Try reinstalling:\n"
-            "`pip install --upgrade pocket-desk-agent`\n\n"
-            "Then restart the bot.",
-            parse_mode="Markdown",
-        )
-        logger.warning("findelements_command: opencv-python or numpy import failed — installation may be incomplete")
-    except Exception as e:
-        await update.message.reply_text(f"❌ Error finding elements: {str(e)}")
-        logger.error(f"Error in findelements_command: {e}", exc_info=True)
-
-
-async def clickelement_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /clickelement command - click an element labeled by /findelements."""
-    if not update.message:
-        return
-        
-    user_id = update.effective_user.id
-    
-    if not context.args:
-        await update.message.reply_text("Usage: /clickelement <number>\nExample: /clickelement 5")
-        return
-        
-    try:
-        element_num = int(context.args[0])
-    except ValueError:
-        await update.message.reply_text("❌ Please provide a valid number.")
-        return
-        
-    if user_id not in findui_options or not findui_options[user_id]:
-        await update.message.reply_text(
-            "❌ No labeled elements found in memory. Please run `/findelements` first.",
-            parse_mode="Markdown"
-        )
-        return
-        
-    if element_num not in findui_options[user_id]:
-        max_num = max(findui_options[user_id].keys())
-        await update.message.reply_text(f"❌ Invalid element number. Valid numbers are 1 to {max_num}.")
-        return
-        
-    target_x, target_y = findui_options[user_id][element_num]
-    
-    # Check if we are recording
-    if record_action_if_active(user_id, "clicktext", [target_x, target_y]):
-        await update.message.reply_text(f"📝 Recorded: `/clicktext {target_x} {target_y}` (Element {element_num})", parse_mode="Markdown")
-        # Clear the saved elements to free memory
-        del findui_options[user_id]
-        return
-        
-    try:
-        import pyautogui
-        pyautogui.click(target_x, target_y)
-        await update.message.reply_text(f"✅ Clicked element {element_num} at ({target_x}, {target_y})")
-        logger.info(f"User {user_id} clicked element {element_num} at ({target_x}, {target_y})")
-        
-        # We don't automatically delete `findui_options[user_id]` here just in case they want to click another one nearby
-        
-    except Exception as e:
-        await update.message.reply_text(f"❌ Error clicking element: {str(e)}")
-        logger.error(f"Error in clickelement_command: {e}", exc_info=True)
 
 
 async def pasteenter_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
