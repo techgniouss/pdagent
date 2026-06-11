@@ -197,70 +197,63 @@ async def post_shutdown(application: Application):
 
 
 def start_reloader():
-    """Start a background thread to monitor file changes for live reloading."""
+    """Restart the bot when a source ``.py`` file changes (dev only).
+
+    Uses ``watchfiles`` for efficient, debounced filesystem watching instead of
+    a 1.5s ``rglob`` poll loop. ``watchfiles`` is a ``[dev]`` optional
+    dependency; when it is missing we log and skip the reloader rather than
+    falling back to a CPU-hungry poll.
+    """
     import threading
-    import time
-    
+
+    try:
+        from watchfiles import watch, PythonFilter
+    except ImportError:
+        logger.warning(
+            "Live reloader requested but 'watchfiles' is not installed. "
+            'Install dev extras (pip install -e ".[dev]") to enable it. Skipping reloader.'
+        )
+        return
+
+    bot_dir = Path(__file__).parent.resolve()
+    # Use `-m pocket_desk_agent.main` with the project root as cwd so that
+    # `import pocket_desk_agent` resolves regardless of how it was first launched.
+    project_root = bot_dir.parent.resolve()
+
     def reloader_thread():
-        bot_dir = Path(__file__).parent.resolve()
-        mtimes = {}
-        
-        # Initial scan
-        for file_path in bot_dir.rglob("*.py"):
+        import subprocess
+        import time
+
+        # `watch` is a blocking generator that yields a set of changes (already
+        # debounced). PythonFilter restricts events to .py files.
+        for _changes in watch(str(bot_dir), watch_filter=PythonFilter(), debounce=400):
+            logger.info("🔄 Source change detected. Live reloading...")
+
+            # Remove the lock first so the replacement can acquire it.
             try:
-                mtimes[file_path] = file_path.stat().st_mtime
+                PID_FILE.unlink(missing_ok=True)
             except Exception:
                 pass
-                
-        while True:
-            time.sleep(1.5)
-            changed = False
-            for file_path in bot_dir.rglob("*.py"):
+
+            # Flush logs before replacing the process so nothing is lost.
+            for handler in logging.getLogger().handlers:
                 try:
-                    mtime = file_path.stat().st_mtime
-                    if file_path not in mtimes:
-                        mtimes[file_path] = mtime
-                    elif mtimes[file_path] < mtime:
-                        logger.info(f"🔄 File modified: {file_path.name}. Live reloading...")
-                        changed = True
-                        break
+                    handler.flush()
                 except Exception:
                     pass
-            
-            if changed:
-                try:
-                    PID_FILE.unlink(missing_ok=True)
-                except Exception:
-                    pass
-                # On Windows, os.execv doesn't work well for background apps. Use Popen.
-                # Always use `-m pocket_desk_agent.main` with the project root as cwd so that
-                # `import pocket_desk_agent` works correctly regardless of how the script was first launched.
-                import subprocess
-                project_root = Path(__file__).parent.parent.resolve()
 
-                # Flush logs before killing the process so nothing is lost.
-                for handler in logging.getLogger().handlers:
-                    try:
-                        handler.flush()
-                    except Exception:
-                        pass
+            subprocess.Popen(
+                [sys.executable, "-m", "pocket_desk_agent.main"],
+                cwd=str(project_root),
+                creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
+            )
+            # Brief delay so the new process can start and see that PID_FILE is
+            # gone before we exit; otherwise acquire_lock() may see a live PID.
+            time.sleep(0.5)
+            # os._exit() is intentional — sys.exit() only raises SystemExit in
+            # this daemon thread; the main thread (run_polling) would keep going.
+            os._exit(0)
 
-                subprocess.Popen(
-                    [sys.executable, "-m", "pocket_desk_agent.main"],
-                    cwd=str(project_root),
-                    creationflags=getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0),
-                )
-                # Small delay so the new process can start and see that PID_FILE
-                # is gone before we exit.  Without this the old process can linger
-                # long enough for the new acquire_lock() to see a live PID via
-                # os.kill(old_pid, 0) and refuse to start.
-                time.sleep(0.5)
-                # os._exit() is intentional — sys.exit() only raises SystemExit
-                # in this daemon thread; the main thread (run_polling) keeps going.
-                # PID file is already cleaned up above; atexit handlers are skipped
-                # but that's acceptable since we've flushed logs and removed the lock.
-                os._exit(0)
-                
     t = threading.Thread(target=reloader_thread, daemon=True)
     t.start()
 
@@ -344,9 +337,19 @@ def main():
     logger.info(f"Starting Pocket Desk Agent {get_version_string()}...")
     
     # Create application with post_init hook
+    # Generous network timeouts. Default PTB write/read timeouts (~5-20s) are
+    # too short for large document uploads (e.g. APKs over a slow uplink): the
+    # file finishes transferring but the client times out waiting for
+    # Telegram's confirmation, surfacing a spurious "timed out" error even
+    # though the file was delivered. Document sends additionally pass their own
+    # per-call timeouts (see build.send_document_with_upload_fallback).
     application = (
         Application.builder()
         .token(Config.TELEGRAM_BOT_TOKEN)
+        .connect_timeout(30.0)
+        .read_timeout(60.0)
+        .write_timeout(120.0)
+        .pool_timeout(30.0)
         .post_init(post_init)
         .post_shutdown(post_shutdown)
         .build()

@@ -259,7 +259,7 @@ async def start_remote_session(user_id: int, chat_id: int, bot) -> tuple[bool, s
                 f"Remote desktop ready.\n\n"
                 f"Open: {viewer_url}\n\n"
                 f"- Mobile-first viewer (tap=click, drag=move, long-press=right-click,\n"
-                f"  two-finger scroll, keyboard button for typing).\n"
+                f"  two-finger scroll, pinch to zoom, keyboard button for typing).\n"
                 f"- Session ends after {Config.REMOTE_IDLE_TIMEOUT_SECS // 60} min idle or via /stopremote.\n"
                 f"- Access is protected by the one-time URL token and secure session cookie.\n"
                 f"- If the page does not open instantly, wait 2-3 seconds and refresh once."

@@ -78,15 +78,11 @@ _GEMINI_TOOL_RATE_LIMITER = RateLimiter(default_calls=20, default_window=60)
 _RATE_LIMIT_LABELS = {
     "capture_screenshot": "screenshot captures",
     "find_text_on_screen": "OCR screen searches",
-    "scan_ui_elements": "UI scans",
     "list_open_windows": "window listings",
     "focus_window": "window focus actions",
     "smart_click_text": "smart-click requests",
     "open_claude": "Claude app actions",
-    "claude_new_chat": "Claude new-chat actions",
-    "claude_send_message": "Claude message actions",
     "open_antigravity": "Antigravity app actions",
-    "focus_antigravity_chat": "Antigravity chat focus actions",
     "open_desktop_app": "desktop app launch actions",
     "close_desktop_app": "desktop app close actions",
     "open_browser": "browser launch actions",
@@ -106,15 +102,11 @@ _RATE_LIMITED_TOOLS = frozenset(_RATE_LIMIT_LABELS) - {"gemini_confirmation_requ
 
 _GEMINI_TOOL_RATE_LIMITER.set_limit("capture_screenshot", calls=5, window=60)
 _GEMINI_TOOL_RATE_LIMITER.set_limit("find_text_on_screen", calls=6, window=60)
-_GEMINI_TOOL_RATE_LIMITER.set_limit("scan_ui_elements", calls=4, window=60)
 _GEMINI_TOOL_RATE_LIMITER.set_limit("list_open_windows", calls=10, window=60)
 _GEMINI_TOOL_RATE_LIMITER.set_limit("focus_window", calls=12, window=60)
 _GEMINI_TOOL_RATE_LIMITER.set_limit("smart_click_text", calls=6, window=60)
 _GEMINI_TOOL_RATE_LIMITER.set_limit("open_claude", calls=6, window=60)
-_GEMINI_TOOL_RATE_LIMITER.set_limit("claude_new_chat", calls=4, window=60)
-_GEMINI_TOOL_RATE_LIMITER.set_limit("claude_send_message", calls=6, window=60)
 _GEMINI_TOOL_RATE_LIMITER.set_limit("open_antigravity", calls=6, window=60)
-_GEMINI_TOOL_RATE_LIMITER.set_limit("focus_antigravity_chat", calls=6, window=60)
 _GEMINI_TOOL_RATE_LIMITER.set_limit("open_desktop_app", calls=6, window=60)
 _GEMINI_TOOL_RATE_LIMITER.set_limit("close_desktop_app", calls=6, window=60)
 _GEMINI_TOOL_RATE_LIMITER.set_limit("open_browser", calls=6, window=60)
@@ -292,11 +284,6 @@ def get_gemini_action_tools() -> list[dict[str, Any]]:
             },
         },
         {
-            "name": "scan_ui_elements",
-            "description": "Use computer vision to label potential clickable UI elements, send an annotated screenshot, and store numbered selections.",
-            "parameters": {"type": "object", "properties": {}},
-        },
-        {
             "name": "set_clipboard",
             "description": "Ask for confirmation to replace the host clipboard with new text.",
             "parameters": {
@@ -343,50 +330,13 @@ def get_gemini_action_tools() -> list[dict[str, Any]]:
             },
         },
         {
-            "name": "click_ui_element",
-            "description": "Ask for confirmation before clicking one of the numbered UI elements returned by scan_ui_elements.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "selection": {"type": "integer", "description": "Element number from the latest scan_ui_elements result."}
-                },
-                "required": ["selection"],
-            },
-        },
-        {
             "name": "open_claude",
             "description": "Ask for confirmation before opening or focusing the Claude desktop app.",
             "parameters": {"type": "object", "properties": {}},
         },
         {
-            "name": "claude_new_chat",
-            "description": "Ask for confirmation before opening a new Claude chat, with an optional first message.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "message": {"type": "string", "description": "Optional first message to send in the new Claude chat."}
-                },
-            },
-        },
-        {
-            "name": "claude_send_message",
-            "description": "Ask for confirmation before sending a message to the active Claude desktop chat.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "message": {"type": "string", "description": "Message to send to Claude desktop."}
-                },
-                "required": ["message"],
-            },
-        },
-        {
             "name": "open_antigravity",
             "description": "Ask for confirmation before opening or focusing the Antigravity desktop app.",
-            "parameters": {"type": "object", "properties": {}},
-        },
-        {
-            "name": "focus_antigravity_chat",
-            "description": "Ask for confirmation before focusing Antigravity's agent chat input.",
             "parameters": {"type": "object", "properties": {}},
         },
         {
@@ -727,9 +677,6 @@ async def dispatch_gemini_tool(
     if func_name == "find_text_on_screen":
         return await _find_text_on_screen(tool_runtime, str(args.get("text", "")))
 
-    if func_name == "scan_ui_elements":
-        return await _scan_ui_elements(user_id, tool_runtime)
-
     if func_name in {"write_file", "append_file", "delete_file", "create_directory"}:
         return await _queue_confirmation(
             user_id=user_id,
@@ -779,15 +726,6 @@ async def dispatch_gemini_tool(
             tool_runtime=tool_runtime,
         )
 
-    if func_name == "click_ui_element":
-        return await _queue_confirmation(
-            user_id=user_id,
-            action_type=func_name,
-            args={"selection": int(args.get("selection", 0))},
-            summary=f"click UI element #{int(args.get('selection', 0))} from the latest scan",
-            tool_runtime=tool_runtime,
-        )
-
     if func_name == "open_claude":
         return await _queue_confirmation(
             user_id=user_id,
@@ -797,43 +735,12 @@ async def dispatch_gemini_tool(
             tool_runtime=tool_runtime,
         )
 
-    if func_name == "claude_new_chat":
-        message = args.get("message")
-        summary = "open a new Claude chat"
-        if message:
-            summary += f" and send {_shorten(str(message))}"
-        return await _queue_confirmation(
-            user_id=user_id,
-            action_type=func_name,
-            args={"message": None if message is None else str(message)},
-            summary=summary,
-            tool_runtime=tool_runtime,
-        )
-
-    if func_name == "claude_send_message":
-        return await _queue_confirmation(
-            user_id=user_id,
-            action_type=func_name,
-            args={"message": str(args.get("message", ""))},
-            summary=f"send a message to Claude: {_shorten(str(args.get('message', '')))}",
-            tool_runtime=tool_runtime,
-        )
-
     if func_name == "open_antigravity":
         return await _queue_confirmation(
             user_id=user_id,
             action_type=func_name,
             args={},
             summary="open or focus the Antigravity app",
-            tool_runtime=tool_runtime,
-        )
-
-    if func_name == "focus_antigravity_chat":
-        return await _queue_confirmation(
-            user_id=user_id,
-            action_type=func_name,
-            args={},
-            summary="focus the Antigravity agent chat input",
             tool_runtime=tool_runtime,
         )
 
@@ -1156,47 +1063,6 @@ async def _find_text_on_screen(tool_runtime: dict[str, Any], search_text: str) -
     return GeminiToolResult(True, summary, media_sent=bool(bot and chat_id is not None))
 
 
-async def _scan_ui_elements(user_id: int, tool_runtime: dict[str, Any]) -> GeminiToolResult:
-    """Detect and label UI elements on screen, then send the annotated image."""
-    from pocket_desk_agent.handlers._shared import findui_options
-
-    def _scan() -> tuple[list[Any], io.BytesIO]:
-        import pyautogui
-        from pocket_desk_agent.automation_utils import annotate_screenshot_with_markers, find_ui_elements
-
-        screenshot = pyautogui.screenshot()
-        matches = find_ui_elements(screenshot)
-        annotated_bytes = io.BytesIO()
-        if matches:
-            annotated = annotate_screenshot_with_markers(screenshot, matches)
-            annotated.save(annotated_bytes, format="PNG")
-            annotated_bytes.seek(0)
-        return matches, annotated_bytes
-
-    matches, image_bytes = await asyncio.to_thread(_scan)
-    if not matches:
-        return GeminiToolResult(True, "No clickable UI elements were detected on the current screen.")
-
-    findui_options[user_id] = {
-        index: (match.x, match.y)
-        for index, match in enumerate(matches, start=1)
-    }
-    bot = tool_runtime.get("bot")
-    chat_id = tool_runtime.get("chat_id")
-    if bot and chat_id is not None:
-        await bot.send_photo(
-            chat_id=chat_id,
-            photo=image_bytes,
-            caption="Numbered UI element scan",
-        )
-
-    return GeminiToolResult(
-        True,
-        f"Found {len(matches)} numbered UI elements. Use click_ui_element with the saved selection number to click one after approval.",
-        media_sent=bool(bot and chat_id is not None),
-    )
-
-
 def _get_battery_status_text() -> str:
     """Return the current battery status in the same spirit as /battery."""
     import psutil
@@ -1438,17 +1304,6 @@ async def _execute_confirmed_action(pending: PendingGeminiAction, bot: Any) -> G
         pyautogui.click(best_x, best_y)
         return GeminiToolResult(True, f"Clicked '{best_text}' at ({best_x}, {best_y})")
 
-    if action_type == "click_ui_element":
-        import pyautogui
-        from pocket_desk_agent.handlers._shared import findui_options
-
-        selection = int(args.get("selection", 0))
-        coords = findui_options.get(pending.user_id, {}).get(selection)
-        if not coords:
-            return GeminiToolResult(False, "No saved UI element scan was found for that selection. Run scan_ui_elements first.")
-        pyautogui.click(coords[0], coords[1])
-        return GeminiToolResult(True, f"Clicked UI element #{selection} at ({coords[0]}, {coords[1]})")
-
     if action_type == "open_claude":
         return await _run_handler_action(
             user_id=pending.user_id,
@@ -1459,28 +1314,6 @@ async def _execute_confirmed_action(pending: PendingGeminiAction, bot: Any) -> G
             args=[],
         )
 
-    if action_type == "claude_new_chat":
-        message = args.get("message")
-        handler_args = [str(message)] if message else []
-        return await _run_handler_action(
-            user_id=pending.user_id,
-            chat_id=pending.chat_id,
-            bot=bot,
-            handler_path="pocket_desk_agent.handlers.claude",
-            handler_name="claudenew_command",
-            args=handler_args,
-        )
-
-    if action_type == "claude_send_message":
-        return await _run_handler_action(
-            user_id=pending.user_id,
-            chat_id=pending.chat_id,
-            bot=bot,
-            handler_path="pocket_desk_agent.handlers.claude",
-            handler_name="claudechat_command",
-            args=[str(args.get("message", ""))],
-        )
-
     if action_type == "open_antigravity":
         return await _run_handler_action(
             user_id=pending.user_id,
@@ -1488,16 +1321,6 @@ async def _execute_confirmed_action(pending: PendingGeminiAction, bot: Any) -> G
             bot=bot,
             handler_path="pocket_desk_agent.handlers.antigravity",
             handler_name="openantigravity_command",
-            args=[],
-        )
-
-    if action_type == "focus_antigravity_chat":
-        return await _run_handler_action(
-            user_id=pending.user_id,
-            chat_id=pending.chat_id,
-            bot=bot,
-            handler_path="pocket_desk_agent.handlers.antigravity",
-            handler_name="antigravitychat_command",
             args=[],
         )
 

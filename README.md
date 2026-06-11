@@ -66,13 +66,13 @@ Everything below works with no AI configuration required:
 
 - **File System Explorer**: Browse, read, and search local PC directories from your phone, sandboxed to approved paths.
 - **Desktop Control**: Take screenshots, send keyboard shortcuts, manage the clipboard, switch open windows, blank the display with privacy mode, check battery, and trigger sleep/shutdown.
-- **Vision & UI Automation**: OCR-based clicking via Tesseract — find and click any visible text on screen. Computer vision (OpenCV) for icon and UI element detection.
+- **Vision & UI Automation**: OCR-based clicking via Tesseract — find and click any visible text on screen. For icons without text, use the live `/remote` viewer and tap directly.
 - **Macro Recording**: Record multi-step UI sequences and replay them with a single command.
 - **Claude Desktop Integration**: Remote control of Claude Desktop App — send prompts, switch models, manage workspaces, and automate chat flows without touching your PC.
 - **VS Code / Antigravity Integration**: Open folders, switch AI models, and drive the Antigravity VS Code extension remotely.
 - **Task Scheduler**: Schedule one-shot or repeating automation flows, Claude prompts, temporary Claude/Antigravity permission watchers, and recurring screen watchers that react to visible text. Tasks survive restarts.
 - **Build Automation**: Trigger React Native Android builds and retrieve APKs through Telegram or large-file upload links when needed.
-- **Live Remote Desktop**: Stream your desktop live to any browser over a secure HTTPS tunnel — no port forwarding, no account, no idle cost. Full mouse and keyboard control from your phone, including tap-to-click, drag, right-click, two-finger scroll, on-screen keyboard, trackpad panel, pinch-zoom levels (1×–3×), view panning, and JPEG quality control. The bot auto-installs `cloudflared` via winget if missing. See [docs/REMOTE.md](docs/REMOTE.md).
+- **Live Remote Desktop**: Stream your desktop live to any browser over a secure HTTPS tunnel — no port forwarding, no account, no idle cost. Full mouse and keyboard control from your phone, including tap-to-click, swipe-to-move, an explicit drag mode, long-press right-click, stronger two-finger scroll, on-screen keyboard, trackpad panel, pinch-zoom levels (1×–3×), view panning, and JPEG quality control. The bot auto-installs `cloudflared` via winget if missing. See [docs/REMOTE.md](docs/REMOTE.md).
 - **Auto-Update**: The bot can check for and apply updates on demand.
 - **Lightweight**: ~55-70 MB idle RAM, <0.5% idle CPU. Heavy dependencies (OpenCV, NumPy, Dropbox) load on-demand only when their commands are used.
 
@@ -357,7 +357,7 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 
 ## Commands Quick Reference
 
-> For the complete reference with all 82 built-in commands, see **[docs/COMMANDS.md](docs/COMMANDS.md)**.
+> For the complete reference with all built-in commands, see **[docs/COMMANDS.md](docs/COMMANDS.md)**.
 
 <details>
 <summary><strong>Expand cheat sheet</strong></summary>
@@ -386,6 +386,7 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 | `/ls [path]` | List files |
 | `/cd <path>` | Change directory |
 | `/cat <file>` | Read file contents |
+| `/getfile <file>` | Download a file via Telegram (or large-file upload) |
 | `/find <pattern>` | Search files by glob |
 | `/info <path>` | File/folder metadata |
 
@@ -393,6 +394,8 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 
 | Command | Description |
 | :--- | :--- |
+| `/openapp [name]` | Open an approved desktop app (picker when no arg) |
+| `/closeapp <name>` | Close a running desktop app |
 | `/screenshot` | Capture the current display |
 | `/hotkey <keys>` | Send a keyboard shortcut (e.g. `ctrl+c`) |
 | `/windows` | List open application windows and let you switch by number |
@@ -415,8 +418,6 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 | `/smartclick <text>` | Find text on screen and click it |
 | `/findtext <text>` | Locate text on screen (returns coordinates, no click) |
 | `/clicktext <x> <y>` | Click at specific coordinates |
-| `/findelements` | Detect and number all visible UI icons |
-| `/clickelement <id>` | Click a detected element by number |
 | `/typeenter <text>` | Type text and press Enter |
 | `/pasteenter` | Paste the current clipboard contents and press Enter |
 | `/scrollup` / `/scrolldown` | Scroll the active window |
@@ -438,31 +439,19 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 | Command | Description |
 | :--- | :--- |
 | `/openclaude` | Launch Claude Desktop |
-| `/stopclaude` | Stop the active `claude remote-control` terminal session |
-| `/clauderemote` | Open cmd in the current bot working directory and run `claude remote-control` |
-| `/claudeask <prompt>` | Send a detailed prompt to Claude Desktop |
-| `/claudechat <prompt>` | Automated Claude chat flow |
-| `/claudenew` | Start a new Claude chat session |
-| `/clauderepo <path>` | Sync a repository with Claude |
-| `/claudebranch` | Claude branch management |
-| `/claudelatest` | Get the latest Claude response |
-| `/claudesearch <query>` | Search Claude chat history |
-| `/claudeselect` | Select Claude workspace |
-| `/claudemode` | Switch Claude mode |
-| `/claudeacceptedits` | Toggle Claude accept-edits mode |
-| `/claudemodel` | Scan and switch the Claude model |
 | `/claudescreen` | Screenshot of the Claude app |
 | `/claudeschedule <HH:MM> <text>` | Schedule a Claude prompt |
+
+> The brittle OCR/pixel Claude-desktop automation commands (`/claudeask`, `/claudenew`,
+> `/claudechat`, `/clauderepo`, `/claudebranch`, `/claudelatest`, `/claudesearch`,
+> `/claudeselect`, `/claudemode`, `/claudeacceptedits`, `/claudemodel`, `/clauderemote`,
+> `/stopclaude`) were removed in favour of the robust Claude CLI commands and `/remote`.
 
 ### VS Code / Antigravity Integration
 
 | Command | Description |
 | :--- | :--- |
 | `/openantigravity` | Open VS Code with Antigravity |
-| `/antigravitychat` | Focus the Antigravity chat panel |
-| `/antigravitymode` | Switch Antigravity mode |
-| `/antigravitymodel` | Switch the Antigravity AI model |
-| `/antigravityclaudecodeopen` | Open the Claude Code panel in VS Code |
 | `/openclaudeinvscode` | Run `Claude Code: Open` in VS Code |
 | `/antigravityopenfolder [path-or-name]` | Open a folder directly, or show picker buttons when no argument is provided |
 | `/claudecli [path-or-name] [optional prompt]` | Open Claude Code CLI directly when the first argument resolves to a folder; otherwise show picker buttons and treat text as an initial prompt |
@@ -478,6 +467,8 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 | `/repeatschedule every <interval> for <duration>` | Record an automation sequence that repeats for a limited time |
 | `/watchperm <claude\|antigravity> every <interval> for <duration>` | Repeatedly scan Claude or Antigravity for approval buttons and click them when safe |
 | `/watchscreen <text> every <interval> press <hotkey>` | Repeatedly scan the full screen or a target app for text and send a hotkey until stopped |
+| `/watchnotify <text> every <interval>` | Repeatedly scan the full screen or a target app for text and notify via Telegram when found |
+| `/watchstatus` | Show active watcher tasks with quick task IDs |
 | `/stopscreenwatch [task_id\|all]` | Stop one or all active screen watchers |
 | `/claudeschedule <HH:MM> <text>` | Schedule a Claude prompt |
 | `/listschedules` | View all pending scheduled tasks |
@@ -498,6 +489,7 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 | Command | Description |
 | :--- | :--- |
 | `/remote` | Start a live browser-based remote desktop session — returns an HTTPS URL and QR code |
+| `/remoteinfo` | Show active session URL and runtime stats (FPS, quality, idle time) |
 | `/stopremote` | Stop the active remote desktop session |
 
 </details>
@@ -559,8 +551,8 @@ Pocket Desk Agent runs **entirely on your local machine** — no data is sent to
 - Run `pdagent status` to check if a background command is still executing
 
 **`/build` or `/getapk` reports "no APK found"**
-- Ensure `CLAUDE_DEFAULT_REPO_PATH` points to a React Native project root containing `android/`
-- Use `/clauderepo <path>` to set a different project directory for the session
+- Ensure `CLAUDE_DEFAULT_REPO_PATH` points to a project root containing `android/` (React Native) or `app/` with a Gradle file (native Kotlin)
+- Use `/cd <path>` to switch the bot's working directory to your project, then retry
 - Check build logs in the Telegram chat for the exact Gradle error
 
 ---

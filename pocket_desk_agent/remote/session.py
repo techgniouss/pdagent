@@ -1,8 +1,14 @@
 """RemoteSession state container.
 
 Holds the per-user live remote-desktop session: token, bound port, tunnel
-URL, child process handles, WebSocket connections, and the fingerprint
-used to lock the session to the first browser that loads it.
+URL, child process handles, WebSocket connections, and a best-effort
+browser fingerprint (User-Agent + hashed IP).
+
+Access control rests on the 256-bit URL token and the matching ``pdremote``
+cookie — NOT on the fingerprint. ``bound_fingerprint`` is observational
+only: web_server re-binds it on mismatch (mobile networks shift IP/UA
+between requests), so it cannot, by itself, keep a second browser out.
+Treat the token as the secret.
 
 Keeping this in its own module (rather than ``handlers/_shared.py``)
 makes the remote feature self-contained — no existing singleton changes.

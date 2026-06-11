@@ -96,7 +96,7 @@ You have access to comprehensive tools for files, desktop context, and automatio
 **Desktop Tools**:
 - capture_screenshot: Capture the current screen and send it back to the chat
 - list_open_windows / focus_window: Inspect and switch application windows
-- find_text_on_screen / scan_ui_elements: Understand what's visible before clicking
+- find_text_on_screen: Understand what's visible before clicking
 - view_clipboard / get_battery_status: Inspect host state
 - start_screen_watch / stop_screen_watch: Start or stop recurring screen watchers that look for text and send a hotkey
 - start_build_workflow: Prepare the existing build flow so the user can choose a project/script
@@ -110,10 +110,10 @@ You have access to comprehensive tools for files, desktop context, and automatio
 
 **Confirmed Action Tools**:
 - write_file / append_file / delete_file / create_directory
-- set_clipboard / press_hotkey / click_coordinates / smart_click_text / click_ui_element
+- set_clipboard / press_hotkey / click_coordinates / smart_click_text
 - run_saved_command / shutdown_computer / sleep_computer
-- open_claude / claude_new_chat / claude_send_message
-- open_antigravity / focus_antigravity_chat
+- open_claude
+- open_antigravity
 - open_desktop_app / close_desktop_app
 - schedule_claude_prompt / schedule_desktop_sequence
 - request_remote_session / request_stop_remote_session (confirmation-gated live remote-desktop)
@@ -297,10 +297,8 @@ def _normalize_tool_args(func_name: str, args: dict[str, Any]) -> dict[str, Any]
         "sleep_computer",
         "list_custom_commands",
         "list_schedules",
-        "scan_ui_elements",
         "open_claude",
         "open_antigravity",
-        "focus_antigravity_chat",
         "request_remote_session",
         "request_stop_remote_session",
         "get_remote_session_status",
@@ -320,9 +318,6 @@ def _normalize_tool_args(func_name: str, args: dict[str, Any]) -> dict[str, Any]
         return {"name": _first_string(args, "name", "command", "custom", "macro").lstrip("/")}
     if func_name in {"find_text_on_screen", "smart_click_text"}:
         return {"text": _first_string(args, "text", "query", "target", "search", "phrase")}
-    if func_name == "click_ui_element":
-        selection = _first_value(args, "selection", "index", "number", "element", "id")
-        return {"selection": _as_int(selection, default=0)}
     if func_name == "set_clipboard":
         return {"text": _first_string(args, "text", "content", "value", "message")}
     if func_name == "press_hotkey":
@@ -378,7 +373,7 @@ def _normalize_tool_args(func_name: str, args: dict[str, Any]) -> dict[str, Any]
         if func_name == "open_claude_cli":
             normalized["prompt"] = _first_string(args, "prompt", "message", "text", "query")
         return normalized
-    if func_name in {"claude_send_message", "claude_cli_send_message", "claude_new_chat"}:
+    if func_name == "claude_cli_send_message":
         message = _first_string(args, "message", "prompt", "text", "query", "content")
         return {"message": message}
     if func_name == "schedule_claude_prompt":
@@ -609,17 +604,12 @@ _ALLOWED_TOOLS = frozenset({
     "start_apk_retrieval_workflow",
     "run_saved_command",
     "find_text_on_screen",
-    "scan_ui_elements",
     "set_clipboard",
     "press_hotkey",
     "click_coordinates",
     "smart_click_text",
-    "click_ui_element",
     "open_claude",
-    "claude_new_chat",
-    "claude_send_message",
     "open_antigravity",
-    "focus_antigravity_chat",
     "open_browser",
     "open_vscode_folder",
     "open_claude_cli",
@@ -842,7 +832,7 @@ class GeminiClient:
             resolved_auth_mode, resolved_oauth = self._resolve_auth_context(auth_mode, oauth)
             token = self._get_request_token(resolved_auth_mode, resolved_oauth)
             project = self._get_project(resolved_auth_mode, resolved_oauth)
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
 
             # Snapshot the original history so we can roll back on failure
             # without leaking a half-built tool-call sequence into future turns.
@@ -1117,7 +1107,7 @@ class GeminiClient:
                 ],
             }]
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             def _build_vision_request(requested_model: str) -> Tuple[dict, ResolvedModel]:
                 resolved = resolve_model(requested_model)
                 gen_config = {

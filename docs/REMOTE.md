@@ -63,9 +63,11 @@ CLOUDFLARED_PATH = C:\tools\cloudflared\cloudflared.exe
 
    and sends a QR-code photo you can scan from the phone's camera.
 3. Open the URL on your phone. The viewer fills the screen with the live desktop.
-4. Tap anywhere to left-click. Drag to move + click-drag. Long-press for
-   right-click. Two-finger vertical swipe to scroll. Tap the `⌨︎ keys` button
-   to bring up the keyboard.
+4. Tap anywhere to left-click. Swipe to move the cursor without holding the
+   mouse button down. Long-press, then release for right-click. Two-finger
+   vertical swipe scrolls with larger wheel steps. Use the `drag` button when
+   you want an intentional click-drag. Tap the `⌨︎ keys` button to bring up
+   the keyboard.
 5. When done, send `/stopremote` in Telegram (or just let the 15-minute idle
    timeout end the session).
 
@@ -80,10 +82,12 @@ approval button — it never starts the session directly.
 | Gesture / Control | Action |
 | :--- | :--- |
 | Single tap | Left click |
-| Drag | Mouse move + left button drag |
-| Long-press (500 ms) | Right click at release point |
+| Single-finger swipe | Move cursor without dragging/selecting |
+| Long-press (500 ms) + release | Right click at release point |
+| `drag` button | Toggle intentional left-button drag mode for selections/resizing |
 | `↗ right` button + tap | One-shot right click (explicit) |
-| Two-finger vertical swipe | Mouse wheel scroll |
+| Two-finger vertical swipe | Mouse wheel scroll with larger, smoother steps |
+| Two-finger pinch in / out | Digital zoom of the viewer (1.0×–3.0×) around the pinch midpoint; gesture auto-distinguishes pinch from scroll |
 | `⌨︎ keys` button | Focus hidden input — type normally; Backspace/Enter/Tab/Esc/arrows supported |
 | Quality slider | JPEG quality 30..85 (debounced 250 ms) |
 | `✕ end` button | Close the viewer (the Telegram session keeps running until `/stopremote`) |

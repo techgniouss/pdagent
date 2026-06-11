@@ -44,7 +44,6 @@ If you use any of these without authenticating first, the bot will reply with a 
 ### UI Automation
 
 - `/clicktext`, `/findtext`, `/smartclick`
-- `/findelements`, `/clickelement`
 - `/typeenter`, `/pasteenter`
 - `/scrollup`, `/scrolldown`
 
@@ -55,15 +54,12 @@ If you use any of these without authenticating first, the bot will reply with a 
 
 ### Claude Desktop & CLI
 
-- `/openclaude`, `/stopclaude`, `/claudescreen`
-- `/clauderemote`, `/claudeask`, `/claudechat`, `/claudenew`, `/claudelatest`
+- `/openclaude`, `/claudescreen`
 - `/claudecli`, `/claudeclisend`
-- `/clauderepo`, `/claudebranch`, `/claudeselect`, `/claudemode`, `/claudemodel`, `/claudesearch`
 
 ### Antigravity / VS Code
 
-- `/openantigravity`, `/antigravitychat`, `/antigravitymode`, `/antigravitymodel`
-- `/antigravityclaudecodeopen`, `/antigravityopenfolder`
+- `/openantigravity`, `/openclaudeinvscode`, `/antigravityopenfolder`
 - `/openbrowser`
 
 ### Scheduling

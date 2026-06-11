@@ -20,6 +20,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import time
 from typing import Any, Optional
 
 from pocket_desk_agent.remote.session import RemoteSession
@@ -213,6 +214,11 @@ async def _handle_ws_input(request: Any) -> Any:
     session.active_ws.add(ws)
     dispatcher = InputDispatcher(session)
     last_failsafe_reported = 0.0
+    last_cursor_sent = 0.0
+
+    # Event types after which the viewer wants the real cursor position so it
+    # can reconcile its predicted pointer overlay (mss frames lack the cursor).
+    cursor_echo_types = {"move", "relmove", "down", "up", "click", "pointer_click"}
 
     try:
         async for msg in ws:
@@ -230,6 +236,18 @@ async def _handle_ws_input(request: Any) -> Any:
                         await ws.send_json({"type": "status", "message": "failsafe"})
                     except Exception:
                         pass
+                if isinstance(event, dict) and str(event.get("type", "")).lower() in cursor_echo_types:
+                    now = time.monotonic()
+                    if now - last_cursor_sent >= 0.02:
+                        last_cursor_sent = now
+                        cursor = dispatcher.cursor_norm()
+                        if cursor is not None:
+                            try:
+                                await ws.send_json(
+                                    {"type": "cursor", "x": cursor["x"], "y": cursor["y"]}
+                                )
+                            except Exception:
+                                pass
             elif msg.type in (WSMsgType.ERROR, WSMsgType.CLOSED):
                 break
     finally:
@@ -279,20 +297,20 @@ _VIEWER_HTML = r"""<!doctype html>
   html, body { margin:0; padding:0; height:100%; background:#000; overflow:hidden; }
   #stage { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; }
   canvas { max-width:100vw; max-height:100vh; background:#000; display:block; touch-action:none; }
-  #hud { position:fixed; top:env(safe-area-inset-top,0); left:0; right:0; display:flex; justify-content:space-between; align-items:center; padding:6px 10px; pointer-events:none; font:12px/1.2 system-ui, -apple-system, sans-serif; color:#bbb; }
+  #hud { position:fixed; top:env(safe-area-inset-top,0); left:0; right:0; z-index:10; display:flex; justify-content:space-between; align-items:center; padding:6px 10px; pointer-events:none; font:12px/1.2 system-ui, -apple-system, sans-serif; color:#bbb; }
   #hud .pill { background:rgba(0,0,0,.55); border:1px solid #333; border-radius:999px; padding:4px 10px; pointer-events:auto; }
-  #toolbar { position:fixed; bottom:calc(env(safe-area-inset-bottom,0) + 8px); left:0; right:0; display:flex; align-items:center; gap:8px; padding:0 10px; overflow-x:auto; overflow-y:hidden; white-space:nowrap; pointer-events:auto; -webkit-overflow-scrolling:touch; }
+  #toolbar { position:fixed; bottom:calc(env(safe-area-inset-bottom,0) + 8px); left:0; right:0; z-index:10; display:flex; align-items:center; gap:8px; padding:0 10px; overflow-x:auto; overflow-y:hidden; white-space:nowrap; pointer-events:auto; -webkit-overflow-scrolling:touch; }
   #toolbar::-webkit-scrollbar { height:4px; }
   #toolbar::-webkit-scrollbar-thumb { background:#3f3f3f; border-radius:999px; }
   #toolbar button { flex:0 0 auto; background:rgba(0,0,0,.65); color:#fff; border:1px solid #555; border-radius:999px; padding:8px 14px; font:14px system-ui; }
   #toolbar button:active { background:#222; }
   #ime { position:fixed; bottom:-40px; left:0; width:100%; opacity:0.01; font-size:16px; padding:4px; border:none; }
-  #status { position:fixed; left:0; right:0; bottom:56px; text-align:center; color:#fbbf24; font:13px system-ui; pointer-events:none; text-shadow:0 1px 3px #000; }
+  #status { position:fixed; left:0; right:0; bottom:56px; z-index:9; text-align:center; color:#fbbf24; font:13px system-ui; pointer-events:none; text-shadow:0 1px 3px #000; }
   #slider { width:120px; }
-  #trackpadWrap { position:fixed; left:8px; right:8px; bottom:calc(env(safe-area-inset-bottom,0) + 56px); height:160px; display:none; z-index:6; }
-  #trackpadWrap.show { display:block; }
-  #trackpadLabel { color:#bdbdbd; font:12px/1.1 system-ui; margin:0 0 6px 6px; }
-  #trackpad { height:136px; border:1px solid #3a3a3a; border-radius:12px; background:rgba(0,0,0,.65); touch-action:none; }
+  #padSurface { position:fixed; inset:0; z-index:5; display:none; background:transparent; touch-action:none; }
+  #padSurface.show { display:block; }
+  #cursor { position:fixed; left:0; top:0; width:15px; height:15px; margin-left:-1px; margin-top:-1px; display:none; pointer-events:none; z-index:8; will-change:transform; filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.9)); }
+  #cursor.show { display:block; }
 </style>
 </head>
 <body>
@@ -302,19 +320,20 @@ _VIEWER_HTML = r"""<!doctype html>
     <span id="fps" class="pill">-- fps</span>
   </div>
   <div id="status"></div>
+  <div id="padSurface"></div>
   <div id="toolbar">
     <button id="kbBtn" title="Open keyboard input">keys</button>
     <button id="rcBtn" title="Use right click on next tap">right click</button>
+    <button id="dragBtn" title="Toggle click-and-drag mode">drag off</button>
     <button id="mouseBtn" title="Toggle mouse pad mode">mouse pad off</button>
     <button id="zoomBtn">zoom 1.0x</button>
     <button id="modeBtn" title="When zoomed, drag to move viewport">view pan off</button>
     <input id="slider" type="range" min="30" max="85" value="60" />
     <button id="stopBtn">end</button>
   </div>
-  <div id="trackpadWrap">
-    <div id="trackpadLabel">mouse pad: drag to move, tap to click</div>
-    <div id="trackpad"></div>
-  </div>
+  <svg id="cursor" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M4 2 L4 19 L9 14 L12.5 21.5 L15 20.5 L11.5 13 L18.5 13 Z" fill="#fff" stroke="#000" stroke-width="1.3" stroke-linejoin="round"/>
+  </svg>
   <input id="ime" autocomplete="off" autocapitalize="off" spellcheck="false" />
 <script>
 (function(){
@@ -327,11 +346,12 @@ _VIEWER_HTML = r"""<!doctype html>
   var slider = document.getElementById('slider');
   var kbBtn = document.getElementById('kbBtn');
   var rcBtn = document.getElementById('rcBtn');
+  var dragBtn = document.getElementById('dragBtn');
   var mouseBtn = document.getElementById('mouseBtn');
   var zoomBtn = document.getElementById('zoomBtn');
   var modeBtn = document.getElementById('modeBtn');
-  var trackpadWrap = document.getElementById('trackpadWrap');
-  var trackpad = document.getElementById('trackpad');
+  var cursorEl = document.getElementById('cursor');
+  var padSurface = document.getElementById('padSurface');
   var stopBtn = document.getElementById('stopBtn');
   var ime = document.getElementById('ime');
 
@@ -346,16 +366,21 @@ _VIEWER_HTML = r"""<!doctype html>
   var panMode = false;
   var panDrag = null;
   var ZOOM_STEPS = [1.0, 1.5, 2.0, 3.0];
+  var dragMode = false;
   var mouseMode = false;
+  var curNorm = {x:0.5, y:0.5};
   var padTouch = null;
   var padMouseDrag = null;
   var padTwoFingerY = 0;
+  var padScrollCarryY = 0;
   var padLongTimer = null;
   var PAD_GAIN = 1.35;
-  var PAD_MAX_STEP = 24;
+  var PAD_MAX_STEP = 60;
   var padDeltaX = 0;
   var padDeltaY = 0;
   var padFlushQueued = false;
+  var TOUCH_SCROLL_THRESHOLD = 14;
+  var TOUCH_SCROLL_UNIT = 120;
 
   function resize() {
     var ar = vw / vh;
@@ -416,22 +441,75 @@ _VIEWER_HTML = r"""<!doctype html>
     }
   }
 
+  function updateDragUi() {
+    dragBtn.textContent = dragMode ? 'drag on' : 'drag off';
+  }
+
+  function emitScroll(amount) {
+    amount = amount | 0;
+    if (!amount) return;
+    send({type:'scroll', dy: amount});
+  }
+
+  function consumeScrollCarry(deltaY, currentCarry) {
+    currentCarry += deltaY;
+    var steps = 0;
+    if (currentCarry >= TOUCH_SCROLL_THRESHOLD) {
+      steps = Math.floor(currentCarry / TOUCH_SCROLL_THRESHOLD);
+    } else if (currentCarry <= -TOUCH_SCROLL_THRESHOLD) {
+      steps = Math.ceil(currentCarry / TOUCH_SCROLL_THRESHOLD);
+    }
+    if (!steps) return {carry: currentCarry, amount: 0};
+
+    steps = clamp(steps, -6, 6);
+    currentCarry -= steps * TOUCH_SCROLL_THRESHOLD;
+    return {carry: currentCarry, amount: steps * TOUCH_SCROLL_UNIT};
+  }
+
+  function desktopWheelAmount(deltaY) {
+    if (!deltaY) return 0;
+    var steps = Math.max(1, Math.min(8, Math.round(Math.abs(deltaY) / 48)));
+    return (deltaY > 0 ? -1 : 1) * steps * TOUCH_SCROLL_UNIT;
+  }
+
+  function updateCursorOverlay() {
+    if (!mouseMode) { cursorEl.classList.remove('show'); return; }
+    // Map host-normalized cursor into the currently displayed viewport, so the
+    // overlay stays correct when the view is zoomed or panned.
+    var vp = getViewport();
+    var fx = (clamp(curNorm.x, 0, 1) * vw - vp.x) / vp.w;
+    var fy = (clamp(curNorm.y, 0, 1) * vh - vp.y) / vp.h;
+    if (fx < 0 || fx > 1 || fy < 0 || fy > 1) {
+      cursorEl.classList.remove('show');
+      return;
+    }
+    var rect = canvas.getBoundingClientRect();
+    var x = rect.left + fx * rect.width;
+    var y = rect.top + fy * rect.height;
+    cursorEl.style.transform = 'translate(' + x + 'px,' + y + 'px)';
+    cursorEl.classList.add('show');
+  }
+
   function updateMouseUi() {
     mouseBtn.textContent = mouseMode ? 'mouse pad on' : 'mouse pad off';
     if (mouseMode) {
-      trackpadWrap.classList.add('show');
-      stage.style.bottom = '220px';
+      // Whole viewport (incl. letterbox margins) becomes a trackpad via the
+      // overlay. Fetch the real cursor position so the arrow appears at once
+      // (relmove 0,0 makes the host echo it back).
+      padSurface.classList.add('show');
+      send({type:'relmove', dx:0, dy:0, gain:1});
+      updateCursorOverlay();
     } else {
-      trackpadWrap.classList.remove('show');
-      stage.style.bottom = '0';
+      padSurface.classList.remove('show');
+      cursorEl.classList.remove('show');
       padTouch = null;
       padMouseDrag = null;
       padDeltaX = 0;
       padDeltaY = 0;
+      padScrollCarryY = 0;
       padFlushQueued = false;
       clearPadLong();
     }
-    resize();
   }
 
   function queuePadMove(dx, dy) {
@@ -450,6 +528,13 @@ _VIEWER_HTML = r"""<!doctype html>
       outDx = clamp(outDx, -PAD_MAX_STEP, PAD_MAX_STEP);
       outDy = clamp(outDy, -PAD_MAX_STEP, PAD_MAX_STEP);
       send({type:'relmove', dx: outDx, dy: outDy, gain: PAD_GAIN});
+      // Predict the overlay forward so it tracks the finger without waiting
+      // for the host echo; relmove deltas are host pixels after gain.
+      if (vw > 0 && vh > 0) {
+        curNorm.x = clamp(curNorm.x + (outDx * PAD_GAIN) / vw, 0, 1);
+        curNorm.y = clamp(curNorm.y + (outDy * PAD_GAIN) / vh, 0, 1);
+        updateCursorOverlay();
+      }
       if (Math.abs(padDeltaX) >= 0.05 || Math.abs(padDeltaY) >= 0.05) {
         queuePadMove(0, 0);
       }
@@ -458,6 +543,100 @@ _VIEWER_HTML = r"""<!doctype html>
     if (window.requestAnimationFrame) window.requestAnimationFrame(flush);
     else setTimeout(flush, 16);
   }
+
+  // ── Mouse-pad gestures (whole canvas acts as a laptop touchpad) ──
+  // One finger drag → relative pointer move. Tap → left click. Long-press
+  // tap → right click. Two fingers → scroll. The host cursor is rendered by
+  // the synthetic overlay (#cursor) since mss frames don't include it.
+  function padGestureStart(e) {
+    clearPadLong();
+    if (e.touches.length === 1) {
+      padTouch = {x:e.touches[0].clientX, y:e.touches[0].clientY, moved:false, t:Date.now()};
+      padLongTimer = setTimeout(function(){
+        if (padTouch && !padTouch.moved) {
+          padTouch.longPressReady = true;
+          showStatus('Release for right-click');
+        }
+      }, LONG_PRESS_MS);
+    } else if (e.touches.length === 2) {
+      padTouch = null;
+      padTwoFingerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      padScrollCarryY = 0;
+    }
+  }
+
+  function padGestureMove(e) {
+    if (e.touches.length === 2) {
+      clearPadLong();
+      var midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      var scroll = consumeScrollCarry(midY - padTwoFingerY, padScrollCarryY);
+      padScrollCarryY = scroll.carry;
+      emitScroll(scroll.amount);
+      padTwoFingerY = midY;
+      return;
+    }
+    if (!padTouch || e.touches.length !== 1) return;
+    var t = e.touches[0];
+    var dx = t.clientX - padTouch.x;
+    var dy2 = t.clientY - padTouch.y;
+    if (Math.abs(dx) > 0.5 || Math.abs(dy2) > 0.5) {
+      // Pointer acceleration: fast flicks travel farther, slow drags stay
+      // precise — same feel as a laptop trackpad.
+      var accel = 1 + Math.min(2.5, Math.hypot(dx, dy2) / 6);
+      queuePadMove(dx * accel, dy2 * accel);
+      padTouch.x = t.clientX;
+      padTouch.y = t.clientY;
+      if (Math.hypot(dx, dy2) > 2) {
+        padTouch.moved = true;
+        clearPadLong();
+      }
+    }
+  }
+
+  function padGestureEnd() {
+    clearPadLong();
+    if (padTouch && !padTouch.moved && (Date.now() - padTouch.t) >= LONG_PRESS_MS) {
+      send({type:'pointer_click', button:'right'});
+    } else if (padTouch && !padTouch.moved) {
+      var btn = rightClickMode ? 'right' : 'left';
+      send({type:'pointer_click', button:btn});
+      if (rightClickMode) { rightClickMode = false; rcBtn.textContent = 'right click'; }
+    }
+    padTouch = null;
+    padScrollCarryY = 0;
+  }
+
+  // The overlay is shown only in mouse-pad mode and covers the whole viewport
+  // (video + black letterbox margins), so the pointer can be driven from
+  // anywhere on screen — not just inside the streamed area.
+  padSurface.addEventListener('touchstart', function(e){ e.preventDefault(); padGestureStart(e); }, {passive:false});
+  padSurface.addEventListener('touchmove', function(e){ e.preventDefault(); padGestureMove(e); }, {passive:false});
+  padSurface.addEventListener('touchend', function(e){ e.preventDefault(); padGestureEnd(); }, {passive:false});
+  padSurface.addEventListener('touchcancel', function(e){ e.preventDefault(); clearPadLong(); padTouch = null; padScrollCarryY = 0; }, {passive:false});
+  padSurface.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+  padSurface.addEventListener('mousedown', function(e){ e.preventDefault(); padMouseDrag = {x:e.clientX, y:e.clientY, moved:false}; });
+  padSurface.addEventListener('mousemove', function(e){
+    if (!padMouseDrag) return;
+    var dx = e.clientX - padMouseDrag.x;
+    var dy = e.clientY - padMouseDrag.y;
+    if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+      var accel = 1 + Math.min(2.5, Math.hypot(dx, dy) / 6);
+      queuePadMove(dx * accel, dy * accel);
+      padMouseDrag.x = e.clientX;
+      padMouseDrag.y = e.clientY;
+      padMouseDrag.moved = true;
+    }
+  });
+  padSurface.addEventListener('mouseup', function(e){
+    if (!padMouseDrag) return;
+    if (!padMouseDrag.moved) {
+      var b = e.button === 2 ? 'right' : (e.button === 1 ? 'middle' : 'left');
+      send({type:'pointer_click', button:b});
+    }
+    padMouseDrag = null;
+  });
+  padSurface.addEventListener('mouseleave', function(){ padMouseDrag = null; });
+  padSurface.addEventListener('wheel', function(e){ e.preventDefault(); emitScroll(desktopWheelAmount(e.deltaY)); }, {passive:false});
 
   // ── Video WebSocket ──────────────────────────────────────────────
   function drawFrameImage(image) {
@@ -470,6 +649,7 @@ _VIEWER_HTML = r"""<!doctype html>
     var vp = getViewport();
     resize();
     ctx.drawImage(image, vp.x, vp.y, vp.w, vp.h, 0, 0, vw, vh);
+    if (mouseMode) updateCursorOverlay();
     frameCount++;
     var now = Date.now();
     if (now - frameWindow >= 1000) {
@@ -548,6 +728,11 @@ _VIEWER_HTML = r"""<!doctype html>
         var data = JSON.parse(ev.data);
         if (data && data.type === 'status' && data.message === 'failsafe') {
           showStatus('pyautogui fail-safe - move cursor away from corner');
+        } else if (data && data.type === 'cursor') {
+          // Reconcile the predicted overlay to the real host cursor position.
+          curNorm.x = data.x;
+          curNorm.y = data.y;
+          if (mouseMode) updateCursorOverlay();
         }
       } catch (e) {}
     };
@@ -587,8 +772,63 @@ _VIEWER_HTML = r"""<!doctype html>
   var dragging = false;
   var twoFinger = false;
   var twoFingerY = 0;
+  var scrollCarryY = 0;
+  var twoFingerMode = null;   // 'pinch' | 'scroll' | null (undecided)
+  var pinchStartDist = 0;
+  var pinchStartZoom = 1.0;
+  var pinchFocus = {x:0.5, y:0.5};
   var LONG_PRESS_MS = 500;
   var DRAG_THRESHOLD = 8; // px
+  var PINCH_THRESHOLD = 18; // px change in finger spread before zooming
+
+  function touchDist(e) {
+    var dx = e.touches[0].clientX - e.touches[1].clientX;
+    var dy = e.touches[0].clientY - e.touches[1].clientY;
+    return Math.hypot(dx, dy);
+  }
+
+  function touchMidY(e) {
+    return (e.touches[0].clientY + e.touches[1].clientY) / 2;
+  }
+
+  function touchFocusNorm(e) {
+    var rect = canvas.getBoundingClientRect();
+    var mx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+    var my = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    return {
+      x: clamp((mx - rect.left) / Math.max(1, rect.width), 0, 1),
+      y: clamp((my - rect.top) / Math.max(1, rect.height), 0, 1)
+    };
+  }
+
+  // Zoom toward a focal display point so the pixel under the fingers stays put.
+  function setZoomAt(nextZoom, focus) {
+    nextZoom = clamp(nextZoom, 1.0, 3.0);
+    if (Math.abs(nextZoom - viewZoom) < 0.001) return;
+    var vp = getViewport();
+    var srcX = vp.x + focus.x * vp.w;
+    var srcY = vp.y + focus.y * vp.h;
+    viewZoom = nextZoom;
+    viewPanX = srcX - focus.x * (vw / viewZoom);
+    viewPanY = srcY - focus.y * (vh / viewZoom);
+    getViewport();
+    updateZoomUi();
+  }
+
+  function clearDesktopLongPress() {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+    }
+  }
+
+  function resetDesktopTouchState() {
+    clearDesktopLongPress();
+    touchStart = null;
+    dragging = false;
+    twoFinger = false;
+    scrollCarryY = 0;
+  }
 
   canvas.addEventListener('touchstart', function(e){
     if (panMode) {
@@ -611,21 +851,35 @@ _VIEWER_HTML = r"""<!doctype html>
     }
 
     e.preventDefault();
+    clearDesktopLongPress();
     if (e.touches.length === 2) {
       twoFinger = true;
-      twoFingerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-      clearTimeout(longPressTimer);
+      twoFingerMode = null;
+      twoFingerY = touchMidY(e);
+      pinchStartDist = touchDist(e);
+      pinchStartZoom = viewZoom;
+      pinchFocus = touchFocusNorm(e);
+      scrollCarryY = 0;
+      touchStart = null;
+      dragging = false;
       return;
     }
     twoFinger = false;
     var n = remoteNormalized(e);
-    touchStart = {x:n.x, y:n.y, raw:{cx:e.touches[0].clientX, cy:e.touches[0].clientY}, t:Date.now()};
+    touchStart = {
+      x:n.x,
+      y:n.y,
+      raw:{cx:e.touches[0].clientX, cy:e.touches[0].clientY},
+      t:Date.now(),
+      moved:false,
+      longPressReady:false
+    };
     dragging = false;
     send({type:'move', x:n.x, y:n.y});
     longPressTimer = setTimeout(function(){
-      if (!dragging && touchStart) {
-        send({type:'click', x:touchStart.x, y:touchStart.y, button:'right'});
-        touchStart = null;
+      if (touchStart && !touchStart.moved && !dragging && !twoFinger) {
+        touchStart.longPressReady = true;
+        showStatus('Release for right-click');
       }
     }, LONG_PRESS_MS);
   }, {passive:false});
@@ -646,22 +900,47 @@ _VIEWER_HTML = r"""<!doctype html>
     e.preventDefault();
     if (e.touches.length === 2) {
       twoFinger = true;
-      var midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-      var dy = midY - twoFingerY;
-      if (Math.abs(dy) > 6) {
-        send({type:'scroll', dy: dy < 0 ? -3 : 3});
+      clearDesktopLongPress();
+      var dist = touchDist(e);
+      var midY = touchMidY(e);
+      if (twoFingerMode === null) {
+        var distDelta = Math.abs(dist - pinchStartDist);
+        var moveDelta = Math.abs(midY - twoFingerY);
+        if (distDelta > PINCH_THRESHOLD && distDelta >= moveDelta) {
+          twoFingerMode = 'pinch';
+        } else if (moveDelta > TOUCH_SCROLL_THRESHOLD) {
+          twoFingerMode = 'scroll';
+        }
+      }
+      if (twoFingerMode === 'pinch') {
+        if (pinchStartDist > 0) {
+          setZoomAt(pinchStartZoom * (dist / pinchStartDist), pinchFocus);
+        }
+      } else if (twoFingerMode === 'scroll') {
+        var scroll = consumeScrollCarry(midY - twoFingerY, scrollCarryY);
+        scrollCarryY = scroll.carry;
+        emitScroll(scroll.amount);
         twoFingerY = midY;
       }
       return;
     }
     if (!touchStart) return;
     var n = remoteNormalized(e);
+    var dx = e.touches[0].clientX - touchStart.raw.cx;
+    var dy2 = e.touches[0].clientY - touchStart.raw.cy;
+    if (Math.hypot(dx, dy2) > DRAG_THRESHOLD) {
+      touchStart.moved = true;
+      clearDesktopLongPress();
+    }
+    if (!dragMode) {
+      if (touchStart.moved) {
+        send({type:'move', x:n.x, y:n.y});
+      }
+      return;
+    }
     if (!dragging) {
-      var dx = e.touches[0].clientX - touchStart.raw.cx;
-      var dy2 = e.touches[0].clientY - touchStart.raw.cy;
       if (Math.hypot(dx, dy2) > DRAG_THRESHOLD) {
         dragging = true;
-        clearTimeout(longPressTimer);
         send({type:'down', x:touchStart.x, y:touchStart.y, button:'left'});
       }
     }
@@ -678,19 +957,37 @@ _VIEWER_HTML = r"""<!doctype html>
     }
 
     e.preventDefault();
-    clearTimeout(longPressTimer);
-    if (twoFinger) { twoFinger = false; return; }
+    clearDesktopLongPress();
+    if (twoFinger) {
+      // Stay in two-finger mode until all fingers lift, so the leftover finger
+      // after a pinch/scroll doesn't fire a stray tap-click.
+      if (e.touches && e.touches.length > 0) return;
+      twoFinger = false;
+      twoFingerMode = null;
+      scrollCarryY = 0;
+      return;
+    }
     if (!touchStart) return;
     var n = remoteNormalized(e);
+    var heldMs = Date.now() - touchStart.t;
     if (dragging) {
       send({type:'up', x:n.x, y:n.y, button:'left'});
+    } else if (!touchStart.moved && heldMs >= LONG_PRESS_MS) {
+      send({type:'click', x:n.x, y:n.y, button:'right'});
     } else {
       var btn = rightClickMode ? 'right' : 'left';
       send({type:'click', x:touchStart.x, y:touchStart.y, button:btn});
       if (rightClickMode) { rightClickMode = false; rcBtn.textContent = 'right click'; }
     }
-    touchStart = null;
-    dragging = false;
+    resetDesktopTouchState();
+  }, {passive:false});
+
+  canvas.addEventListener('touchcancel', function(e){
+    e.preventDefault();
+    if (dragging && touchStart) {
+      send({type:'up', x:touchStart.x, y:touchStart.y, button:'left'});
+    }
+    resetDesktopTouchState();
   }, {passive:false});
 
   // ── Mouse fallback (desktop browsers) ───────────────────────────
@@ -711,7 +1008,7 @@ _VIEWER_HTML = r"""<!doctype html>
   canvas.addEventListener('contextmenu', function(e){ e.preventDefault(); });
   canvas.addEventListener('wheel', function(e){
     e.preventDefault();
-    send({type:'scroll', dy: e.deltaY > 0 ? -3 : 3});
+    emitScroll(desktopWheelAmount(e.deltaY));
   }, {passive:false});
 
   // ── Keyboard via hidden input ────────────────────────────────────
@@ -754,99 +1051,16 @@ _VIEWER_HTML = r"""<!doctype html>
     showStatus(rightClickMode ? 'Next tap will right-click' : 'Right-click mode off');
   });
 
+  dragBtn.addEventListener('click', function(){
+    dragMode = !dragMode;
+    updateDragUi();
+    showStatus(dragMode ? 'Drag mode on: swipe to left-drag' : 'Drag mode off: swipe moves cursor only');
+  });
+
   mouseBtn.addEventListener('click', function(){
     mouseMode = !mouseMode;
     updateMouseUi();
-    showStatus(mouseMode ? 'Mouse pad on' : 'Mouse pad off');
-  });
-
-  trackpad.addEventListener('touchstart', function(e){
-    e.preventDefault();
-    clearPadLong();
-    if (e.touches.length === 1) {
-      padTouch = {
-        x: e.touches[0].clientX,
-        y: e.touches[0].clientY,
-        moved: false,
-      };
-      padLongTimer = setTimeout(function(){
-        if (padTouch && !padTouch.moved) {
-          send({type:'pointer_click', button:'right'});
-          padTouch = null;
-        }
-      }, 500);
-    } else if (e.touches.length === 2) {
-      padTouch = null;
-      padTwoFingerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-    }
-  }, {passive:false});
-
-  trackpad.addEventListener('touchmove', function(e){
-    e.preventDefault();
-    if (e.touches.length === 2) {
-      clearPadLong();
-      var midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-      var dy = midY - padTwoFingerY;
-      if (Math.abs(dy) > 6) {
-        send({type:'scroll', dy: dy < 0 ? -3 : 3});
-        padTwoFingerY = midY;
-      }
-      return;
-    }
-
-    if (!padTouch || e.touches.length !== 1) return;
-    var t = e.touches[0];
-    var dx = t.clientX - padTouch.x;
-    var dy2 = t.clientY - padTouch.y;
-    if (Math.abs(dx) > 0.5 || Math.abs(dy2) > 0.5) {
-      queuePadMove(dx, dy2);
-      padTouch.x = t.clientX;
-      padTouch.y = t.clientY;
-      if (Math.hypot(dx, dy2) > 2) {
-        padTouch.moved = true;
-        clearPadLong();
-      }
-    }
-  }, {passive:false});
-
-  trackpad.addEventListener('touchend', function(e){
-    e.preventDefault();
-    clearPadLong();
-    if (padTouch && !padTouch.moved) {
-      send({type:'pointer_click', button:'left'});
-    }
-    padTouch = null;
-  }, {passive:false});
-
-  trackpad.addEventListener('mousedown', function(e){
-    e.preventDefault();
-    padMouseDrag = {x:e.clientX, y:e.clientY, moved:false};
-  });
-
-  trackpad.addEventListener('mousemove', function(e){
-    if (!padMouseDrag) return;
-    e.preventDefault();
-    var dx = e.clientX - padMouseDrag.x;
-    var dy = e.clientY - padMouseDrag.y;
-    if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
-      queuePadMove(dx, dy);
-      padMouseDrag.x = e.clientX;
-      padMouseDrag.y = e.clientY;
-      padMouseDrag.moved = true;
-    }
-  });
-
-  trackpad.addEventListener('mouseup', function(e){
-    if (!padMouseDrag) return;
-    e.preventDefault();
-    if (!padMouseDrag.moved) {
-      send({type:'pointer_click', button:'left'});
-    }
-    padMouseDrag = null;
-  });
-
-  trackpad.addEventListener('mouseleave', function(){
-    padMouseDrag = null;
+    showStatus(mouseMode ? 'Mouse pad: drag anywhere to move pointer, tap to click' : 'Touch mode: tap where you want to click');
   });
 
   zoomBtn.addEventListener('click', function(){
@@ -874,6 +1088,7 @@ _VIEWER_HTML = r"""<!doctype html>
   });
   updateZoomUi();
   updateMouseUi();
+  updateDragUi();
 
   // ── Quality slider (debounced) ──────────────────────────────────
   var qTimer = null;

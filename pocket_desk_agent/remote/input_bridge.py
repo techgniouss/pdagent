@@ -110,8 +110,16 @@ class InputDispatcher:
                 button = self._button(event)
                 pyautogui.click(button=button, _pause=False)
             elif etype == "scroll":
-                delta = int(event.get("dy", 0))
-                pyautogui.scroll(delta)
+                dy = int(event.get("dy", 0))
+                dx = int(event.get("dx", 0))
+                if dy:
+                    pyautogui.scroll(dy, _pause=False)
+                if dx:
+                    # hscroll is unavailable on some platforms; ignore failures.
+                    try:
+                        pyautogui.hscroll(dx, _pause=False)
+                    except Exception:
+                        pass
             elif etype == "key":
                 key = str(event.get("key", "")).strip()
                 if not key:
@@ -139,6 +147,24 @@ class InputDispatcher:
         except Exception as exc:
             logger.debug("[remote] input event %s failed: %s", etype, exc)
             return None
+
+    def cursor_norm(self) -> Optional[dict[str, float]]:
+        """Current host cursor position normalized to 0..1, or None if unavailable.
+
+        The viewer draws a synthetic pointer from this because ``mss`` screen
+        capture does not include the OS cursor in the JPEG frames.
+        """
+        try:
+            import pyautogui  # type: ignore
+
+            x, y = pyautogui.position()
+        except Exception:
+            return None
+        width, height = self._screen()
+        return {
+            "x": max(0.0, min(1.0, x / max(1, width - 1))),
+            "y": max(0.0, min(1.0, y / max(1, height - 1))),
+        }
 
     def _coords(self, event: dict[str, Any]) -> tuple[int, int]:
         width, height = self._screen()
