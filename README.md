@@ -357,7 +357,7 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 
 ## Commands Quick Reference
 
-> For the complete reference with all 82 built-in commands, see **[docs/COMMANDS.md](docs/COMMANDS.md)**.
+> For the complete reference with all built-in commands, see **[docs/COMMANDS.md](docs/COMMANDS.md)**.
 
 <details>
 <summary><strong>Expand cheat sheet</strong></summary>
@@ -386,6 +386,7 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 | `/ls [path]` | List files |
 | `/cd <path>` | Change directory |
 | `/cat <file>` | Read file contents |
+| `/getfile <file>` | Download a file via Telegram (or large-file upload) |
 | `/find <pattern>` | Search files by glob |
 | `/info <path>` | File/folder metadata |
 
@@ -393,6 +394,8 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 
 | Command | Description |
 | :--- | :--- |
+| `/openapp [name]` | Open an approved desktop app (picker when no arg) |
+| `/closeapp <name>` | Close a running desktop app |
 | `/screenshot` | Capture the current display |
 | `/hotkey <keys>` | Send a keyboard shortcut (e.g. `ctrl+c`) |
 | `/windows` | List open application windows and let you switch by number |
@@ -464,6 +467,8 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 | `/repeatschedule every <interval> for <duration>` | Record an automation sequence that repeats for a limited time |
 | `/watchperm <claude\|antigravity> every <interval> for <duration>` | Repeatedly scan Claude or Antigravity for approval buttons and click them when safe |
 | `/watchscreen <text> every <interval> press <hotkey>` | Repeatedly scan the full screen or a target app for text and send a hotkey until stopped |
+| `/watchnotify <text> every <interval>` | Repeatedly scan the full screen or a target app for text and notify via Telegram when found |
+| `/watchstatus` | Show active watcher tasks with quick task IDs |
 | `/stopscreenwatch [task_id\|all]` | Stop one or all active screen watchers |
 | `/claudeschedule <HH:MM> <text>` | Schedule a Claude prompt |
 | `/listschedules` | View all pending scheduled tasks |
@@ -484,6 +489,7 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 | Command | Description |
 | :--- | :--- |
 | `/remote` | Start a live browser-based remote desktop session — returns an HTTPS URL and QR code |
+| `/remoteinfo` | Show active session URL and runtime stats (FPS, quality, idle time) |
 | `/stopremote` | Stop the active remote desktop session |
 
 </details>

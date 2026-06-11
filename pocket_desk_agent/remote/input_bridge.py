@@ -148,6 +148,24 @@ class InputDispatcher:
             logger.debug("[remote] input event %s failed: %s", etype, exc)
             return None
 
+    def cursor_norm(self) -> Optional[dict[str, float]]:
+        """Current host cursor position normalized to 0..1, or None if unavailable.
+
+        The viewer draws a synthetic pointer from this because ``mss`` screen
+        capture does not include the OS cursor in the JPEG frames.
+        """
+        try:
+            import pyautogui  # type: ignore
+
+            x, y = pyautogui.position()
+        except Exception:
+            return None
+        width, height = self._screen()
+        return {
+            "x": max(0.0, min(1.0, x / max(1, width - 1))),
+            "y": max(0.0, min(1.0, y / max(1, height - 1))),
+        }
+
     def _coords(self, event: dict[str, Any]) -> tuple[int, int]:
         width, height = self._screen()
         x_norm = float(event.get("x", 0.0))

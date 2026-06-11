@@ -32,35 +32,57 @@ Key capabilities: AI chat & agentic computer use (Gemini), file system browsing,
 ```
 pocket-desk-agent/
 ├── pocket_desk_agent/          # Main Python package
-│   ├── handlers/               # Bot command handlers (13 modules)
+│   ├── handlers/               # Bot command handlers (15 modules)
 │   │   ├── _shared.py          # Singleton clients, safe_command decorator, global state
 │   │   ├── auth.py             # /login, /authcode, /checkauth, /logout
 │   │   ├── core.py             # /start, /help, /status, /new, /enhance, /sync, etc.
-│   │   ├── filesystem.py       # /pwd, /cd, /ls, /cat, /find, /info
-│   │   ├── system.py           # /screenshot, /hotkey, /clipboard, /battery, /shutdown, etc.
-│   │   ├── automation.py       # /clicktext, /findtext, /smartclick, etc.
-│   │   ├── custom_commands.py  # /savecommand, /done, /listcommands, /deletecommand
-│   │   ├── claude.py          # /openclaude, /claudescreen + Claude composer helpers
+│   │   ├── filesystem.py       # /pwd, /cd, /ls, /cat, /getfile, /find, /info
+│   │   ├── system.py           # /screenshot, /hotkey, /clipboard, /battery, /openapp, /closeapp, /shutdown, etc.
+│   │   ├── automation.py       # /clicktext, /findtext, /smartclick, /typeenter, etc.
+│   │   ├── custom_commands.py  # /savecommand, /done, /cancelrecord, /listcommands, /deletecommand
+│   │   ├── claude.py           # /openclaude, /claudescreen + Claude composer helpers
 │   │   ├── antigravity.py      # /openantigravity, /openclaudeinvscode, /claudecli, /openbrowser, etc.
-│   │   ├── build.py            # /build, /getapk
-│   │   ├── scheduling.py       # /schedule, /claudeschedule, /listschedules, /cancelschedule
+│   │   ├── build.py            # /build, /getapk, /stopbuildscreenshot
+│   │   ├── scheduling.py       # /schedule, /repeatschedule, /watchperm, /watchscreen,
+│   │   │                       # /watchnotify, /watchstatus, /stopscreenwatch,
+│   │   │                       # /claudeschedule, /scheduleshutdown, /listschedules, /cancelschedule
+│   │   ├── remote.py           # /remote, /remoteinfo, /stopremote
+│   │   ├── workflow_recipes.py # /recipecreate, /recipeaddcommand, /recipeaddclaude,
+│   │   │                       # /recipeaddwait, /recipeaddwaittext, /recipeaddnotify,
+│   │   │                       # /recipelist, /recipeshow, /recipedelete, /reciperun
 │   │   └── callbacks.py        # Inline keyboard button handlers
+│   ├── remote/                 # Live remote desktop subpackage
+│   │   ├── capture.py          # MSS screen capture helpers
+│   │   ├── input_bridge.py     # Mouse/keyboard input event forwarding
+│   │   ├── install.py          # cloudflared auto-install via winget
+│   │   ├── session.py          # Per-user RemoteSession state object
+│   │   ├── tunnel.py           # cloudflared quick-tunnel lifecycle
+│   │   └── web_server.py       # aiohttp WebSocket server + HTML/JS viewer
 │   ├── cli.py                  # Entry point for `pdagent` CLI
 │   ├── main.py                 # Application bootstrap, scheduler loop
 │   ├── config.py               # Config class — reads from os.environ
 │   ├── configure.py            # Interactive setup wizard + INI loader
 │   ├── command_map.py          # Centralized list of (command, handler, description)
 │   ├── command_registry.py     # User-defined macro storage
+│   ├── recipe_registry.py      # Workflow recipe storage
 │   ├── file_manager.py         # Sandboxed file I/O (path traversal prevention)
+│   ├── gemini_actions.py       # Gemini tool definitions and confirmation flows
 │   ├── gemini_client.py        # Gemini API client with tool-calling
 │   ├── antigravity_auth.py     # OAuth 2.0 PKCE implementation
 │   ├── auth.py                 # User allowlist + multi-mode auth wrapper
 │   ├── gemini_cli_auth.py      # Gemini CLI OAuth PKCE implementation
+│   ├── app_catalog.py          # Approved app catalog for /openapp
+│   ├── app_control.py          # App launch/close logic
+│   ├── app_paths.py            # Platform-specific binary path resolution
+│   ├── desktop_adapters.py     # Window adapters for Claude/Antigravity
+│   ├── automation_utils.py     # OCR/UI automation helpers
+│   ├── window_utils.py         # Window inventory + activation helpers
+│   ├── scheduling_utils.py     # Duration/interval parsing utilities
 │   ├── scheduler_registry.py   # Persistent scheduled task storage
 │   ├── startup_manager.py      # Windows logon-task startup management
 │   ├── rate_limiter.py         # Token-bucket rate limiter
-│   ├── updater.py              # Auto-update manager (git pull)
-│   ├── automation_utils.py     # OCR/UI automation helpers
+│   ├── updater.py              # Auto-update manager (git pull / pip upgrade)
+│   ├── telegram_commands.py    # Bot command list helpers for /sync
 │   └── constants.py            # API endpoints and header constants
 ├── scripts/
 │   ├── manage_auth.py          # Gemini authentication management script
@@ -226,7 +248,7 @@ file_manager  # FileManager — sandboxed file I/O
 
 ### 7. Scheduler loop
 
-`main.py` runs a background task that calls `scheduler_registry.check_due_tasks()` every 60 seconds. `SchedulerRegistry` persists tasks to `~/.pdagent/scheduled_tasks.json` and cleans up entries older than 7 days.
+`main.py` runs a background task that calls `scheduler_registry.check_due_tasks()` every **5 seconds**. `SchedulerRegistry` persists tasks to `~/.pdagent/scheduled_tasks.json` and cleans up entries older than 7 days. Watcher tasks (`/watchperm`, `/watchscreen`, `/watchnotify`) run as separate background threads outside the main scheduler loop.
 
 ---
 
@@ -333,14 +355,17 @@ To bump the version, update `version` in `pyproject.toml`, commit, tag, and crea
 | Need to... | Go to |
 |---|---|
 | Add/change a bot command | `handlers/<domain>.py` + `command_map.py` |
-| Change Gemini AI tools | `gemini_client.py` |
+| Change Gemini AI tools | `gemini_actions.py` |
 | Change sandboxed file ops | `file_manager.py` |
 | Change config variables | `config.py` |
 | Change rate limiting | `rate_limiter.py` |
 | Change auto-update logic | `updater.py` |
 | Change scheduling | `scheduler_registry.py` + `handlers/scheduling.py` |
 | Change OAuth flow | `antigravity_auth.py` + `gemini_cli_auth.py` |
-| See all 50+ commands | `docs/COMMANDS.md` |
+| Add/change app launcher allowlist | `app_catalog.py` + `app_paths.py` |
+| Change remote desktop logic | `remote/` subpackage + `handlers/remote.py` |
+| Change workflow recipes | `recipe_registry.py` + `handlers/workflow_recipes.py` |
+| See all commands | `docs/COMMANDS.md` |
 | See architecture notes | `PROJECT_STRUCTURE.md` |
 
 ## graphify

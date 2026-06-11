@@ -64,6 +64,7 @@ Browse, read, and search files on the host machine. All operations are confined 
 | `/cd <path>` | Change directory. | `/cd src/components` |
 | `/ls [path]` | List files and folders. | `/ls` or `/ls src/` |
 | `/cat <file>` | Display the contents of a file. | `/cat README.md` |
+| `/getfile <file>` | Download a file directly to Telegram (or as a large-file upload for files over the Telegram limit). | `/getfile build/app-release.apk` |
 | `/find <pattern>` | Search for files matching a glob pattern. | `/find *.py` |
 | `/info <path>` | Show metadata, size, and permissions for a file or folder. | `/info C:\data\log.txt` |
 
@@ -75,6 +76,8 @@ Direct Windows system management.
 
 | Command | Description | Example |
 | :--- | :--- | :--- |
+| `/openapp <name>` | Open an approved desktop application by name (e.g. `notepad`, `calc`, `chrome`). Shows a picker when no argument is provided. | `/openapp notepad` |
+| `/closeapp <name>` | Close a running desktop application by name. | `/closeapp notepad` |
 | `/screenshot` | Capture and return the host's primary display. | `/screenshot` |
 | `/hotkey <keys>` | Send a keyboard shortcut to the host. | `/hotkey ctrl+shift+esc` |
 | `/windows` | List open application windows and present numbered switch targets. | `/windows` |
@@ -220,7 +223,7 @@ Bridge the bot to VS Code via the Antigravity desktop extension.
 
 Schedule one-shot or repeating automations, Claude prompts, and temporary permission watchers. Tasks persist across restarts.
 
-> The scheduler checks for due tasks every **5 seconds**. The bot must be running when the scheduled time arrives.
+> The scheduler checks for due tasks every **5 seconds**. The bot must be running when the scheduled time arrives. Watcher tasks (`/watchperm`, `/watchscreen`, `/watchnotify`) run in background threads independent of the main scheduler loop.
 
 | Command | Description | Example |
 | :--- | :--- | :--- |

@@ -9,38 +9,59 @@ The system is built on a modular architecture: Telegram as the interface, Google
 ```
 pocket-desk-agent/
 ├── pocket_desk_agent/              # Main application package
-│   ├── handlers/                   # Command handlers split into 13 focused modules
+│   ├── handlers/                   # Command handlers split into 15 focused modules
 │   │   ├── __init__.py             # Re-exports all public handler names
 │   │   ├── _shared.py              # Singleton clients, safe_command decorator, global state
 │   │   ├── auth.py                 # /login, /authcode, /checkauth, /logout
 │   │   ├── core.py                 # /start, /help, /status, /new, /enhance, /sync, etc.
-│   │   ├── filesystem.py           # /pwd, /cd, /ls, /cat, /find, /info
-│   │   ├── system.py               # /screenshot, /hotkey, /clipboard, /battery, /shutdown, etc.
-│   │   ├── automation.py           # /clicktext, /findtext, /smartclick, etc.
+│   │   ├── filesystem.py           # /pwd, /cd, /ls, /cat, /getfile, /find, /info
+│   │   ├── system.py               # /screenshot, /hotkey, /clipboard, /battery, /openapp, /closeapp, /shutdown, etc.
+│   │   ├── automation.py           # /clicktext, /findtext, /smartclick, /typeenter, etc.
 │   │   ├── custom_commands.py      # /savecommand, /done, /cancelrecord, /listcommands, etc.
 │   │   ├── claude.py               # /openclaude, /claudescreen + Claude composer helpers
 │   │   ├── antigravity.py          # /openantigravity, /openclaudeinvscode, /claudecli, /openbrowser, etc.
-│   │   ├── build.py                # /build, /getapk
-│   │   ├── scheduling.py           # /schedule, /claudeschedule, /listschedules, /cancelschedule
+│   │   ├── build.py                # /build, /getapk, /stopbuildscreenshot
+│   │   ├── scheduling.py           # /schedule, /repeatschedule, /watchperm, /watchscreen,
+│   │   │                           # /watchnotify, /watchstatus, /stopscreenwatch,
+│   │   │                           # /claudeschedule, /scheduleshutdown, /listschedules, /cancelschedule
+│   │   ├── remote.py               # /remote, /remoteinfo, /stopremote
+│   │   ├── workflow_recipes.py     # /recipecreate, /recipeaddcommand, /recipeaddclaude,
+│   │   │                           # /recipeaddwait, /recipeaddwaittext, /recipeaddnotify,
+│   │   │                           # /recipelist, /recipeshow, /recipedelete, /reciperun
 │   │   └── callbacks.py            # Inline keyboard button handlers
+│   ├── remote/                     # Live remote desktop subpackage
+│   │   ├── __init__.py             # Public re-exports
+│   │   ├── capture.py              # MSS screen capture helpers
+│   │   ├── input_bridge.py         # Mouse/keyboard input event forwarding
+│   │   ├── install.py              # cloudflared auto-install via winget
+│   │   ├── session.py              # Per-user RemoteSession state object
+│   │   ├── tunnel.py               # cloudflared quick-tunnel lifecycle management
+│   │   └── web_server.py           # aiohttp WebSocket server + HTML/JS viewer
 │   ├── cli.py                      # pdagent console-script entry point
 │   ├── main.py                     # Application bootstrap & scheduler loop
 │   ├── config.py                   # Config class — reads from os.environ via load()
 │   ├── configure.py                # Interactive setup wizard + INI config loader
 │   ├── command_map.py              # Centralized registry: maps command names → handlers
 │   ├── command_registry.py         # Persistent storage for user-defined macros
+│   ├── recipe_registry.py          # Persistent storage for workflow recipes
 │   ├── file_manager.py             # Sandboxed file I/O (path traversal prevention)
 │   ├── gemini_actions.py           # Gemini UI automation tools and confirmation flows
 │   ├── gemini_client.py            # Gemini API client with tool-calling
-│   ├── antigravity_auth.py         # OAuth 2.0 PKCE implementation
+│   ├── antigravity_auth.py         # OAuth 2.0 PKCE implementation (Antigravity provider)
 │   ├── auth.py                     # User allowlist + multi-mode auth wrapper
 │   ├── gemini_cli_auth.py          # Gemini CLI OAuth PKCE implementation
+│   ├── app_catalog.py              # Approved desktop application catalog for /openapp
+│   ├── app_control.py              # App launch/close helpers used by /openapp, /closeapp
+│   ├── app_paths.py                # Platform-specific app binary path resolution
+│   ├── desktop_adapters.py         # Adapters for Claude/Antigravity window detection
+│   ├── automation_utils.py         # OCR and UI automation helpers (Tesseract)
 │   ├── window_utils.py             # Window inventory + activation helpers for /windows
+│   ├── scheduling_utils.py         # Shared duration/interval parsing utilities for schedulers
 │   ├── scheduler_registry.py       # Persistent scheduled task storage
 │   ├── startup_manager.py          # Windows logon-task startup management
 │   ├── rate_limiter.py             # Token-bucket rate limiter (per-user, per-command)
-│   ├── updater.py                  # Auto-update manager (git pull)
-│   ├── automation_utils.py         # OCR and UI automation helpers
+│   ├── updater.py                  # Auto-update manager (git pull / pip upgrade)
+│   ├── telegram_commands.py        # Bot command list helpers for /sync
 │   └── constants.py                # API endpoints and header constants
 ├── scripts/
 │   ├── manage_auth.py              # Gemini authentication management (pdagent auth)
@@ -48,6 +69,7 @@ pocket-desk-agent/
 ├── docs/                           # Feature-specific documentation
 │   ├── COMMANDS.md                 # Complete command reference
 │   ├── BUILD_WORKFLOW.md           # React Native APK build automation guide
+│   ├── REMOTE.md                   # Live remote desktop setup & troubleshooting
 │   ├── AUTHENTICATION_REQUIREMENTS.md  # Which commands need auth vs. not
 │   ├── MOBILE_AUTHENTICATION.md    # OAuth flow step-by-step guide
 │   ├── ANTIGRAVITY_LOGIN_IMPLEMENTATION.md  # OAuth architecture reference
@@ -69,7 +91,7 @@ pocket-desk-agent/
 ## Key Components
 
 ### 1. `handlers/` package
-All Telegram command handlers live here, split across 13 focused modules by domain. Every handler **must** be decorated with `@safe_command` from `_shared.py`, which enforces authorization, rate limiting, and exception safety.
+All Telegram command handlers live here, split across 15 focused modules by domain. Every handler **must** be decorated with `@safe_command` from `_shared.py`, which enforces authorization, rate limiting, and exception safety.
 
 The `_shared.py` module holds three module-level singletons used across all handler files:
 - `auth_client` — `AntigravityAuth` instance for OAuth token management
@@ -100,10 +122,31 @@ Hand-rolled HTTPS client for the Gemini API (`gemini_client.py`). Implements ext
 Token-bucket rate limiter keyed by `(user_id, command)`. The global `rate_limiter` instance in `_shared.py` has per-command overrides for expensive or dangerous operations (e.g., `/shutdown` is capped at 1 per 5 minutes).
 
 ### 7. `scheduler_registry.py`
-Manages `~/.pdagent/scheduled_tasks.json`. The scheduler loop in `main.py` polls every 60 seconds. Tasks older than 7 days are automatically cleaned up.
+Manages `~/.pdagent/scheduled_tasks.json`. The scheduler loop in `main.py` polls every 5 seconds. Tasks older than 7 days are automatically cleaned up.
 
 ### 8. `auth.py`, `antigravity_auth.py`, `gemini_cli_auth.py`
 Multi-provider authentication stack. `auth.py` selects the active provider per user, while `antigravity_auth.py` and `gemini_cli_auth.py` implement the provider-specific OAuth PKCE flows. Tokens are stored in provider-specific config directories with restricted file permissions.
+
+### 9. `recipe_registry.py`
+Manages `~/.pdagent/recipes.json`. Stores named multi-step workflow recipes. Each recipe is a list of typed steps: `command`, `claude`, `wait`, `waittext`, and `notify`. `/reciperun` executes steps sequentially, substituting `{variable}` placeholders from runtime key=value arguments.
+
+### 10. `remote/` subpackage
+Implements the live remote desktop feature (`/remote`). Composed of:
+- `session.py` — per-user `RemoteSession` state (capture task, tunnel process, websocket clients)
+- `capture.py` — screen capture via `mss`
+- `tunnel.py` — starts and monitors a `cloudflared` quick-tunnel
+- `install.py` — detects and installs `cloudflared` via `winget` if missing
+- `input_bridge.py` — translates WebSocket input events into mouse/keyboard actions via `pyautogui`
+- `web_server.py` — `aiohttp` WebSocket server + embedded HTML/JS viewer with mobile controls
+
+### 11. `app_catalog.py`, `app_control.py`, `app_paths.py`
+Implements the safe application launcher (`/openapp`, `/closeapp`). `app_catalog.py` contains the curated allowlist of launchable apps. `app_paths.py` resolves OS-specific binary locations. `app_control.py` provides the launch/close logic.
+
+### 12. `desktop_adapters.py`
+Provides window-detection adapters for the Claude Desktop and Antigravity (VS Code) applications, used by OCR-based automation and screen-watcher commands.
+
+### 13. `scheduling_utils.py`
+Shared helpers for parsing human-friendly duration strings (`10s`, `2m`, `1h`) and repeat intervals, used by `/schedule`, `/repeatschedule`, `/watchperm`, `/watchscreen`, and `/watchnotify`.
 
 ---
 
@@ -116,6 +159,7 @@ Heavy dependencies are imported **inside handler functions**, not at module leve
 - `dropbox` — inside `handlers/build.py` upload functions
 - `pytesseract` — inside `automation_utils.py` OCR functions
 - `pywinauto`, `pygetwindow`, `PIL.ImageGrab` — loaded on first use via `_load_win_deps()` in `handlers/claude.py` and `handlers/antigravity.py`
+- `mss`, `aiohttp` — loaded lazily by the `remote/` subpackage
 
 When adding new features that require heavy dependencies, follow this pattern.
 
