@@ -121,8 +121,8 @@ pocket-desk-agent/
 ### Setup
 
 ```bash
-git clone https://github.com/techgniouss/pocket-desk-agent.git
-cd pocket-desk-agent
+git clone https://github.com/techgniouss/pdagent.git
+cd pdagent
 pip install -e ".[dev]"
 cp .env.example .env          # then fill in credentials
 # OR use interactive wizard:
