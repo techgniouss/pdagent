@@ -1,6 +1,6 @@
-# CLAUDE.md — Pocket Desk Agent
+# CLAUDE.md
 
-This file provides guidance for AI assistants (Claude Code and similar tools) working on this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ---
 
@@ -45,6 +45,7 @@ pocket-desk-agent/
 │   │   ├── build.py            # /build, /getapk, /stopbuildscreenshot
 │   │   ├── scheduling.py       # /schedule, /scheduleshutdown, /claudeschedule, /listschedules, /cancelschedule
 │   │   ├── remote.py           # /remote, /stopremote, session lifecycle + auto-install flow
+│   │   ├── workflow_recipes.py # /recipe, /runrecipe, /listrecipes — multi-step automation flows
 │   │   └── callbacks.py        # Inline keyboard button handlers
 │   ├── remote/                 # Live remote-desktop subsystem
 │   │   ├── session.py          # RemoteSession dataclass + ACTIVE_SESSIONS registry
@@ -71,6 +72,13 @@ pocket-desk-agent/
 │   ├── rate_limiter.py         # Token-bucket rate limiter
 │   ├── updater.py              # Auto-update manager (PyPI-based; /update command)
 │   ├── automation_utils.py     # OCR/UI automation helpers
+│   ├── desktop_adapters.py     # Centralized find/activate logic for Claude, Antigravity, etc.
+│   ├── recipe_registry.py      # Persistent workflow recipe storage (~/.pdagent/workflow_recipes.json)
+│   ├── telegram_commands.py    # trim_registry_for_telegram() — caps command list at Telegram's 100-command limit
+│   ├── app_paths.py            # app_path() / existing_app_path() helpers for ~/.pdagent/* paths
+│   ├── app_control.py          # App launch/focus helpers
+│   ├── app_catalog.py          # Catalog of known applications (paths, window titles)
+│   ├── window_utils.py         # Low-level window enumeration / focus utilities
 │   └── constants.py            # API endpoints and header constants
 ├── scripts/
 │   ├── manage_auth.py          # Gemini authentication management script
@@ -130,12 +138,14 @@ The `[2/3] Gemini AI Authentication` step in the wizard offers four options:
 ### Run / Test
 
 ```bash
-make run         # run bot (foreground)
-make test        # pytest -v
-make lint        # flake8 + mypy
-make format      # black pocket_desk_agent/ scripts/
-make build       # build sdist + wheel
-make clean       # remove caches and build artifacts
+make run                               # run bot (foreground)
+pytest tests/                          # run all tests (make test does NOT run pytest)
+pytest tests/test_specific.py -v       # run a single test file
+pytest tests/ -k "test_name" -v       # run tests matching a name pattern
+make lint                              # flake8 + mypy
+make format                            # black pocket_desk_agent/ scripts/
+make build                             # build sdist + wheel
+make clean                             # remove caches and build artifacts
 ```
 
 ### CLI daemon commands
@@ -372,6 +382,8 @@ To bump the version, update `version` in `pyproject.toml`, commit, tag, and crea
 | Change auto-update logic | `updater.py` |
 | Change scheduling | `scheduler_registry.py` + `handlers/scheduling.py` |
 | Change OAuth flow | `antigravity_auth.py` + `gemini_cli_auth.py` |
+| Add/change workflow recipes | `recipe_registry.py` + `handlers/workflow_recipes.py` |
+| Change desktop app targeting | `desktop_adapters.py` |
 | Change remote desktop server | `remote/web_server.py` |
 | Change remote input handling | `remote/input_bridge.py` |
 | Change remote screen capture | `remote/capture.py` |
