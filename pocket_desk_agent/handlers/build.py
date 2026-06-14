@@ -667,7 +667,7 @@ def upload_large_file(file_path: str, service: str = 'tempfile') -> dict:
 
 async def build_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /build command - start build workflow."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
 
     user_id = update.effective_user.id
@@ -1018,7 +1018,7 @@ def capture_window_screenshot(window):
 
 async def getapk_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /getapk command - retrieve existing APK files."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
 
     user_id = update.effective_user.id

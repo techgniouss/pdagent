@@ -87,6 +87,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /help command."""
     if not update.message:
         return
+    if not update.effective_user:
+        return
 
     user_id = update.effective_user.id
     is_authenticated = auth_client.is_authenticated(user_id)
@@ -94,11 +96,12 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     auth_note = (
         ""
         if is_authenticated
-        else "\n\n⚠️ Note: Gemini AI commands require authentication. Use /login to enable."
+        else "\n\n⚠️ Gemini AI commands require /login to enable."
     )
 
-    await update.message.reply_text(
-        "Available commands:\n\n"
+    # Split into multiple messages to stay under Telegram's 4096-char limit.
+    part1 = (
+        "Available commands (1/3):\n\n"
         "🤖 Gemini AI (requires /login):\n"
         "• Chat naturally with text or images\n"
         "/new - Start a new conversation\n"
@@ -124,86 +127,91 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/stopbot - Stop the bot process\n"
         "/shutdown - Shutdown the laptop\n"
         "/sleep - Put PC to sleep (bot stays awake)\n"
-        "/privacy <on|off|status> - Blank or wake the display without locking\n"
+        "/privacy <on|off|status> - Blank or wake display without locking\n"
         "/wakeup - Info about waking up PC\n"
-        "/openclaude - Open Claude desktop app\n"
         "/battery - Check battery status\n"
         "/screenshot - Capture current screen\n"
         "/hotkey <keys> [text] - Execute shortcuts & type text\n"
         "/clipboard <text> - Set PC clipboard content\n"
-        "/pasteimage - Reply to Telegram image and paste into focused app (auto-clears image clipboard in 2m)\n"
-        "/pasteimages - Reply to album photo/image doc and paste all images (auto-clears image clipboard in 2m)\n"
-        "/viewclipboard - View current PC clipboard\n"
-        "/findtext <text> - Find text and show coordinates\n"
+        "/pasteimage - Paste a replied image into focused app\n"
+        "/pasteimages - Paste all images from a replied album\n"
+        "/viewclipboard - View current PC clipboard"
+        f"{auth_note}"
+    )
+
+    part2 = (
+        "Available commands (2/3):\n\n"
+        "🖱️ UI Automation:\n"
+        "/findtext <text> - Find text on screen and show coordinates\n"
         "/clicktext <x> <y> - Click at screen coordinates\n"
-        "/smartclick <text> - Find and click text (with selection)\n"
+        "/smartclick <text> - Find and click text via OCR\n"
         "/pasteenter - Paste clipboard and press Enter\n"
-        "/typeenter <text> - Type words without spaces and press Enter\n"
-        "/scrollup [amount] - Hover centrally and scroll up\n"
-        "/scrolldown [amount] - Hover centrally and scroll down\n\n"
+        "/typeenter <text> - Type text and press Enter\n"
+        "/scrollup [amount] - Scroll up\n"
+        "/scrolldown [amount] - Scroll down\n\n"
         "🖥️ Remote Desktop:\n"
-        "/remote - Start a live browser-based remote control session (HTTPS URL + QR)\n"
+        "/remote - Start live browser-based remote control (HTTPS URL + QR)\n"
         "/remoteinfo - Show active remote session details\n"
         "/stopremote - Stop the active remote desktop session\n\n"
         "🎯 Custom Commands:\n"
         "/savecommand <name> - Start recording command sequence\n"
-        "/done - Finish recording and save command\n"
+        "/done - Finish recording and save\n"
         "/cancelrecord - Cancel current recording\n"
         "/listcommands - Show all saved commands\n"
         "/deletecommand <name> - Delete a saved command\n"
         "/<custom_name> - Execute a saved custom command\n\n"
         "🧩 Workflow Recipes:\n"
         "/recipecreate <name> - Create a workflow recipe\n"
-        "/recipeaddcommand <name> <saved_command> - Add recorded command step\n"
+        "/recipeaddcommand <name> <cmd> - Add recorded command step\n"
         "/recipeaddclaude <name> <prompt> - Add Claude prompt step\n"
         "/recipeaddwait <name> <duration> - Add fixed wait step\n"
-        "/recipeaddwaittext <name> <text> | timeout=2m scope=claude - Add OCR wait step\n"
-        "/recipeaddnotify <name> <message> - Add Telegram notification step\n"
+        "/recipeaddwaittext <name> <text> - Add OCR wait step\n"
+        "/recipeaddnotify <name> <msg> - Add Telegram notification step\n"
         "/recipelist - List recipes\n"
         "/recipeshow <name> - Show recipe steps\n"
-        "/reciperun <name> [key=value ...] - Run recipe with optional variables\n"
-        "/recipedelete <name> - Delete recipe\n\n"
-        "🤖 Claude / Antigravity (launchers + CLI):\n"
+        "/reciperun <name> [key=value ...] - Run recipe\n"
+        "/recipedelete <name> - Delete recipe"
+    )
+
+    part3 = (
+        "Available commands (3/3):\n\n"
+        "🤖 Claude / Antigravity:\n"
         "/openclaude - Open Claude desktop app\n"
-        "/claudescreen - Get screenshot of Claude desktop\n"
-        "/openantigravity - Open or bring Antigravity to front\n"
-        "/openclaudeinvscode - Run Claude Code: Open in VS Code\n"
-        "/claudecli [folder] - Open Claude CLI in a folder (or pick one)\n"
-        "/claudeclisend <prompt> - Send a prompt to the active Claude CLI\n"
-        "/antigravityopenfolder [folder] - Open a folder in VS Code\n"
+        "/claudescreen - Screenshot of Claude desktop\n"
+        "/openantigravity - Open or focus Antigravity\n"
+        "/openclaudeinvscode - Run Claude Code in VS Code\n"
+        "/claudecli [folder] - Open Claude CLI in a folder\n"
+        "/claudeclisend <prompt> - Send prompt to active Claude CLI\n"
+        "/antigravityopenfolder [folder] - Open folder in VS Code\n"
         "/openbrowser <name> - Open Edge/Chrome/Firefox/Brave\n\n"
         "🔨 Build Workflow:\n"
         "/build - Start React Native build workflow\n"
-        "  → Lists local repos with package.json\n"
-        "  → Shows available npm scripts\n"
-        "  → Executes build and monitors progress\n"
-        "  → Then use /getapk to retrieve the artifact\n\n"
-        "/getapk - Retrieve built APK/AAB (React Native or native Kotlin)\n"
-        "  → Browse local repositories\n"
-        "  → Navigate build output folders\n"
-        "  → Select and download APK files\n"
-        "  → No rebuild required\n\n"
+        "/getapk - Retrieve built APK/AAB file\n"
+        "/stopbuildscreenshot - Stop build screenshot monitoring\n\n"
         "🕒 Task Scheduling:\n"
-        "/schedule <time> - Record automation commands to run at a time\n"
-        "/scheduleshutdown <time> - Schedule a confirmed one-shot system shutdown\n"
-        "/repeatschedule every <interval> for <duration> - Repeat a recorded automation\n"
-        "/watchperm <target> every <interval> for <duration> - Auto-click app approval prompts\n"
-        "/watchscreen <text> every <interval> press <hotkey> - Watch screen/app text and send a hotkey\n"
-        "/watchnotify <text> every <interval> - Watch screen/app text and notify only\n"
-        "/watchstatus - Show active watchers only\n"
-        "/stopscreenwatch [task_id|all] - Stop one or all active screen watchers\n"
-        "/claudeschedule <time> <msg> - Schedule a prompt for Claude\n"
+        "/schedule <time> - Record automation to run at a time\n"
+        "/scheduleshutdown <time> - Schedule a one-shot shutdown\n"
+        "/repeatschedule every <interval> for <duration> - Repeat automation\n"
+        "/watchperm <target> every <interval> for <dur> - Auto-click approval prompts\n"
+        "/watchscreen <text> every <interval> press <key> - Watch screen for text\n"
+        "/watchnotify <text> every <interval> - Watch and notify only\n"
+        "/watchstatus - Show active watchers\n"
+        "/stopscreenwatch [task_id|all] - Stop screen watchers\n"
+        "/claudeschedule <time> <msg> - Schedule a Claude prompt\n"
         "/listschedules - View all pending scheduled tasks\n"
-        "/cancelschedule <id> - Cancel a pending scheduled task\n\n"
+        "/cancelschedule <id> - Cancel a pending task\n\n"
         "💬 Gemini AI Chat:\n"
-        "Just send me a message or image to chat!"
-        f"{auth_note}"
+        "Just send a message or image to chat with Gemini!"
     )
+
+    await update.message.reply_text(part1)
+    await update.message.reply_text(part2)
+    await update.message.reply_text(part3)
 
 
 async def new_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /new command - start a new conversation."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
 
     user_id = update.effective_user.id
@@ -216,7 +224,7 @@ async def new_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /status command."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
 
     user_id = update.effective_user.id
@@ -245,7 +253,7 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def enhance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /enhance command - enhance text prompts using Gemini."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
 
     user_id = update.effective_user.id
@@ -710,7 +718,7 @@ async def selftest_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def sync_commands_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /sync command - manual sync of bot commands with Telegram."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
 
     await update.message.reply_text("🔄 Syncing bot commands with Telegram...")

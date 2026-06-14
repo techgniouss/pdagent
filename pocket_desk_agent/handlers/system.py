@@ -273,7 +273,7 @@ def _popular_app_entries():
 
 async def openapp_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /openapp command - search and open a safe desktop app."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
 
     if platform.system() != "Windows":
@@ -348,7 +348,7 @@ async def openapp_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def closeapp_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /closeapp command - gracefully close a matching desktop app."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
 
     if platform.system() != "Windows":
@@ -800,7 +800,7 @@ async def hotkey_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def windows_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /windows command - list switchable desktop windows."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
 
     if platform.system() != "Windows":
@@ -865,7 +865,7 @@ async def windows_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def focuswindow_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /focuswindow command - activate a previously listed window."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
 
     if platform.system() != "Windows":
@@ -919,7 +919,7 @@ async def focuswindow_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def clipboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /clipboard command - set clipboard content."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
     
     # Get text argument
@@ -1045,7 +1045,7 @@ async def pasteimage_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def pasteimages_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /pasteimages by pasting all images from a replied media group."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
 
     if platform.system() != "Windows":
@@ -1130,7 +1130,7 @@ async def pasteimages_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def viewclipboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /viewclipboard command - get current clipboard content."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
     
     try:

@@ -53,6 +53,7 @@ from pocket_desk_agent.handlers.filesystem import (  # noqa: F401
     find_command,
     info_command,
     check_getfile_selection,
+    approvedirs_command,
 )
 
 # ── System Control ──────────────────────────────────────────────────────────

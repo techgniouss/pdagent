@@ -966,3 +966,21 @@ def run_configure_wizard(reconfigure: bool = False) -> None:
 
     # Fresh install: run the full wizard
     _run_full_wizard()
+
+
+def persist_approved_directories(dirs: list) -> None:
+    """Write a new APPROVED_DIRECTORIES list to the INI config file.
+
+    Updates [bot] approved_directories as a comma-separated string.
+    Creates the config file with minimal content if it doesn't exist yet.
+    """
+    path = config_path()
+    parser = configparser.ConfigParser()
+    if path.exists():
+        parser.read(path, encoding="utf-8")
+    if not parser.has_section("bot"):
+        parser.add_section("bot")
+    parser.set("bot", "approved_directories", ",".join(str(d) for d in dirs))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        parser.write(fh)

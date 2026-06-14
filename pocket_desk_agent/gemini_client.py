@@ -78,6 +78,31 @@ _TOOL_NAME_ALIASES: dict[str, str] = {
     "vscode_open_folder": "open_vscode_folder",
     "launch_claude_cli": "open_claude_cli",
     "send_claude_cli_message": "claude_cli_send_message",
+    "run_command": "execute_command",
+    "shell_command": "execute_command",
+    "run_shell": "execute_command",
+    "exec_command": "execute_command",
+    "run_in_folder": "execute_command",
+    "click": "click_on_screen",
+    "click_screen": "click_on_screen",
+    "screen_click": "click_on_screen",
+    "click_element": "click_on_screen",
+    "click_button": "click_on_screen",
+    "click_text": "click_on_screen",
+    "click_at": "click_on_screen",
+    "double_click": "double_click_on_screen",
+    "dbl_click": "double_click_on_screen",
+    "doubleclick": "double_click_on_screen",
+    "double_click_screen": "double_click_on_screen",
+    "right_click": "right_click_on_screen",
+    "rightclick": "right_click_on_screen",
+    "right_click_screen": "right_click_on_screen",
+    "context_click": "right_click_on_screen",
+    "scroll": "scroll_screen",
+    "scroll_up": "scroll_screen",
+    "scroll_down": "scroll_screen",
+    "page_scroll": "scroll_screen",
+    "screen_scroll": "scroll_screen",
 }
 
 # ============================================================================
@@ -92,9 +117,14 @@ You have access to comprehensive tools for files, desktop context, and automatio
 - get_current_directory / change_directory: Handle requests like /pwd and /cd
 - list_directory / search_files / read_file / get_file_info: Handle requests like /ls, /find, /cat, and /info
 - get_tree_structure: Get complete project structure (use this first to understand the project!)
+- execute_command: Run allowlisted shell commands (git, npm, npx, python, pip, ls, dir, etc.) in the current directory
 
 **Desktop Tools**:
-- capture_screenshot: Capture the current screen and send it back to the chat
+- capture_screenshot: Capture the current screen, send it to chat, AND see the image yourself so you can identify UI elements and coordinates
+- click_on_screen: Directly left-click on screen — provide text (OCR find-and-click) OR x+y pixel coordinates; no approval needed
+- double_click_on_screen: Directly double-click on screen — same arguments as click_on_screen
+- right_click_on_screen: Directly right-click on screen — same arguments as click_on_screen
+- scroll_screen: Scroll the screen — provide direction (up/down/left/right), optional amount (ticks), optional x/y position
 - list_open_windows / focus_window: Inspect and switch application windows
 - find_text_on_screen: Understand what's visible before clicking
 - view_clipboard / get_battery_status: Inspect host state
@@ -108,7 +138,7 @@ You have access to comprehensive tools for files, desktop context, and automatio
 - open_claude_cli / claude_cli_send_message: Launch Claude CLI in a folder or send it a follow-up prompt
 - get_remote_session_status: Read-only status of the live remote-desktop session (URL, fps, idle time)
 
-**Confirmed Action Tools**:
+**Confirmed Action Tools** (send approval prompt before executing):
 - write_file / append_file / delete_file / create_directory
 - set_clipboard / press_hotkey / click_coordinates / smart_click_text
 - run_saved_command / shutdown_computer / sleep_computer
@@ -118,15 +148,15 @@ You have access to comprehensive tools for files, desktop context, and automatio
 - schedule_claude_prompt / schedule_desktop_sequence
 - request_remote_session / request_stop_remote_session (confirmation-gated live remote-desktop)
 
-These tools send an approval prompt to the user before any risky action happens.
-
 **Best Practices**:
 1. Start with get_tree_structure to understand the project layout
 2. Read files and inspect the current UI before modifying things
 3. Explain what you're doing and why
 4. For risky actions, tell the user an approval prompt has been sent
 5. All file paths are relative to the current working directory unless the tool says otherwise
-6. Prefer existing workflows for slash-command-style requests. Examples:
+6. When the user asks to do something **in a specific folder**, ALWAYS call change_directory first to navigate there, then use the relevant tool. Example: "run npm test in my emploi project" → change_directory("emploi") → execute_command("npm test")
+7. For running shell commands use execute_command. Allowed: git, npm, npx, node, yarn, python, pip, ls/dir, find, grep, echo, etc. Shell chains (&&, |, ;) are blocked — run one command at a time.
+8. Prefer existing workflows for slash-command-style requests. Examples:
    - "build emploi project" -> start_build_workflow
    - "get apk from emploi" -> start_apk_retrieval_workflow
    - "watch Claude every minute for Allow and press enter with 30s cooldown" -> start_screen_watch
@@ -140,7 +170,17 @@ These tools send an approval prompt to the user before any risky action happens.
    - "stop remote" / "end remote session" -> request_stop_remote_session
    - "show current folder" -> get_current_directory or list_directory
    - "open/read/find file" -> use the filesystem tools above
-7. Users may phrase commands naturally (aliases like "start remote", "get apk", "watch screen", "at 22:30", "every 1m"). Map those to the canonical tool names and expected arguments.
+   - "run git status" / "run npm install" / "run python script.py" -> execute_command
+9. Users may phrase commands naturally (aliases like "start remote", "get apk", "watch screen", "at 22:30", "every 1m"). Map those to the canonical tool names and expected arguments.
+10. **Clicking and scrolling on screen**: Use the direct mouse tools for any UI interaction request.
+    - Left-click text: click_on_screen(text="Submit")
+    - Left-click coordinates: click_on_screen(x=450, y=320)
+    - Double-click: double_click_on_screen(text="file.txt") or double_click_on_screen(x=200, y=300)
+    - Right-click: right_click_on_screen(text="item") or right_click_on_screen(x=200, y=300)
+    - Scroll down 5 ticks: scroll_screen(direction="down", amount=5)
+    - Scroll at a position: scroll_screen(direction="up", amount=3, x=640, y=400)
+    - If the target is a visual element with no clear text label: call capture_screenshot FIRST, identify the pixel coordinates from the returned image, then use the appropriate click tool with x/y.
+    - Coordinates from capture_screenshot map 1-to-1 to actual screen pixels — use them directly.
 
 Use these tools proactively to understand context and complete tasks efficiently!
 """
@@ -367,6 +407,8 @@ def _normalize_tool_args(func_name: str, args: dict[str, Any]) -> dict[str, Any]
     if func_name == "open_browser":
         browser = _first_string(args, "browser", "name", "app", "target", default="edge").lower()
         return {"browser": browser}
+    if func_name == "execute_command":
+        return {"command": _first_string(args, "command", "cmd", "shell", "run", "exec", "script")}
     if func_name in {"open_vscode_folder", "open_claude_cli"}:
         folder = _first_string(args, "folder", "path", "repo", "project", "name", "directory")
         normalized = {"folder": folder}
@@ -570,6 +612,23 @@ def _get_api_tools() -> list:
                     "required": ["path"]
                 }
             },
+            {
+                "name": "execute_command",
+                "description": (
+                    "Run an allowlisted shell command in the current working directory. "
+                    "Permitted first tokens: git, npm, npx, node, yarn, pnpm, python, python3, pip, pip3, "
+                    "ls, dir, cat, type, head, tail, tree, pwd, find, grep, findstr, echo, whoami, hostname, tasklist. "
+                    "Shell chain operators (&&, ||, ;, |) are blocked — run one command at a time. "
+                    "Use change_directory first when you need to run in a specific folder."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "command": {"type": "string", "description": "The shell command to run, e.g. 'git status' or 'npm test'."}
+                    },
+                    "required": ["command"]
+                }
+            },
         ]
     declarations.extend(get_gemini_action_tools())
     return [{"functionDeclarations": declarations}]
@@ -586,6 +645,7 @@ _ALLOWED_TOOLS = frozenset({
     "delete_file",
     "create_directory",
     "get_file_info",
+    "execute_command",
     "get_current_directory",
     "change_directory",
     "get_battery_status",
@@ -604,6 +664,10 @@ _ALLOWED_TOOLS = frozenset({
     "start_apk_retrieval_workflow",
     "run_saved_command",
     "find_text_on_screen",
+    "click_on_screen",
+    "double_click_on_screen",
+    "right_click_on_screen",
+    "scroll_screen",
     "set_clipboard",
     "press_hotkey",
     "click_coordinates",
@@ -915,6 +979,7 @@ class GeminiClient:
 
                 logger.info(f"AI Turn {turn}: requested tool {func_name} with {args}")
 
+                dispatched = None
                 if func_name == "list_directory":
                     success, result_text = await loop.run_in_executor(None, file_manager.list_directory, user_id, args.get('path'))
                     tool_result = {"result": result_text, "success": success}
@@ -936,6 +1001,11 @@ class GeminiClient:
                 elif func_name == "get_file_info":
                     success, result_text = await loop.run_in_executor(None, file_manager.get_file_info, user_id, args.get('path'))
                     tool_result = {"result": result_text, "success": success}
+                elif func_name == "execute_command":
+                    success, result_text = await loop.run_in_executor(
+                        None, file_manager.execute_command, user_id, args.get('command', '')
+                    )
+                    tool_result = {"result": result_text, "success": success}
                 else:
                     dispatched = await dispatch_gemini_tool(
                         user_id=user_id,
@@ -950,15 +1020,26 @@ class GeminiClient:
                 logger.info(f"Tool {func_name} result: {str(result_text)[:100]}")
 
                 history.append({"role": "model", "parts": [{"functionCall": normalized_tool_call}]})
-                history.append({
-                    "role": "user",
-                    "parts": [{
-                        "functionResponse": {
-                            "name": func_name,
-                            "response": tool_result
+
+                # Build function-response parts.
+                # When the tool returns image bytes (e.g. capture_screenshot), include the
+                # image as an inlineData part alongside the functionResponse so Gemini can
+                # see the screen and identify click targets without needing a second request.
+                _func_response_parts: list[dict] = [{
+                    "functionResponse": {
+                        "name": func_name,
+                        "response": tool_result,
+                    }
+                }]
+                if dispatched is not None and dispatched.image_bytes:
+                    import base64 as _b64
+                    _func_response_parts.append({
+                        "inlineData": {
+                            "mimeType": "image/jpeg",
+                            "data": _b64.b64encode(dispatched.image_bytes).decode("ascii"),
                         }
-                    }]
-                })
+                    })
+                history.append({"role": "user", "parts": _func_response_parts})
 
             logger.warning(f"send_message hit max_turns={max_turns} without final answer")
             del history[base_history_len:]
