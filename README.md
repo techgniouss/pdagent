@@ -3,7 +3,7 @@
 <p align="center">
   <a href="https://pypi.org/project/pocket-desk-agent/"><img src="https://img.shields.io/pypi/v/pocket-desk-agent.svg?style=for-the-badge&color=3776AB" alt="PyPI" /></a>
   <a href="https://pypistats.org/packages/pocket-desk-agent"><img src="https://img.shields.io/pypi/dm/pocket-desk-agent?style=for-the-badge&color=3776AB&label=installs%2Fmo" alt="PyPI Downloads" /></a>
-  <a href="https://github.com/techgniouss/pdagent/actions/workflows/publish.yml"><img src="https://img.shields.io/github/actions/workflow/status/techgniouss/pdagent/publish.yml?style=for-the-badge&label=CI" alt="CI" /></a>
+  <a href="https://github.com/techgniouss/pdagent/actions/workflows/publish-release.yml"><img src="https://img.shields.io/github/actions/workflow/status/techgniouss/pdagent/publish.yml?style=for-the-badge&label=CI" alt="CI" /></a>
   <a href="https://github.com/techgniouss/pdagent/stargazers"><img src="https://img.shields.io/github/stars/techgniouss/pdagent?style=for-the-badge&logo=github" alt="GitHub stars" /></a>
   <a href="https://github.com/techgniouss/pdagent/network/members"><img src="https://img.shields.io/github/forks/techgniouss/pdagent?style=for-the-badge&logo=github" alt="GitHub forks" /></a>
   <img src="https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
