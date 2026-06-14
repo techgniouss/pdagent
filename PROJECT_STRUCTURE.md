@@ -60,7 +60,7 @@ pocket-desk-agent/
 │   ├── scheduler_registry.py       # Persistent scheduled task storage
 │   ├── startup_manager.py          # Windows logon-task startup management
 │   ├── rate_limiter.py             # Token-bucket rate limiter (per-user, per-command)
-│   ├── updater.py                  # Auto-update manager (git pull / pip upgrade)
+│   ├── updater.py                  # Auto-update manager (PyPI-based; checks and applies pip upgrades)
 │   ├── telegram_commands.py        # Bot command list helpers for /sync
 │   └── constants.py                # API endpoints and header constants
 ├── scripts/
@@ -91,7 +91,7 @@ pocket-desk-agent/
 ## Key Components
 
 ### 1. `handlers/` package
-All Telegram command handlers live here, split across 15 focused modules by domain. Every handler **must** be decorated with `@safe_command` from `_shared.py`, which enforces authorization, rate limiting, and exception safety.
+All Telegram command handlers live here, split across 15 focused modules by domain. `main.py` wraps every handler with `safe_command` at registration time — do **not** add `@safe_command` as a decorator on individual functions (double-wrapping). `safe_command` enforces authorization, rate limiting, and exception safety.
 
 The `_shared.py` module holds three module-level singletons used across all handler files:
 - `auth_client` — `AntigravityAuth` instance for OAuth token management
@@ -176,14 +176,12 @@ When adding new features that require heavy dependencies, follow this pattern.
 
 ### Adding a New Command
 
-1. **Write the handler** in the appropriate module under `pocket_desk_agent/handlers/`. Use `@safe_command`.
+1. **Write the handler** in the appropriate module under `pocket_desk_agent/handlers/`. No `@safe_command` decorator needed — applied automatically at registration by `main.py`.
 
    ```python
    from telegram import Update
    from telegram.ext import ContextTypes
-   from pocket_desk_agent.handlers._shared import safe_command
 
-   @safe_command
    async def mycommand_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
        await update.message.reply_text("Result here")
    ```

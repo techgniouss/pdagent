@@ -166,8 +166,8 @@ pdagent setup        # проверка и установка системных
 ### Вариант B: Режим разработчика
 
 ```bash
-git clone https://github.com/techgniouss/pocket-desk-agent.git
-cd pocket-desk-agent
+git clone https://github.com/techgniouss/pdagent.git
+cd pdagent
 pip install -e ".[dev]"
 pdagent
 ```

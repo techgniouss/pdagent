@@ -214,13 +214,13 @@ All values live in `pocket_desk_agent/config.py` → `Config` class.
 
 ## Architecture Patterns
 
-### 1. `safe_command` decorator (every handler must use it)
+### 1. `safe_command` wrapper (applied automatically at registration)
 
-Located in `handlers/_shared.py`. Wraps every command/callback handler to:
-- Silently reject unauthorized users (from `AUTHORIZED_USER_IDS`)
-- Enforce per-user rate limits (token-bucket in `rate_limiter.py`)
-- Catch all exceptions and send a sanitized error message
-- Prevent bot process crashes
+Located in `handlers/_shared.py`. `main.py` wraps every handler from `COMMAND_REGISTRY` with `safe_command(handler_func)` at registration time — **do not add `@safe_command` as a decorator on individual handler functions**, as that causes double-wrapping. The wrapper:
+- Silently rejects unauthorized users (from `AUTHORIZED_USER_IDS`)
+- Enforces per-user rate limits (token-bucket in `rate_limiter.py`)
+- Catches all exceptions and sends a sanitized error message
+- Prevents bot process crashes
 
 **Never add manual `is_user_allowed()` checks in handlers** — `safe_command` already handles this.
 
@@ -270,7 +270,7 @@ file_manager  # FileManager — sandboxed file I/O
 
 ## Adding a New Bot Command
 
-1. **Write the handler** in the appropriate file under `pocket_desk_agent/handlers/` (or create a new module for a new domain). Decorate with `@safe_command`.
+1. **Write the handler** in the appropriate file under `pocket_desk_agent/handlers/` (or create a new module for a new domain). No `@safe_command` decorator needed — it is applied automatically at registration time by `main.py`.
 
 2. **Export it** from `pocket_desk_agent/handlers/__init__.py`.
 
@@ -286,9 +286,7 @@ file_manager  # FileManager — sandboxed file I/O
 ```python
 from telegram import Update
 from telegram.ext import ContextTypes
-from pocket_desk_agent.handlers._shared import safe_command
 
-@safe_command
 async def mycommand_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     args = context.args  # list of whitespace-split args after /mycommand
     await update.message.reply_text("Result here")
@@ -319,7 +317,7 @@ async def mycommand_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 ## Security Rules
 
 - All file operations **must** go through `FileManager._is_safe_path()`.
-- All handlers **must** use `@safe_command` (authorization + rate limiting).
+- All handlers get `safe_command` applied automatically at registration — never add it as a decorator (double-wrapping).
 - Never call `subprocess`/shell from a Gemini tool — no RCE vectors.
 - Never commit secrets (`.env`, OAuth token files, `credentials`).
 - OAuth tokens are stored with `chmod 600` / `icacls` restricted permissions.

@@ -166,8 +166,8 @@ pdagent setup        # vérifier et installer les dépendances système
 ### Option B : Mode développeur local
 
 ```bash
-git clone https://github.com/techgniouss/pocket-desk-agent.git
-cd pocket-desk-agent
+git clone https://github.com/techgniouss/pdagent.git
+cd pdagent
 pip install -e ".[dev]"
 pdagent
 ```

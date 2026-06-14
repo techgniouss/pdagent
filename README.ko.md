@@ -166,8 +166,8 @@ pdagent setup        # 시스템 의존성 확인 및 설치
 ### 옵션 B: 로컬 개발자 모드
 
 ```bash
-git clone https://github.com/techgniouss/pocket-desk-agent.git
-cd pocket-desk-agent
+git clone https://github.com/techgniouss/pdagent.git
+cd pdagent
 pip install -e ".[dev]"
 pdagent
 ```
