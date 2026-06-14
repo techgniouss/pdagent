@@ -6,8 +6,8 @@ Thank you for your interest in contributing. Pocket Desk Agent is designed to be
 
 1. **Clone & install**:
    ```bash
-   git clone https://github.com/techgniouss/pocket-desk-agent.git
-   cd pocket-desk-agent
+   git clone https://github.com/techgniouss/pdagent.git
+   cd pdagent
    pip install -e ".[dev]"
    ```
 
@@ -37,20 +37,18 @@ For the full local development guide (virtual environments, live reloader, make 
 
 ## Adding a New Command
 
-1. **Write the handler** in the appropriate module under `pocket_desk_agent/handlers/` (pick the domain that fits, or create a new module for a new domain). Every handler **must** use the `@safe_command` decorator — it enforces authorization, rate limiting, and exception safety automatically.
+1. **Write the handler** in the appropriate module under `pocket_desk_agent/handlers/` (pick the domain that fits, or create a new module for a new domain). Do **not** add `@safe_command` as a decorator — `main.py` applies it automatically to every handler at registration time.
 
    ```python
    from telegram import Update
    from telegram.ext import ContextTypes
-   from pocket_desk_agent.handlers._shared import safe_command
 
-   @safe_command
    async def mycommand_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
        args = context.args  # list of whitespace-split args after /mycommand
        await update.message.reply_text("Result here")
    ```
 
-   **Never** add manual `is_user_allowed()` checks — `@safe_command` handles authorization.
+   **Never** add manual `is_user_allowed()` checks — `safe_command` handles authorization at registration.
 
 2. **Export it** from `pocket_desk_agent/handlers/__init__.py`.
 
@@ -87,7 +85,7 @@ UI automation features require Windows with Tesseract OCR installed, as `pywinau
 - **Never commit** `.env`, OAuth token files, or `~/.pdagent/credentials`.
 - **Always use** `FileManager._is_safe_path()` for any new file operations. It uses `Path.relative_to()` — never roll your own path validation.
 - **Never expose** `subprocess` or shell access to the Gemini AI — this is a prompt-injection-to-RCE vector.
-- `@safe_command` handles authorization on every handler. Do not add duplicate `is_user_allowed()` calls.
+- `safe_command` is applied automatically at registration. Do not add it as a decorator and do not add duplicate `is_user_allowed()` calls.
 
 ## License
 

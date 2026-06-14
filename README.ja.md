@@ -166,8 +166,8 @@ pdagent setup        # システム依存関係の確認とインストール
 ### オプションB：ローカル開発者モード
 
 ```bash
-git clone https://github.com/techgniouss/pocket-desk-agent.git
-cd pocket-desk-agent
+git clone https://github.com/techgniouss/pdagent.git
+cd pdagent
 pip install -e ".[dev]"
 pdagent
 ```

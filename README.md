@@ -2,6 +2,8 @@
 
 <p align="center">
   <a href="https://pypi.org/project/pocket-desk-agent/"><img src="https://img.shields.io/pypi/v/pocket-desk-agent.svg?style=for-the-badge&color=3776AB" alt="PyPI" /></a>
+  <a href="https://pypistats.org/packages/pocket-desk-agent"><img src="https://img.shields.io/pypi/dm/pocket-desk-agent?style=for-the-badge&color=3776AB&label=installs%2Fmo" alt="PyPI Downloads" /></a>
+  <a href="https://github.com/techgniouss/pdagent/actions/workflows/publish.yml"><img src="https://img.shields.io/github/actions/workflow/status/techgniouss/pdagent/publish.yml?style=for-the-badge&label=CI" alt="CI" /></a>
   <a href="https://github.com/techgniouss/pdagent/stargazers"><img src="https://img.shields.io/github/stars/techgniouss/pdagent?style=for-the-badge&logo=github" alt="GitHub stars" /></a>
   <a href="https://github.com/techgniouss/pdagent/network/members"><img src="https://img.shields.io/github/forks/techgniouss/pdagent?style=for-the-badge&logo=github" alt="GitHub forks" /></a>
   <img src="https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
@@ -34,7 +36,7 @@
   <a href="README.uk.md">Українська</a>
 </p>
 
-**Pocket Desk Agent** is a self-hosted Telegram bot that gives you full remote control of your Windows PC from any device. It runs entirely on your machine — no cloud relay, no subscription, no data leaving your network beyond Telegram's message relay and the optional Gemini API.
+**Pocket Desk Agent** is a self-hosted Telegram bot that gives you full remote control of your Windows PC from any device. Unlike TeamViewer, AnyDesk, or RDP — it needs no account, no open inbound ports, no router config, and no subscription. It runs entirely on your machine; only Telegram's message relay and the optional Gemini API touch the internet.
 
 Out of the box, with zero AI setup:
 - **Browse and read files** sandboxed to your approved directories
@@ -55,8 +57,6 @@ Add **Google Gemini 2.0 Flash** credentials to unlock:
 ## Demo
 
 ![Pocket Desk Agent demo](assets/demo.gif)
-
-The demo uses placeholder data to show the core flow: send Telegram commands, receive status and screenshots, confirm an OCR-guided click, and start a secure live remote session.
 
 ---
 
@@ -122,7 +122,7 @@ When you send a message from your phone, Telegram holds it until the bot's polli
 | `RateLimiter` | Per-user token-bucket rate limiter applied automatically to every command |
 | `RemoteSession` | Per-session state: MJPEG capture, cloudflared tunnel, aiohttp WebSocket server, idle watchdog |
 
-All command handlers are registered centrally in `command_map.py`. Every handler is wrapped by `@safe_command`, which enforces authorization, rate limiting, and error reporting in a single place — no manual auth checks are needed in individual handlers.
+All command handlers are registered centrally in `command_map.py`. At registration time, every handler is automatically wrapped by `safe_command`, which enforces authorization, rate limiting, and error reporting in a single place — no manual auth checks are needed in individual handlers.
 
 ---
 
@@ -376,6 +376,8 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 | `/new` | Clear chat history and start fresh |
 | `/enhance <prompt>` | Let Gemini improve a prompt |
 | `/update` | Upgrade the installed package and restart |
+| `/sync` | Force-sync the command list with Telegram's bot menu |
+| `/selftest` | Run non-GUI functional checks for command wiring |
 | *(any text/photo)* | Chat with Gemini 2.0 Flash |
 
 ### File System
@@ -389,6 +391,7 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 | `/getfile <file>` | Download a file via Telegram (or large-file upload) |
 | `/find <pattern>` | Search files by glob |
 | `/info <path>` | File/folder metadata |
+| `/approvedirs` | View or change the sandboxed directory allowlist |
 
 ### Desktop Control
 
@@ -401,6 +404,8 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 | `/windows` | List open application windows and let you switch by number |
 | `/focuswindow <number>` | Activate a window from the most recent `/windows` list |
 | `/clipboard <text>` | Set the clipboard |
+| `/pasteimage` | Reply to a Telegram photo to paste it into the focused desktop app |
+| `/pasteimages` | Reply to a Telegram album to paste all images one-by-one |
 | `/viewclipboard` | Read the clipboard |
 | `/battery` | Battery status |
 | `/privacy <on|off|status>` | Blank or wake the display without locking Windows |
@@ -473,6 +478,23 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 | `/claudeschedule <HH:MM> <text>` | Schedule a Claude prompt |
 | `/listschedules` | View all pending scheduled tasks |
 | `/cancelschedule <id>` | Cancel a scheduled task |
+
+### Workflow Recipes
+
+Build reusable multi-step workflows with optional template variables (`{repo}`, `{branch}`, etc.).
+
+| Command | Description |
+| :--- | :--- |
+| `/recipecreate <name>` | Create an empty recipe |
+| `/recipeaddcommand <recipe> <saved_macro>` | Append a saved macro as a recipe step |
+| `/recipeaddclaude <recipe> <prompt template>` | Append a Claude prompt step (supports `{variables}`) |
+| `/recipeaddwait <recipe> <duration>` | Append a fixed wait step (`10s`, `2m`, `1h`) |
+| `/recipeaddwaittext <recipe> <text> \| timeout=...` | Append an OCR polling wait until text appears on screen |
+| `/recipeaddnotify <recipe> <message>` | Append a Telegram notification step |
+| `/recipelist` | List all recipes with step counts and usage stats |
+| `/recipeshow <recipe>` | Show all steps in a recipe |
+| `/reciperun <recipe> [key=value ...]` | Run a recipe with optional template variables |
+| `/recipedelete <recipe>` | Delete a recipe permanently |
 
 ### Build Automation
 

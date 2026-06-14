@@ -19,8 +19,8 @@ File system features and much of the Gemini integration are cross-platform, but 
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/techgniouss/pocket-desk-agent.git
-   cd pocket-desk-agent
+   git clone https://github.com/techgniouss/pdagent.git
+   cd pdagent
    ```
 
 2. Create and activate a virtual environment:
@@ -98,7 +98,7 @@ This keeps the development experience responsive without adding unnecessary over
 
 ### Logging
 
-Logs are written to both the console and `bot.log` in the working directory.
+Logs are written to both the console and `~/.pdagent/bot.log` (rotating, capped at 5 MB with 3 backups).
 
 For more verbose output, set:
 

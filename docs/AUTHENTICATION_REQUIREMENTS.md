@@ -24,7 +24,7 @@ If you use any of these without authenticating first, the bot will reply with a 
 
 ### Core
 
-- `/start`, `/help`, `/sync`, `/stopbot`, `/new`
+- `/start`, `/help`, `/sync`, `/selftest`, `/stopbot`, `/new`, `/update`
 - `/status` — works without auth but shows richer output (email, provider, token health) when authenticated
 
 ### Authentication Management
@@ -33,13 +33,15 @@ If you use any of these without authenticating first, the bot will reply with a 
 
 ### File System
 
-- `/pwd`, `/cd`, `/ls`, `/cat`, `/find`, `/info`
+- `/pwd`, `/cd`, `/ls`, `/cat`, `/find`, `/info`, `/approvedirs`
 
 ### System Control
 
 - `/screenshot`, `/hotkey`, `/clipboard`, `/viewclipboard`
+- `/pasteimage`, `/pasteimages`
 - `/windows`, `/focuswindow`
 - `/battery`, `/sleep`, `/wakeup`, `/shutdown`
+- `/openapp`, `/closeapp`, `/privacy`
 
 ### UI Automation
 
@@ -64,7 +66,15 @@ If you use any of these without authenticating first, the bot will reply with a 
 
 ### Scheduling
 
-- `/schedule`, `/scheduleshutdown`, `/claudeschedule`, `/listschedules`, `/cancelschedule`
+- `/schedule`, `/scheduleshutdown`, `/repeatschedule`, `/claudeschedule`
+- `/watchperm`, `/watchscreen`, `/watchnotify`, `/watchstatus`, `/stopscreenwatch`
+- `/listschedules`, `/cancelschedule`
+
+### Workflow Recipes
+
+- `/recipecreate`, `/recipeaddcommand`, `/recipeaddclaude`, `/recipeaddwait`
+- `/recipeaddwaittext`, `/recipeaddnotify`, `/recipelist`, `/recipeshow`
+- `/reciperun`, `/recipedelete`
 
 ### Build & APK
 

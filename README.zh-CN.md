@@ -94,7 +94,7 @@ Pocket Desk Agent 作为本地进程在你的 Windows PC 上运行，并通过�
 | `SchedulerRegistry` | 将计划任务持久化到磁盘，每 5 秒检查一次；重启后任务依然保留 |
 | `RateLimiter` | 自动应用于每条命令的每用户令牌桶速率限制器 |
 
-全部 70 个命令处理器都集中注册在 `command_map.py` 中。每个处理器都由 `@safe_command` 包装，在一个地方统一执行授权、速率限制和错误报告——各处理器中无需手动进行身份验证检查。
+全部命令处理器都集中注册在 `command_map.py` 中。注册时，每个处理器都自动由 `safe_command` 包装，在一个地方统一执行授权、速率限制和错误报告——各处理器中无需手动进行身份验证检查。
 
 ---
 
@@ -183,8 +183,8 @@ pdagent startup configure
 ### 选项 B：本地开发者模式
 
 ```bash
-git clone https://github.com/techgniouss/pocket-desk-agent.git
-cd pocket-desk-agent
+git clone https://github.com/techgniouss/pdagent.git
+cd pdagent
 pip install -e ".[dev]"
 pdagent
 ```
