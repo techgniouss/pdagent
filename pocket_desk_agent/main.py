@@ -38,13 +38,20 @@ ensure_app_dir()
 PID_FILE = app_path("bot.pid")
 LOG_FILE = app_path("bot.log")
 
-# Configure logging to both console and file
+# Configure logging to both console and file.
+# RotatingFileHandler caps bot.log at 5 MB and keeps 3 backups (≤15 MB total).
+from logging.handlers import RotatingFileHandler as _RotatingFileHandler
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=getattr(logging, Config.LOG_LEVEL),
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler(LOG_FILE, encoding='utf-8')
+        _RotatingFileHandler(
+            LOG_FILE,
+            maxBytes=5 * 1024 * 1024,
+            backupCount=3,
+            encoding='utf-8',
+        ),
     ]
 )
 logger = logging.getLogger(__name__)
@@ -274,6 +281,19 @@ async def scheduler_loop(application: Application):
             if _cleanup_counter >= int(3600 / SCHEDULER_POLL_INTERVAL_SECONDS):
                 _cleanup_counter = 0
                 registry.cleanup_old_tasks(days=7)
+                # Purge Gemini confirmation prompts the user never responded to.
+                # Keeps the dict from growing unbounded when prompts are ignored.
+                import time as _time
+                from pocket_desk_agent.gemini_actions import pending_gemini_actions
+                _stale_cutoff = _time.time() - 900  # 15 minutes
+                stale_ids = [
+                    aid for aid, action in list(pending_gemini_actions.items())
+                    if action.created_at < _stale_cutoff
+                ]
+                for aid in stale_ids:
+                    pending_gemini_actions.pop(aid, None)
+                if stale_ids:
+                    logger.debug("Purged %d stale Gemini confirmation prompt(s).", len(stale_ids))
 
             due_tasks = registry.get_pending_tasks()
             

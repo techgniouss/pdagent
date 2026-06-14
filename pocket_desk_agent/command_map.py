@@ -25,6 +25,7 @@ COMMAND_REGISTRY = [
     ("getfile", handlers.getfile_command, "Download a file"),
     ("find", handlers.find_command, "Search files"),
     ("info", handlers.info_command, "Get file info"),
+    ("approvedirs", handlers.approvedirs_command, "View or change approved sandbox directories"),
     # Remote Desktop Commands
     (
         "remote",

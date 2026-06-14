@@ -1,4 +1,4 @@
-﻿"""Gemini action tools, confirmation flows, and reusable action helpers."""
+"""Gemini action tools, confirmation flows, and reusable action helpers."""
 
 from __future__ import annotations
 
@@ -44,6 +44,7 @@ class GeminiToolResult:
     awaiting_confirmation: bool = False
     confirmation_id: Optional[str] = None
     media_sent: bool = False
+    image_bytes: Optional[bytes] = None
 
     def to_response(self) -> dict[str, Any]:
         """Convert the result to a functionResponse payload."""
@@ -78,6 +79,10 @@ _GEMINI_TOOL_RATE_LIMITER = RateLimiter(default_calls=20, default_window=60)
 _RATE_LIMIT_LABELS = {
     "capture_screenshot": "screenshot captures",
     "find_text_on_screen": "OCR screen searches",
+    "click_on_screen": "direct screen clicks",
+    "double_click_on_screen": "direct double-clicks",
+    "right_click_on_screen": "direct right-clicks",
+    "scroll_screen": "direct screen scrolls",
     "list_open_windows": "window listings",
     "focus_window": "window focus actions",
     "smart_click_text": "smart-click requests",
@@ -102,6 +107,10 @@ _RATE_LIMITED_TOOLS = frozenset(_RATE_LIMIT_LABELS) - {"gemini_confirmation_requ
 
 _GEMINI_TOOL_RATE_LIMITER.set_limit("capture_screenshot", calls=5, window=60)
 _GEMINI_TOOL_RATE_LIMITER.set_limit("find_text_on_screen", calls=6, window=60)
+_GEMINI_TOOL_RATE_LIMITER.set_limit("click_on_screen", calls=15, window=60)
+_GEMINI_TOOL_RATE_LIMITER.set_limit("double_click_on_screen", calls=15, window=60)
+_GEMINI_TOOL_RATE_LIMITER.set_limit("right_click_on_screen", calls=15, window=60)
+_GEMINI_TOOL_RATE_LIMITER.set_limit("scroll_screen", calls=20, window=60)
 _GEMINI_TOOL_RATE_LIMITER.set_limit("list_open_windows", calls=10, window=60)
 _GEMINI_TOOL_RATE_LIMITER.set_limit("focus_window", calls=12, window=60)
 _GEMINI_TOOL_RATE_LIMITER.set_limit("smart_click_text", calls=6, window=60)
@@ -161,8 +170,121 @@ def get_gemini_action_tools() -> list[dict[str, Any]]:
         },
         {
             "name": "capture_screenshot",
-            "description": "Capture the current screen and send the screenshot back to the Telegram chat.",
+            "description": (
+                "Capture the current screen, send it to the Telegram chat, and return it so you can "
+                "see what is on screen. Use this before click_on_screen when you need to identify "
+                "where something is visually."
+            ),
             "parameters": {"type": "object", "properties": {}},
+        },
+        {
+            "name": "click_on_screen",
+            "description": (
+                "Directly click on the screen — no approval required. "
+                "Provide 'text' to OCR-search visible text and click the best match, "
+                "OR provide 'x' and 'y' integer pixel coordinates to click directly. "
+                "When the target is text, prefer 'text'. "
+                "When the target is a visual element with no clear text label, "
+                "first call capture_screenshot, identify the coordinates from the image, "
+                "then call this tool with x and y."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "text": {
+                        "type": "string",
+                        "description": "Visible text label to find on screen via OCR and click.",
+                    },
+                    "x": {
+                        "type": "integer",
+                        "description": "Pixel X coordinate to click when using coordinate mode.",
+                    },
+                    "y": {
+                        "type": "integer",
+                        "description": "Pixel Y coordinate to click when using coordinate mode.",
+                    },
+                },
+            },
+        },
+        {
+            "name": "double_click_on_screen",
+            "description": (
+                "Directly double-click on the screen — no approval required. "
+                "Provide 'text' to OCR-search visible text and double-click the best match, "
+                "OR provide 'x' and 'y' integer pixel coordinates to double-click directly."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "text": {
+                        "type": "string",
+                        "description": "Visible text label to find on screen via OCR and double-click.",
+                    },
+                    "x": {
+                        "type": "integer",
+                        "description": "Pixel X coordinate to double-click when using coordinate mode.",
+                    },
+                    "y": {
+                        "type": "integer",
+                        "description": "Pixel Y coordinate to double-click when using coordinate mode.",
+                    },
+                },
+            },
+        },
+        {
+            "name": "right_click_on_screen",
+            "description": (
+                "Directly right-click on the screen — no approval required. "
+                "Provide 'text' to OCR-search visible text and right-click the best match, "
+                "OR provide 'x' and 'y' integer pixel coordinates to right-click directly."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "text": {
+                        "type": "string",
+                        "description": "Visible text label to find on screen via OCR and right-click.",
+                    },
+                    "x": {
+                        "type": "integer",
+                        "description": "Pixel X coordinate to right-click when using coordinate mode.",
+                    },
+                    "y": {
+                        "type": "integer",
+                        "description": "Pixel Y coordinate to right-click when using coordinate mode.",
+                    },
+                },
+            },
+        },
+        {
+            "name": "scroll_screen",
+            "description": (
+                "Scroll the screen at a given position — no approval required. "
+                "Provide 'direction' (up, down, left, right) and optionally 'amount' (scroll ticks, default 3). "
+                "Optionally provide 'x' and 'y' to scroll at a specific coordinate; "
+                "omit them to scroll at the current cursor position."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "direction": {
+                        "type": "string",
+                        "description": "Scroll direction: 'up', 'down', 'left', or 'right'. Default is 'down'.",
+                    },
+                    "amount": {
+                        "type": "integer",
+                        "description": "Number of scroll ticks. Default is 3.",
+                    },
+                    "x": {
+                        "type": "integer",
+                        "description": "Optional pixel X coordinate to scroll at.",
+                    },
+                    "y": {
+                        "type": "integer",
+                        "description": "Optional pixel Y coordinate to scroll at.",
+                    },
+                },
+            },
         },
         {
             "name": "list_open_windows",
@@ -677,6 +799,44 @@ async def dispatch_gemini_tool(
     if func_name == "find_text_on_screen":
         return await _find_text_on_screen(tool_runtime, str(args.get("text", "")))
 
+    if func_name == "click_on_screen":
+        return await _direct_mouse_action(
+            "click",
+            text=str(args.get("text", "")).strip(),
+            x=int(args["x"]) if args.get("x") is not None else None,
+            y=int(args["y"]) if args.get("y") is not None else None,
+        )
+
+    if func_name == "double_click_on_screen":
+        return await _direct_mouse_action(
+            "double_click",
+            text=str(args.get("text", "")).strip(),
+            x=int(args["x"]) if args.get("x") is not None else None,
+            y=int(args["y"]) if args.get("y") is not None else None,
+        )
+
+    if func_name == "right_click_on_screen":
+        return await _direct_mouse_action(
+            "right_click",
+            text=str(args.get("text", "")).strip(),
+            x=int(args["x"]) if args.get("x") is not None else None,
+            y=int(args["y"]) if args.get("y") is not None else None,
+        )
+
+    if func_name == "scroll_screen":
+        direction = str(args.get("direction", "down")).strip().lower()
+        if direction not in {"up", "down", "left", "right"}:
+            direction = "down"
+        raw_amount = args.get("amount")
+        amount = max(1, int(raw_amount)) if raw_amount is not None else 3
+        return await _direct_mouse_action(
+            "scroll",
+            x=int(args["x"]) if args.get("x") is not None else None,
+            y=int(args["y"]) if args.get("y") is not None else None,
+            direction=direction,
+            amount=amount,
+        )
+
     if func_name in {"write_file", "append_file", "delete_file", "create_directory"}:
         return await _queue_confirmation(
             user_id=user_id,
@@ -1003,25 +1163,103 @@ async def _queue_confirmation(
 
 
 async def _capture_screenshot(tool_runtime: dict[str, Any]) -> GeminiToolResult:
-    """Capture the current screen and optionally send it to the chat."""
-    def _build_screenshot_bytes() -> io.BytesIO:
+    """Capture the current screen at full resolution, send to chat, and return inline for Gemini."""
+    def _build_screenshot_bytes() -> tuple[io.BytesIO, bytes, int, int]:
         import pyautogui
 
         image = pyautogui.screenshot()
-        image_bytes = io.BytesIO()
-        image.save(image_bytes, format="PNG")
-        image_bytes.seek(0)
-        return image_bytes
+        w, h = image.width, image.height
+        # PNG for Telegram (full quality, user sees crisp image)
+        png_buf = io.BytesIO()
+        image.save(png_buf, format="PNG")
+        png_buf.seek(0)
+        # JPEG for Gemini inline — full resolution, no downscaling so coordinates are 1:1
+        jpeg_buf = io.BytesIO()
+        image.convert("RGB").save(jpeg_buf, format="JPEG", quality=70)
+        return png_buf, jpeg_buf.getvalue(), w, h
 
-    image_bytes = await asyncio.to_thread(_build_screenshot_bytes)
+    png_buf, jpeg_bytes, screen_w, screen_h = await asyncio.to_thread(_build_screenshot_bytes)
 
     bot = tool_runtime.get("bot")
     chat_id = tool_runtime.get("chat_id")
+    result_msg = (
+        f"Screenshot captured. Screen resolution: {screen_w}×{screen_h}px. "
+        f"Pixel coordinates in the image map 1-to-1 to actual screen coordinates — "
+        f"use them directly in click_on_screen, double_click_on_screen, or right_click_on_screen."
+    )
     if bot and chat_id is not None:
-        await bot.send_photo(chat_id=chat_id, photo=image_bytes, caption="Current screen capture")
-        return GeminiToolResult(True, "Captured the current screen and sent the screenshot to the chat.", media_sent=True)
+        await bot.send_photo(chat_id=chat_id, photo=png_buf, caption="Current screen capture")
+        return GeminiToolResult(True, result_msg, media_sent=True, image_bytes=jpeg_bytes)
 
-    return GeminiToolResult(True, "Captured the current screen, but no Telegram chat context was available to send the image.")
+    return GeminiToolResult(True, result_msg, image_bytes=jpeg_bytes)
+
+
+async def _direct_mouse_action(
+    action: str,
+    text: str = "",
+    x: int | None = None,
+    y: int | None = None,
+    direction: str = "down",
+    amount: int = 3,
+) -> GeminiToolResult:
+    """Execute a direct mouse action (left-click / double-click / right-click / scroll) without approval."""
+    # Scroll with no target position scrolls at the current cursor location
+    if action == "scroll" and not text and x is None and y is None:
+        def _do_positional_scroll() -> str:
+            import pyautogui
+            clicks = amount if direction in ("up", "right") else -amount
+            pyautogui.scroll(clicks)
+            return f"Scrolled {direction} {amount} ticks at current cursor position."
+        try:
+            msg = await asyncio.to_thread(_do_positional_scroll)
+            return GeminiToolResult(True, msg)
+        except Exception as exc:
+            logger.error("scroll failed: %s", exc)
+            return GeminiToolResult(False, f"scroll failed: {exc}")
+
+    if text:
+        def _find() -> tuple[int | None, int | None, str]:
+            import pyautogui
+            from pocket_desk_agent.automation_utils import find_text_in_image
+            screenshot = pyautogui.screenshot()
+            matches = find_text_in_image(screenshot, text)
+            if not matches:
+                return None, None, ""
+            best = matches[0]
+            return best.x, best.y, best.text
+
+        cx, cy, matched_text = await asyncio.to_thread(_find)
+        if cx is None:
+            return GeminiToolResult(False, f"No on-screen text matching '{text}' found.")
+    elif x is not None and y is not None:
+        cx, cy, matched_text = x, y, ""
+    else:
+        return GeminiToolResult(False, "Provide either 'text' or both 'x' and 'y'.")
+
+    def _execute() -> str:
+        import pyautogui
+        label = matched_text or f"({cx}, {cy})"
+        if action == "click":
+            pyautogui.click(cx, cy)
+            return f"Left-clicked '{label}'."
+        if action == "double_click":
+            pyautogui.doubleClick(cx, cy)
+            return f"Double-clicked '{label}'."
+        if action == "right_click":
+            pyautogui.rightClick(cx, cy)
+            return f"Right-clicked '{label}'."
+        if action == "scroll":
+            clicks = amount if direction in ("up", "right") else -amount
+            pyautogui.scroll(clicks, x=cx, y=cy)
+            return f"Scrolled {direction} {amount} ticks at ({cx}, {cy})."
+        return f"Unknown action: {action}"
+
+    try:
+        msg = await asyncio.to_thread(_execute)
+        return GeminiToolResult(True, msg)
+    except Exception as exc:
+        logger.error("mouse action '%s' failed: %s", action, exc)
+        return GeminiToolResult(False, f"{action} failed: {exc}")
 
 
 async def _find_text_on_screen(tool_runtime: dict[str, Any], search_text: str) -> GeminiToolResult:

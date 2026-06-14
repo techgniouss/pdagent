@@ -1,6 +1,7 @@
 """File system command handlers."""
 
 import logging
+import os
 import time
 from pathlib import Path
 
@@ -305,3 +306,98 @@ async def check_getfile_selection(update: Update, context: ContextTypes.DEFAULT_
     getfile_retrieval_state.pop(user_id, None)
     await _send_requested_file(update, context, selected_item)
     return True
+
+
+async def approvedirs_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Manage approved (sandbox) directories from Telegram.
+
+    Usage:
+      /approvedirs              — list current directories
+      /approvedirs add <path>   — add a directory
+      /approvedirs remove <n>   — remove directory by 1-based index
+      /approvedirs reset        — reset to home directory only
+    """
+    if not update.message or not update.effective_user:
+        return
+
+    from pocket_desk_agent.config import Config
+    from pocket_desk_agent.configure import persist_approved_directories
+
+    args = context.args or []
+    subcommand = args[0].lower() if args else ""
+
+    def _current_dirs_text() -> str:
+        dirs = Config.APPROVED_DIRECTORIES or [Path.home()]
+        lines = [f"  {i}. {d}" for i, d in enumerate(dirs, 1)]
+        return "Approved directories:\n" + "\n".join(lines)
+
+    def _apply(new_dirs: list[Path]) -> None:
+        raw = ",".join(str(d) for d in new_dirs)
+        os.environ["APPROVED_DIRECTORIES"] = raw
+        Config.APPROVED_DIRECTORIES = new_dirs
+        file_manager.approved_dirs = list(new_dirs)
+        persist_approved_directories(new_dirs)
+
+    if not subcommand:
+        await update.message.reply_text(_current_dirs_text())
+        return
+
+    if subcommand == "add":
+        if len(args) < 2:
+            await update.message.reply_text("Usage: /approvedirs add <path>")
+            return
+        raw_path = " ".join(args[1:]).strip()
+        try:
+            new_dir = Path(os.path.expandvars(raw_path)).expanduser().resolve()
+        except Exception as exc:
+            await update.message.reply_text(f"❌ Invalid path: {exc}")
+            return
+        if not new_dir.exists():
+            await update.message.reply_text(f"❌ Path does not exist: {new_dir}")
+            return
+        if not new_dir.is_dir():
+            await update.message.reply_text(f"❌ Not a directory: {new_dir}")
+            return
+        current = list(Config.APPROVED_DIRECTORIES) or [Path.home()]
+        if new_dir in current:
+            await update.message.reply_text(f"Already in approved list:\n{new_dir}")
+            return
+        current.append(new_dir)
+        _apply(current)
+        await update.message.reply_text(f"✅ Added:\n{new_dir}\n\n{_current_dirs_text()}")
+        return
+
+    if subcommand == "remove":
+        if len(args) < 2:
+            await update.message.reply_text("Usage: /approvedirs remove <index>\nRun /approvedirs to see indexes.")
+            return
+        try:
+            idx = int(args[1])
+        except ValueError:
+            await update.message.reply_text("❌ Index must be a number.")
+            return
+        current = list(Config.APPROVED_DIRECTORIES) or [Path.home()]
+        if idx < 1 or idx > len(current):
+            await update.message.reply_text(f"❌ Index out of range. Valid: 1–{len(current)}")
+            return
+        if len(current) == 1:
+            await update.message.reply_text("❌ Cannot remove the last approved directory. Use /approvedirs reset to switch to home.")
+            return
+        removed = current.pop(idx - 1)
+        _apply(current)
+        await update.message.reply_text(f"✅ Removed:\n{removed}\n\n{_current_dirs_text()}")
+        return
+
+    if subcommand == "reset":
+        new_dirs = [Path.home()]
+        _apply(new_dirs)
+        await update.message.reply_text(f"✅ Reset to home directory.\n\n{_current_dirs_text()}")
+        return
+
+    await update.message.reply_text(
+        "Unknown subcommand. Usage:\n"
+        "  /approvedirs               — list current directories\n"
+        "  /approvedirs add <path>    — add a directory\n"
+        "  /approvedirs remove <n>    — remove by index\n"
+        "  /approvedirs reset         — reset to home directory"
+    )
