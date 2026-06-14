@@ -1,12 +1,12 @@
-# Graph Report - pdagent  (2026-06-11)
+# Graph Report - pdagent  (2026-06-14)
 
 ## Corpus Check
-- 72 files · ~310,868 words
+- 73 files · ~342,243 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 4227 nodes · 8126 edges · 523 communities detected
-- Extraction: 58% EXTRACTED · 41% INFERRED · 0% AMBIGUOUS · INFERRED: 3371 edges (avg confidence: 0.59)
+- 4325 nodes · 8367 edges · 536 communities detected
+- Extraction: 57% EXTRACTED · 43% INFERRED · 0% AMBIGUOUS · INFERRED: 3582 edges (avg confidence: 0.59)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
@@ -53,7 +53,7 @@
 - [[_COMMUNITY_Community 40|Community 40]]
 - [[_COMMUNITY_Community 41|Community 41]]
 - [[_COMMUNITY_Community 42|Community 42]]
-- [[_COMMUNITY_Community 44|Community 44]]
+- [[_COMMUNITY_Community 43|Community 43]]
 - [[_COMMUNITY_Community 45|Community 45]]
 - [[_COMMUNITY_Community 46|Community 46]]
 - [[_COMMUNITY_Community 47|Community 47]]
@@ -533,30 +533,43 @@
 - [[_COMMUNITY_Community 521|Community 521]]
 - [[_COMMUNITY_Community 522|Community 522]]
 - [[_COMMUNITY_Community 523|Community 523]]
+- [[_COMMUNITY_Community 524|Community 524]]
+- [[_COMMUNITY_Community 525|Community 525]]
+- [[_COMMUNITY_Community 526|Community 526]]
+- [[_COMMUNITY_Community 527|Community 527]]
+- [[_COMMUNITY_Community 528|Community 528]]
+- [[_COMMUNITY_Community 529|Community 529]]
+- [[_COMMUNITY_Community 530|Community 530]]
+- [[_COMMUNITY_Community 531|Community 531]]
+- [[_COMMUNITY_Community 532|Community 532]]
+- [[_COMMUNITY_Community 533|Community 533]]
+- [[_COMMUNITY_Community 534|Community 534]]
+- [[_COMMUNITY_Community 535|Community 535]]
+- [[_COMMUNITY_Community 536|Community 536]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `Config` - 787 edges
-2. `ScheduledTask` - 241 edges
-3. `GeminiCLIOAuth` - 224 edges
-4. `AntigravityOAuth` - 219 edges
-5. `get_for_user` - 142 edges
-6. `CommandAction` - 137 edges
-7. `RateLimiter` - 115 edges
+1. `Config` - 869 edges
+2. `ScheduledTask` - 267 edges
+3. `GeminiCLIOAuth` - 248 edges
+4. `AntigravityOAuth` - 243 edges
+5. `CommandAction` - 163 edges
+6. `get_for_user` - 142 edges
+7. `RateLimiter` - 141 edges
 8. `pocket_desk_agent.handlers.scheduling` - 76 edges
-9. `StartupManager` - 73 edges
+9. `StartupManager` - 74 edges
 10. `RemoteSession` - 70 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `write_text()` --calls--> `test_is_git_repo_accepts_worktree_git_file()`  [INFERRED]
   pocket_desk_agent\automation_utils.py → tests\test_update_command.py
-- `Config` --uses--> `Main bot entry point.`  [INFERRED]
-  pocket_desk_agent\config.py → pocket_desk_agent\main.py
-- `Config` --uses--> `Return True when the target PID is alive.`  [INFERRED]
-  pocket_desk_agent\config.py → pocket_desk_agent\main.py
-- `Config` --uses--> `Enable live reload only for interactive dev sessions.`  [INFERRED]
-  pocket_desk_agent\config.py → pocket_desk_agent\main.py
-- `Config` --uses--> `Ensure only one bot instance runs at a time.`  [INFERRED]
-  pocket_desk_agent\config.py → pocket_desk_agent\main.py
+- `Config` --uses--> `File system manager for repository access.`  [INFERRED]
+  pocket_desk_agent\config.py → pocket_desk_agent\file_manager.py
+- `Config` --uses--> `Manages file system access within approved directory.`  [INFERRED]
+  pocket_desk_agent\config.py → pocket_desk_agent\file_manager.py
+- `Config` --uses--> `Check if path is within any of the approved directories.          Uses Path.is`  [INFERRED]
+  pocket_desk_agent\config.py → pocket_desk_agent\file_manager.py
+- `Config` --uses--> `Get user's current directory.`  [INFERRED]
+  pocket_desk_agent\config.py → pocket_desk_agent\file_manager.py
 
 ## Hyperedges (group relationships)
 - **Multilingual README Documentation Bundle** — file_readme_md, file_readme_de_md, file_readme_es_md, file_readme_fr_md, file_readme_ja_md, file_readme_ko_md, file_readme_pt_br_md, file_readme_ru_md, file_readme_tr_md, file_readme_uk_md, file_readme_zh_cn_md [EXTRACTED 1.00]
@@ -600,95 +613,95 @@
 
 ### Community 0 - "Community 0"
 Cohesion: 0.01
-Nodes (579): AntigravityOAuth, generate(), OAuthCallbackHandler, PKCEGenerator, Antigravity OAuth authentication implementation., HTTP handler for OAuth callback.      Class-level state is used because HTTPSe, Suppress HTTP server logs, Handle GET request for OAuth callback (+571 more)
+Nodes (594): Focus VS Code and execute a command palette entry., Return likely workspace folders from approved roots and common dev locations., Resolve a folder path or folder name to one safe workspace path., Open a supported browser in a maximized window., Open a folder in VS Code, focusing the app first when possible., Load Windows UI automation modules on first use (cached after that)., Open Claude CLI in a folder and optionally send an initial prompt., Send a prompt to the active Claude CLI window. (+586 more)
 
 ### Community 1 - "Community 1"
 Cohesion: 0.01
-Nodes (417): antigravityopenfolder_command(), claudecli_command(), claudeclisend_command(), _discover_candidate_folders(), find_antigravity_window(), _find_vscode_window(), launch_browser(), launch_claude_cli() (+409 more)
+Nodes (463): antigravityopenfolder_command(), claudecli_command(), claudeclisend_command(), _discover_candidate_folders(), _find_vscode_window(), launch_browser(), launch_claude_cli(), open_folder_in_vscode() (+455 more)
 
 ### Community 2 - "Community 2"
 Cohesion: 0.01
-Nodes (333): class:pocket_desk_agent.gemini_actions.GeminiToolResult, class:pocket_desk_agent.gemini_actions.PendingGeminiAction, class:pocket_desk_agent.gemini_actions._MessageCollector, class:pocket_desk_agent.gemini_client.ResolvedModel, class:pocket_desk_agent.rate_limiter.RateLimiter, class:pocket_desk_agent.scheduler_registry.ScheduledTask, class:pocket_desk_agent.scheduler_registry.SchedulerRegistry, class:pocket_desk_agent.startup_manager.StartupStatus (+325 more)
+Nodes (377): AntigravityOAuth, generate(), OAuthCallbackHandler, PKCEGenerator, Antigravity OAuth authentication implementation., HTTP handler for OAuth callback.      Class-level state is used because HTTPSe, Suppress HTTP server logs, Handle GET request for OAuth callback (+369 more)
 
 ### Community 3 - "Community 3"
-Cohesion: 0.02
-Nodes (245): Inline button callback handlers., Handle Dropbox file deletion request., Handle button callbacks for confirmations., Delete file from Dropbox.      Returns:         dict with 'success' and 'error', Handle button callbacks for confirmations., Handle user's choice for large file upload., Handle Dropbox file deletion request., Handle button callbacks for confirmations. (+237 more)
+Cohesion: 0.01
+Nodes (331): class:pocket_desk_agent.gemini_actions.GeminiToolResult, class:pocket_desk_agent.gemini_actions.PendingGeminiAction, class:pocket_desk_agent.gemini_actions._MessageCollector, class:pocket_desk_agent.gemini_client.ResolvedModel, class:pocket_desk_agent.rate_limiter.RateLimiter, class:pocket_desk_agent.scheduler_registry.ScheduledTask, class:pocket_desk_agent.scheduler_registry.SchedulerRegistry, class:pocket_desk_agent.updater.UpdateInfo (+323 more)
 
 ### Community 4 - "Community 4"
 Cohesion: 0.01
 Nodes (209): AUTHENTICATION_REQUIREMENTS.md, config/antigravity-chatbot/tokens.json, config/pdagent-gemini/tokens.json, /accounts, /antigravitychat, /antigravityclaudecodeopen, /antigravitymode, /antigravitymodel (+201 more)
 
 ### Community 5 - "Community 5"
-Cohesion: 0.03
-Nodes (177): Management scripts for Pocket Desk Agent., PIL, PIL.Image, __future__, __future__.annotations, aiohttp, aiohttp.WSMsgType, aiohttp.web (+169 more)
+Cohesion: 0.02
+Nodes (199): Management scripts for Pocket Desk Agent., PIL, PIL.Image, __future__, __future__.annotations, aiohttp, aiohttp.WSMsgType, aiohttp.web (+191 more)
 
 ### Community 6 - "Community 6"
-Cohesion: 0.03
-Nodes (156): app_dir(), app_path(), app_path_candidates(), ensure_app_dir(), existing_app_path(), legacy_app_dirs(), Shared application data path helpers.  Pocket Desk Agent stores its configuratio, Return the canonical Pocket Desk Agent data directory. (+148 more)
+Cohesion: 0.01
+Nodes (196): main, Path, append, encode, exists, exit, get_encoding, glob (+188 more)
 
 ### Community 7 - "Community 7"
-Cohesion: 0.03
-Nodes (148): _encode_jpeg(), frame_iter(), _pil_from_screen(), JPEG frame generator for the live remote-desktop stream.  Captures the screen at, Grab the primary monitor and return a PIL Image.      Prefer pyautogui first bec, Yield JPEG bytes forever until the session is torn down.      Emits ``b""`` as a, _try_import_mss(), InputDispatcher (+140 more)
+Cohesion: 0.02
+Nodes (155): find_antigravity_window(), _load_win_deps(), Load Windows UI automation modules on first use (cached after that)., Find Antigravity desktop window and restore if minimized., findtext_command(), Handle /smartclick command - find text and click with disambiguation., Handle /findtext command - find text on screen and show coordinates., smartclick_command() (+147 more)
 
 ### Community 8 - "Community 8"
-Cohesion: 0.02
-Nodes (143): main, Path, append, encode, exists, exit, get_encoding, glob (+135 more)
+Cohesion: 0.03
+Nodes (151): _encode_jpeg(), frame_iter(), _pil_from_screen(), JPEG frame generator for the live remote-desktop stream.  Captures the screen at, Grab the primary monitor and return a PIL Image.      Prefer pyautogui first bec, Yield JPEG bytes forever until the session is torn down.      Emits ``b""`` as a, _try_import_mss(), InputDispatcher (+143 more)
 
 ### Community 9 - "Community 9"
 Cohesion: 0.03
-Nodes (117): capture_window_screenshot(), Resolve a build-monitor request id, falling back to legacy user-id keys., Capture screenshot of a specific window., resolve_build_monitor_request(), button_callback(), delete_from_dropbox(), handle_dropbox_delete(), handle_upload_choice() (+109 more)
+Nodes (118): Canny, CloseDesktop, Draw, GaussianBlur, GetUserObjectInformationW, ImportError, OpenInputDesktop, RuntimeError (+110 more)
 
 ### Community 10 - "Community 10"
 Cohesion: 0.02
-Nodes (133): Event, HTTPServer, Thread, app_path, bool, chmod, clear, decode (+125 more)
+Nodes (115): Path, ValueError, append, dotenv_path_candidates, expanduser, expandvars, getenv, home (+107 more)
 
 ### Community 11 - "Community 11"
 Cohesion: 0.03
-Nodes (118): Canny, CloseDesktop, Draw, GaussianBlur, GetUserObjectInformationW, ImportError, OpenInputDesktop, RuntimeError (+110 more)
-
-### Community 12 - "Community 12"
-Cohesion: 0.02
-Nodes (115): Path, ValueError, append, dotenv_path_candidates, expanduser, expandvars, getenv, home (+107 more)
-
-### Community 13 - "Community 13"
-Cohesion: 0.03
 Nodes (91): exists, home, joinpath, mkdir, tuple, AntigravityOAuth, ArgumentParser, GeminiCLIOAuth (+83 more)
 
-### Community 14 - "Community 14"
+### Community 12 - "Community 12"
 Cohesion: 0.06
 Nodes (85): AntigravityOAuth, ConfigParser, GeminiCLIOAuth, Path, StartupManager, app_path, app_path_candidates, append (+77 more)
 
-### Community 15 - "Community 15"
+### Community 13 - "Community 13"
 Cohesion: 0.04
-Nodes (78): AppQueryResult, build_builtin_app_catalog(), _build_start_menu_app_id(), _dedupe_catalog(), _derive_process_hints(), DesktopAppEntry, discover_desktop_apps(), _discover_start_menu_entries() (+70 more)
+Nodes (80): HTTPServer, Thread, app_path, bool, chmod, clear, decode, digest (+72 more)
 
-### Community 16 - "Community 16"
+### Community 14 - "Community 14"
+Cohesion: 0.06
+Nodes (48): AntigravityAuth, FileManager, _format_size(), File system manager for repository access., List contents of directory., Manages file system access within approved directory., Read contents of a file., Search for files matching pattern. (+40 more)
+
+### Community 15 - "Community 15"
 Cohesion: 0.06
 Nodes (48): Multi-mode Authentication, React Native APK Build Workflow, Claude and Antigravity Integration, Central Command Registry, Telegram Command Surface, Config.load Class Pattern, Runtime Dependency Stack, Large APK Upload via Dropbox (+40 more)
 
-### Community 17 - "Community 17"
+### Community 16 - "Community 16"
 Cohesion: 0.05
 Nodes (50): benchmark_pair(), count_tokens(), main(), print_table(), main(), print_usage(), build_compress_prompt(), build_fix_prompt() (+42 more)
 
-### Community 18 - "Community 18"
+### Community 17 - "Community 17"
 Cohesion: 0.03
 Nodes (60): CLAUDE.md, FILE.original.md, SKILL.md, config.yaml, directory_containing_this_SKILL.md, original.md, /caveman, /caveman lite|full|ultra (+52 more)
 
-### Community 19 - "Community 19"
+### Community 18 - "Community 18"
 Cohesion: 0.05
-Nodes (56): acquire_lock(), main(), post_init(), post_shutdown(), _process_is_running(), Main bot entry point., Sync commands with Telegram on startup and launch background tasks., Sync commands with Telegram on startup and launch background tasks. (+48 more)
+Nodes (56): acquire_lock(), main(), post_init(), post_shutdown(), _process_is_running(), Main bot entry point., Return True if the Tesseract binary is installed and reachable., Sync commands with Telegram on startup and launch background tasks. (+48 more)
+
+### Community 19 - "Community 19"
+Cohesion: 0.08
+Nodes (46): class:pocket_desk_agent.gemini_cli_auth.GeminiCLIOAuth, class:pocket_desk_agent.gemini_client.GeminiClient, external_symbol:http.server.HTTPServer, external_symbol:pocket_desk_agent.antigravity_auth.AntigravityOAuth, external_symbol:pocket_desk_agent.antigravity_auth.TokenStorage, external_symbol:urllib.parse.urlencode, function:pocket_desk_agent.gemini_client._candidate_model_names, function:pocket_desk_agent.gemini_client._get_code_assist_endpoints (+38 more)
 
 ### Community 20 - "Community 20"
-Cohesion: 0.09
-Nodes (44): class:pocket_desk_agent.gemini_cli_auth.GeminiCLIOAuth, class:pocket_desk_agent.gemini_client.GeminiClient, external_symbol:http.server.HTTPServer, external_symbol:pocket_desk_agent.antigravity_auth.AntigravityOAuth, external_symbol:pocket_desk_agent.antigravity_auth.TokenStorage, external_symbol:urllib.parse.urlencode, function:pocket_desk_agent.gemini_client._get_code_assist_endpoints, function:pocket_desk_agent.gemini_client._get_code_assist_headers (+36 more)
+Cohesion: 0.14
+Nodes (38): class:pocket_desk_agent.file_manager.FileManager, class:pocket_desk_agent.startup_manager.StartupManager, class:pocket_desk_agent.startup_manager.StartupStatus, external_symbol:pathlib.Path, external_symbol:pocket_desk_agent.app_paths.app_dir, method:pocket_desk_agent.file_manager.FileManager.__init__, method:pocket_desk_agent.file_manager.FileManager._format_size, method:pocket_desk_agent.file_manager.FileManager._is_safe_path (+30 more)
 
 ### Community 21 - "Community 21"
-Cohesion: 0.14
-Nodes (37): class:pocket_desk_agent.file_manager.FileManager, class:pocket_desk_agent.startup_manager.StartupManager, external_symbol:pathlib.Path, external_symbol:pocket_desk_agent.app_paths.app_dir, method:pocket_desk_agent.file_manager.FileManager.__init__, method:pocket_desk_agent.file_manager.FileManager._format_size, method:pocket_desk_agent.file_manager.FileManager._is_safe_path, method:pocket_desk_agent.file_manager.FileManager.append_file (+29 more)
-
-### Community 22 - "Community 22"
 Cohesion: 0.15
 Nodes (23): AntigravityOAuth, GeminiCLIOAuth, append, bool, get, getattr, info, isinstance (+15 more)
+
+### Community 22 - "Community 22"
+Cohesion: 0.32
+Nodes (11): create_windows11_wallpaper(), draw_desktop_icons(), draw_message_bubble(), draw_monitor_frame(), draw_phone_frame(), draw_powershell_window(), draw_telegram_screen(), draw_vscode_window() (+3 more)
 
 ### Community 23 - "Community 23"
 Cohesion: 0.33
@@ -711,1982 +724,2034 @@ Cohesion: 0.4
 Nodes (6): Background circle, Caveman, Hairline/forehead stroke, Left eye, Mouth arc, Right eye
 
 ### Community 28 - "Community 28"
-Cohesion: 1.0
-Nodes (1): Centralized command registry for the bot.
+Cohesion: 0.83
+Nodes (3): _assert_no_secretish_strings(), test_extract_python_rationale_nodes_do_not_store_source_text(), test_generate_redacts_sensitive_labels_paths_and_json_values()
 
 ### Community 29 - "Community 29"
 Cohesion: 1.0
-Nodes (1): Shared constants for Pocket Desk Agent.  Single source of truth for API endpoi
+Nodes (1): Centralized command registry for the bot.
 
 ### Community 30 - "Community 30"
 Cohesion: 1.0
-Nodes (2): plugins/caveman/skills/compress/scripts/__init__.py, plugins.caveman.skills.compress.scripts
+Nodes (1): Shared constants for Pocket Desk Agent.  Single source of truth for API endpoi
 
 ### Community 31 - "Community 31"
 Cohesion: 1.0
-Nodes (1): Generate PKCE verifier and challenge
+Nodes (2): plugins/caveman/skills/compress/scripts/__init__.py, plugins.caveman.skills.compress.scripts
 
 ### Community 32 - "Community 32"
 Cohesion: 1.0
-Nodes (1): Clear state for a new login flow.
+Nodes (1): Generate PKCE verifier and challenge
 
 ### Community 33 - "Community 33"
 Cohesion: 1.0
-Nodes (1): Create from dictionary.
+Nodes (1): Clear state for a new login flow.
 
 ### Community 34 - "Community 34"
 Cohesion: 1.0
-Nodes (1): (Re-)read every config value from ``os.environ``.
+Nodes (1): Create from dictionary.
 
 ### Community 35 - "Community 35"
 Cohesion: 1.0
-Nodes (1): Validate required configuration.
+Nodes (1): (Re-)read every config value from ``os.environ``.
 
 ### Community 36 - "Community 36"
 Cohesion: 1.0
-Nodes (1): Create an instance from persisted data.
+Nodes (1): Validate required configuration.
 
 ### Community 37 - "Community 37"
 Cohesion: 1.0
-Nodes (1): Escape values inserted into Task Scheduler XML.
+Nodes (1): Create an instance from persisted data.
 
 ### Community 38 - "Community 38"
 Cohesion: 1.0
-Nodes (1): Combine stdout and stderr for error reporting.
+Nodes (1): Escape values inserted into Task Scheduler XML.
 
 ### Community 39 - "Community 39"
 Cohesion: 1.0
-Nodes (1): Return True when schtasks reports that the task does not exist.
+Nodes (1): Combine stdout and stderr for error reporting.
 
 ### Community 40 - "Community 40"
 Cohesion: 1.0
-Nodes (1): Run a subprocess command and capture output as text.
+Nodes (1): Return True when schtasks reports that the task does not exist.
 
 ### Community 41 - "Community 41"
 Cohesion: 1.0
-Nodes (1): scripts.install.ps1
+Nodes (1): Run a subprocess command and capture output as text.
 
 ### Community 42 - "Community 42"
 Cohesion: 1.0
-Nodes (1): scripts
+Nodes (1): scripts.install.ps1
 
-### Community 44 - "Community 44"
+### Community 43 - "Community 43"
 Cohesion: 1.0
-Nodes (1): Find all potential UI elements (icons, buttons, text blocks) on screen     using
+Nodes (1): scripts
 
 ### Community 45 - "Community 45"
 Cohesion: 1.0
-Nodes (1): Create multiple masks to capture both small icons and thin controls.
+Nodes (1): Render a consistent refusal for blocked file types.
 
 ### Community 46 - "Community 46"
 Cohesion: 1.0
-Nodes (1): Return a score for plausible UI candidates, or None when rejected.
+Nodes (1): Return visible child items with folders first.
 
 ### Community 47 - "Community 47"
 Cohesion: 1.0
-Nodes (1): Merge overlapping candidates from multiple detection passes.
+Nodes (1): Build the interactive folder browser message for /getfile.
 
 ### Community 48 - "Community 48"
 Cohesion: 1.0
-Nodes (1): Compute overlap ratio using the smaller box as denominator.
+Nodes (1): Send a requested file using the shared Telegram or fallback upload flow.
 
 ### Community 49 - "Community 49"
 Cohesion: 1.0
-Nodes (1): Best-effort OCR to suppress text regions from UI element detection.
+Nodes (1): Handle /pwd command - show current directory.
 
 ### Community 50 - "Community 50"
 Cohesion: 1.0
-Nodes (1): Return True when a candidate substantially overlaps OCR-detected text.
+Nodes (1): Handle /cd command - change directory.
 
 ### Community 51 - "Community 51"
 Cohesion: 1.0
-Nodes (1): Draw numbered markers on a screenshot at each match location.          Args:
+Nodes (1): Handle /ls command - list directory.
 
 ### Community 52 - "Community 52"
 Cohesion: 1.0
-Nodes (1): Map a hotkey string (e.g., 'ctrl+c') to a list of pyautogui key names.
+Nodes (1): Handle /cat command - read file.
 
 ### Community 53 - "Community 53"
 Cohesion: 1.0
-Nodes (1): Run a keyboard-only PyAutoGUI action with a lock-screen-friendly fallback.
+Nodes (1): Handle /getfile command - send a file directly or start the browser.
 
 ### Community 54 - "Community 54"
 Cohesion: 1.0
-Nodes (1): Type text via PyAutoGUI with a safe fail-safe retry for lock screens.
+Nodes (1): Handle /find command - search files.
 
 ### Community 55 - "Community 55"
 Cohesion: 1.0
-Nodes (1): Type text via typewrite() with a safe fail-safe retry for lock screens.
+Nodes (1): Handle /info command - get file info.
 
 ### Community 56 - "Community 56"
 Cohesion: 1.0
-Nodes (1): Press a key via PyAutoGUI with a safe fail-safe retry for lock screens.
+Nodes (1): Handle reply-based navigation for the /getfile browser.
 
 ### Community 57 - "Community 57"
 Cohesion: 1.0
-Nodes (1): Send a hotkey via PyAutoGUI with a safe fail-safe retry for lock screens.
+Nodes (1): Find all potential UI elements (icons, buttons, text blocks) on screen     using
 
 ### Community 58 - "Community 58"
 Cohesion: 1.0
-Nodes (1): Raise a clear error when Windows is on the secure lock-screen desktop.
+Nodes (1): Create multiple masks to capture both small icons and thin controls.
 
 ### Community 59 - "Community 59"
 Cohesion: 1.0
-Nodes (1): Return True when the active Windows input desktop is the secure Winlogon desktop
+Nodes (1): Return a score for plausible UI candidates, or None when rejected.
 
 ### Community 60 - "Community 60"
 Cohesion: 1.0
-Nodes (1): Best-effort read of the active Windows input desktop name.
+Nodes (1): Merge overlapping candidates from multiple detection passes.
 
 ### Community 61 - "Community 61"
 Cohesion: 1.0
-Nodes (1): Handle /clicktext command - click at coordinates or search text.
+Nodes (1): Compute overlap ratio using the smaller box as denominator.
 
 ### Community 62 - "Community 62"
 Cohesion: 1.0
-Nodes (1): Handle /findtext command - find text on screen and show coordinates.
+Nodes (1): Best-effort OCR to suppress text regions from UI element detection.
 
 ### Community 63 - "Community 63"
 Cohesion: 1.0
-Nodes (1): Handle /smartclick command - find text and click with disambiguation.
+Nodes (1): Return True when a candidate substantially overlaps OCR-detected text.
 
 ### Community 64 - "Community 64"
 Cohesion: 1.0
-Nodes (1): Handle /findelements command - find all UI elements on screen and label them.
+Nodes (1): Draw numbered markers on a screenshot at each match location.          Args:
 
 ### Community 65 - "Community 65"
 Cohesion: 1.0
-Nodes (1): Handle /pasteenter command - paste clipboard content and press Enter.
+Nodes (1): Map a hotkey string (e.g., 'ctrl+c') to a list of pyautogui key names.
 
 ### Community 66 - "Community 66"
 Cohesion: 1.0
-Nodes (1): Handle /typeenter command - type text and press Enter.
+Nodes (1): Run a keyboard-only PyAutoGUI action with a lock-screen-friendly fallback.
 
 ### Community 67 - "Community 67"
 Cohesion: 1.0
-Nodes (1): Handle /scrollup [clicks] command.
+Nodes (1): Type text via PyAutoGUI with a safe fail-safe retry for lock screens.
 
 ### Community 68 - "Community 68"
 Cohesion: 1.0
-Nodes (1): Handle /scrolldown [clicks] command.
+Nodes (1): Type text via typewrite() with a safe fail-safe retry for lock screens.
 
 ### Community 69 - "Community 69"
 Cohesion: 1.0
-Nodes (1): Load Windows UI automation modules on first use (cached after that).
+Nodes (1): Press a key via PyAutoGUI with a safe fail-safe retry for lock screens.
 
 ### Community 70 - "Community 70"
 Cohesion: 1.0
-Nodes (1): Save Claude process PID to file.
+Nodes (1): Send a hotkey via PyAutoGUI with a safe fail-safe retry for lock screens.
 
 ### Community 71 - "Community 71"
 Cohesion: 1.0
-Nodes (1): Load Claude process PID from file and verify it's still running.
+Nodes (1): Raise a clear error when Windows is on the secure lock-screen desktop.
 
 ### Community 72 - "Community 72"
 Cohesion: 1.0
-Nodes (1): Remove Claude PID file.
+Nodes (1): Return True when the active Windows input desktop is the secure Winlogon desktop
 
 ### Community 73 - "Community 73"
 Cohesion: 1.0
-Nodes (1): Get Claude process if it's running.
+Nodes (1): Best-effort read of the active Windows input desktop name.
 
 ### Community 74 - "Community 74"
 Cohesion: 1.0
-Nodes (1): Check if Claude remote-control is currently running.
+Nodes (1): Handle /clicktext command - click at coordinates or search text.
 
 ### Community 75 - "Community 75"
 Cohesion: 1.0
-Nodes (1): Return fallback shortcuts for creating a fresh Claude conversation.
+Nodes (1): Handle /findtext command - find text on screen and show coordinates.
 
 ### Community 76 - "Community 76"
 Cohesion: 1.0
-Nodes (1): Import pytesseract and configure a common Windows binary path if present.
+Nodes (1): Handle /smartclick command - find text and click with disambiguation.
 
 ### Community 77 - "Community 77"
 Cohesion: 1.0
-Nodes (1): Focus Claude's composer input using UIA/OCR fallbacks.
+Nodes (1): Handle /findelements command - find all UI elements on screen and label them.
 
 ### Community 78 - "Community 78"
 Cohesion: 1.0
-Nodes (1): Focus Claude input, paste prompt text, and optionally submit.
+Nodes (1): Handle /pasteenter command - paste clipboard content and press Enter.
 
 ### Community 79 - "Community 79"
 Cohesion: 1.0
-Nodes (1): Handle /clauderemote command - open a cmd window in current repo and run claude
+Nodes (1): Handle /typeenter command - type text and press Enter.
 
 ### Community 80 - "Community 80"
 Cohesion: 1.0
-Nodes (1): Handle /stopclaude command - stop claude remote-control.
+Nodes (1): Handle /scrollup [clicks] command.
 
 ### Community 81 - "Community 81"
 Cohesion: 1.0
-Nodes (1): Handle /openclaude command - open Claude desktop app or restore if minimized.
+Nodes (1): Handle /scrolldown [clicks] command.
 
 ### Community 82 - "Community 82"
 Cohesion: 1.0
-Nodes (1): Find Claude desktop window and restore if minimized.
+Nodes (1): Load Windows UI automation modules on first use (cached after that).
 
 ### Community 83 - "Community 83"
 Cohesion: 1.0
-Nodes (1): Ensure Claude desktop is open, visible, and return the window.
+Nodes (1): Save Claude process PID to file.
 
 ### Community 84 - "Community 84"
 Cohesion: 1.0
-Nodes (1): Capture screenshot of Claude window.
+Nodes (1): Load Claude process PID from file and verify it's still running.
 
 ### Community 85 - "Community 85"
 Cohesion: 1.0
-Nodes (1): Handle /claudeask command - send message to Claude desktop.
+Nodes (1): Remove Claude PID file.
 
 ### Community 86 - "Community 86"
 Cohesion: 1.0
-Nodes (1): Handle /claudenew command - create new chat in Claude desktop.
+Nodes (1): Get Claude process if it's running.
 
 ### Community 87 - "Community 87"
 Cohesion: 1.0
-Nodes (1): Handle /claudescreen command - get screenshot of Claude desktop.
+Nodes (1): Check if Claude remote-control is currently running.
 
 ### Community 88 - "Community 88"
 Cohesion: 1.0
-Nodes (1): Handle /claudechat command - send message and get screenshot.
+Nodes (1): Return fallback shortcuts for creating a fresh Claude conversation.
 
 ### Community 89 - "Community 89"
 Cohesion: 1.0
-Nodes (1): Handle /claudelatest command - open the most recent session.
+Nodes (1): Import pytesseract and configure a common Windows binary path if present.
 
 ### Community 90 - "Community 90"
 Cohesion: 1.0
-Nodes (1): Handle /claudemode command - change Claude desktop mode.
+Nodes (1): Focus Claude's composer input using UIA/OCR fallbacks.
 
 ### Community 91 - "Community 91"
 Cohesion: 1.0
-Nodes (1): Handle /claudeacceptedits [ask|auto|plan|bypass] — set Claude edit mode.
+Nodes (1): Focus Claude input, paste prompt text, and optionally submit.
 
 ### Community 92 - "Community 92"
 Cohesion: 1.0
-Nodes (1): Handle /claudemodel — scan models (no args) or select by number / name.      S
+Nodes (1): Handle /clauderemote command - open a cmd window in current repo and run claude
 
 ### Community 93 - "Community 93"
 Cohesion: 1.0
-Nodes (1): Select a model by number or name (shared by command + message handler).
+Nodes (1): Handle /stopclaude command - stop claude remote-control.
 
 ### Community 94 - "Community 94"
 Cohesion: 1.0
-Nodes (1): Intercept plain-text replies when user is in model-selection state.      Retur
+Nodes (1): Handle /openclaude command - open Claude desktop app or restore if minimized.
 
 ### Community 95 - "Community 95"
 Cohesion: 1.0
-Nodes (1): Handle /claudesearch command - search conversations and show results.
+Nodes (1): Find Claude desktop window and restore if minimized.
 
 ### Community 96 - "Community 96"
 Cohesion: 1.0
-Nodes (1): Handle /claudeselect command - select a conversation from search results.
+Nodes (1): Ensure Claude desktop is open, visible, and return the window.
 
 ### Community 97 - "Community 97"
 Cohesion: 1.0
-Nodes (1): Handle /claudebranch command - select a git branch in new session.
+Nodes (1): Capture screenshot of Claude window.
 
 ### Community 98 - "Community 98"
 Cohesion: 1.0
-Nodes (1): Check if message is a repo selection. Returns True if handled.
+Nodes (1): Handle /claudeask command - send message to Claude desktop.
 
 ### Community 99 - "Community 99"
 Cohesion: 1.0
-Nodes (1): Handle /clauderepo command - show screenshot and options.
+Nodes (1): Handle /claudenew command - create new chat in Claude desktop.
 
 ### Community 100 - "Community 100"
 Cohesion: 1.0
-Nodes (1): List all repositories in the default folder.
+Nodes (1): Handle /claudescreen command - get screenshot of Claude desktop.
 
 ### Community 101 - "Community 101"
 Cohesion: 1.0
-Nodes (1): Select repository by path.
+Nodes (1): Handle /claudechat command - send message and get screenshot.
 
 ### Community 102 - "Community 102"
 Cohesion: 1.0
-Nodes (1): Open folder browser for manual selection.
+Nodes (1): Handle /claudelatest command - open the most recent session.
 
 ### Community 103 - "Community 103"
 Cohesion: 1.0
-Nodes (1): Build the OAuth authorization URL with PKCE
+Nodes (1): Handle /claudemode command - change Claude desktop mode.
 
 ### Community 104 - "Community 104"
 Cohesion: 1.0
-Nodes (1): Start local HTTP server to receive OAuth callback
+Nodes (1): Handle /claudeacceptedits [ask|auto|plan|bypass] — set Claude edit mode.
 
 ### Community 105 - "Community 105"
 Cohesion: 1.0
-Nodes (1): Stop the callback server
+Nodes (1): Handle /claudemodel — scan models (no args) or select by number / name.      S
 
 ### Community 106 - "Community 106"
 Cohesion: 1.0
-Nodes (1): Exchange authorization code for access and refresh tokens
+Nodes (1): Select a model by number or name (shared by command + message handler).
 
 ### Community 107 - "Community 107"
 Cohesion: 1.0
-Nodes (1): Fetch user email from Google OAuth userinfo endpoint
+Nodes (1): Intercept plain-text replies when user is in model-selection state.      Retur
 
 ### Community 108 - "Community 108"
 Cohesion: 1.0
-Nodes (1): Fetch project ID from Antigravity API - matching working implementation
+Nodes (1): Handle /claudesearch command - search conversations and show results.
 
 ### Community 109 - "Community 109"
 Cohesion: 1.0
-Nodes (1): Load and validate saved tokens
+Nodes (1): Handle /claudeselect command - select a conversation from search results.
 
 ### Community 110 - "Community 110"
 Cohesion: 1.0
-Nodes (1): Refresh the access token using refresh token
+Nodes (1): Handle /claudebranch command - select a git branch in new session.
 
 ### Community 111 - "Community 111"
 Cohesion: 1.0
-Nodes (1): Ensure we have a valid access token, refreshing if needed
+Nodes (1): Check if message is a repo selection. Returns True if handled.
 
 ### Community 112 - "Community 112"
 Cohesion: 1.0
-Nodes (1): Clear all stored tokens
+Nodes (1): Handle /clauderepo command - show screenshot and options.
 
 ### Community 113 - "Community 113"
 Cohesion: 1.0
-Nodes (1): Check if user is currently authenticated
+Nodes (1): List all repositories in the default folder.
 
 ### Community 114 - "Community 114"
 Cohesion: 1.0
-Nodes (1): Start the complete OAuth login flow
+Nodes (1): Select repository by path.
 
 ### Community 115 - "Community 115"
 Cohesion: 1.0
-Nodes (1): Upgrade to the latest version from PyPI regardless of install type.      Alway
+Nodes (1): Open folder browser for manual selection.
 
 ### Community 116 - "Community 116"
 Cohesion: 1.0
-Nodes (1): Wait briefly so pending messages flush, then restart the bot process.
+Nodes (1): Build the OAuth authorization URL with PKCE
 
 ### Community 117 - "Community 117"
 Cohesion: 1.0
-Nodes (1): Upgrade the installed package from PyPI.      Checks PyPI first — returns (Fal
+Nodes (1): Start local HTTP server to receive OAuth callback
 
 ### Community 118 - "Community 118"
 Cohesion: 1.0
-Nodes (1): Run an update check at startup and log the result.      This is meant to be ca
+Nodes (1): Stop the callback server
 
 ### Community 119 - "Community 119"
 Cohesion: 1.0
-Nodes (1): Background coroutine that periodically checks for updates.      Args:
+Nodes (1): Exchange authorization code for access and refresh tokens
 
 ### Community 120 - "Community 120"
 Cohesion: 1.0
-Nodes (1): Format an UpdateInfo into a user-friendly Telegram message.
+Nodes (1): Fetch user email from Google OAuth userinfo endpoint
 
 ### Community 121 - "Community 121"
 Cohesion: 1.0
-Nodes (1): Handle /clicktext command - click at coordinates or search text.
+Nodes (1): Fetch project ID from Antigravity API - matching working implementation
 
 ### Community 122 - "Community 122"
 Cohesion: 1.0
-Nodes (1): Handle /findtext command - find text on screen and show coordinates.
+Nodes (1): Load and validate saved tokens
 
 ### Community 123 - "Community 123"
 Cohesion: 1.0
-Nodes (1): Handle /smartclick command - find text and click with disambiguation.
+Nodes (1): Refresh the access token using refresh token
 
 ### Community 124 - "Community 124"
 Cohesion: 1.0
-Nodes (1): Handle /findelements command - find all UI elements on screen and label them.
+Nodes (1): Ensure we have a valid access token, refreshing if needed
 
 ### Community 125 - "Community 125"
 Cohesion: 1.0
-Nodes (1): Handle /clickelement command - click an element labeled by /findelements.
+Nodes (1): Clear all stored tokens
 
 ### Community 126 - "Community 126"
 Cohesion: 1.0
-Nodes (1): Handle /pasteenter command - paste clipboard content and press Enter.
+Nodes (1): Check if user is currently authenticated
 
 ### Community 127 - "Community 127"
 Cohesion: 1.0
-Nodes (1): Handle /typeenter command - type text and press Enter.
+Nodes (1): Start the complete OAuth login flow
 
 ### Community 128 - "Community 128"
 Cohesion: 1.0
-Nodes (1): Handle /scrollup [clicks] command.
+Nodes (1): Upgrade to the latest version from PyPI regardless of install type.      Alway
 
 ### Community 129 - "Community 129"
 Cohesion: 1.0
-Nodes (1): Handle /scrolldown [clicks] command.
+Nodes (1): Wait briefly so pending messages flush, then restart the bot process.
 
 ### Community 130 - "Community 130"
 Cohesion: 1.0
-Nodes (1): Save Claude process PID to file.
+Nodes (1): Upgrade the installed package from PyPI.      Checks PyPI first — returns (Fal
 
 ### Community 131 - "Community 131"
 Cohesion: 1.0
-Nodes (1): Load Claude process PID from file and verify it's still running.
+Nodes (1): Run an update check at startup and log the result.      This is meant to be ca
 
 ### Community 132 - "Community 132"
 Cohesion: 1.0
-Nodes (1): Remove Claude PID file.
+Nodes (1): Background coroutine that periodically checks for updates.      Args:
 
 ### Community 133 - "Community 133"
 Cohesion: 1.0
-Nodes (1): Get Claude process if it's running.
+Nodes (1): Format an UpdateInfo into a user-friendly Telegram message.
 
 ### Community 134 - "Community 134"
 Cohesion: 1.0
-Nodes (1): Check if Claude remote-control is currently running.
+Nodes (1): Handle /clicktext command - click at coordinates or search text.
 
 ### Community 135 - "Community 135"
 Cohesion: 1.0
-Nodes (1): Import pytesseract and configure a common Windows binary path if present.
+Nodes (1): Handle /findtext command - find text on screen and show coordinates.
 
 ### Community 136 - "Community 136"
 Cohesion: 1.0
-Nodes (1): Import pytesseract and configure a common Windows binary path if present.
+Nodes (1): Handle /smartclick command - find text and click with disambiguation.
 
 ### Community 137 - "Community 137"
 Cohesion: 1.0
-Nodes (1): OCR the bottom status bar and click the first word matching any keyword.
+Nodes (1): Handle /findelements command - find all UI elements on screen and label them.
 
 ### Community 138 - "Community 138"
 Cohesion: 1.0
-Nodes (1): Focus Claude's composer input using UIA/OCR fallbacks.
+Nodes (1): Handle /clickelement command - click an element labeled by /findelements.
 
 ### Community 139 - "Community 139"
 Cohesion: 1.0
-Nodes (1): Focus Claude input, paste prompt text, and optionally submit.
+Nodes (1): Handle /pasteenter command - paste clipboard content and press Enter.
 
 ### Community 140 - "Community 140"
 Cohesion: 1.0
-Nodes (1): Handle /clauderemote command - open a cmd window in current repo and run claude
+Nodes (1): Handle /typeenter command - type text and press Enter.
 
 ### Community 141 - "Community 141"
 Cohesion: 1.0
-Nodes (1): Handle /stopclaude command - stop claude remote-control.
+Nodes (1): Handle /scrollup [clicks] command.
 
 ### Community 142 - "Community 142"
 Cohesion: 1.0
-Nodes (1): Handle /openclaude command - open Claude desktop app or restore if minimized.
+Nodes (1): Handle /scrolldown [clicks] command.
 
 ### Community 143 - "Community 143"
 Cohesion: 1.0
-Nodes (1): Ensure Claude desktop is open, visible, and return the window.
+Nodes (1): Save Claude process PID to file.
 
 ### Community 144 - "Community 144"
 Cohesion: 1.0
-Nodes (1): Ensure Claude desktop is open, visible, and return the window.
+Nodes (1): Load Claude process PID from file and verify it's still running.
 
 ### Community 145 - "Community 145"
 Cohesion: 1.0
-Nodes (1): Capture screenshot of Claude window.
+Nodes (1): Remove Claude PID file.
 
 ### Community 146 - "Community 146"
 Cohesion: 1.0
-Nodes (1): Handle /claudeask command - send message to Claude desktop.
+Nodes (1): Get Claude process if it's running.
 
 ### Community 147 - "Community 147"
 Cohesion: 1.0
-Nodes (1): Handle /claudenew command - create new chat in Claude desktop.
+Nodes (1): Check if Claude remote-control is currently running.
 
 ### Community 148 - "Community 148"
 Cohesion: 1.0
-Nodes (1): Handle /claudescreen command - get screenshot of Claude desktop.
+Nodes (1): Import pytesseract and configure a common Windows binary path if present.
 
 ### Community 149 - "Community 149"
 Cohesion: 1.0
-Nodes (1): Handle /claudechat command - send message and get screenshot.
+Nodes (1): Import pytesseract and configure a common Windows binary path if present.
 
 ### Community 150 - "Community 150"
 Cohesion: 1.0
-Nodes (1): Handle /claudelatest command - open the most recent session.
+Nodes (1): OCR the bottom status bar and click the first word matching any keyword.
 
 ### Community 151 - "Community 151"
 Cohesion: 1.0
-Nodes (1): Handle /claudemode command - change Claude desktop mode.
+Nodes (1): Focus Claude's composer input using UIA/OCR fallbacks.
 
 ### Community 152 - "Community 152"
 Cohesion: 1.0
-Nodes (1): Handle /claudeacceptedits [ask|auto|plan|bypass] — set Claude edit mode.
+Nodes (1): Focus Claude input, paste prompt text, and optionally submit.
 
 ### Community 153 - "Community 153"
 Cohesion: 1.0
-Nodes (1): Handle /claudemodel — scan models (no args) or select by number / name.      S
+Nodes (1): Handle /clauderemote command - open a cmd window in current repo and run claude
 
 ### Community 154 - "Community 154"
 Cohesion: 1.0
-Nodes (1): Select a model by number or name (shared by command + message handler).
+Nodes (1): Handle /stopclaude command - stop claude remote-control.
 
 ### Community 155 - "Community 155"
 Cohesion: 1.0
-Nodes (1): Intercept plain-text replies when user is in model-selection state.      Retur
+Nodes (1): Handle /openclaude command - open Claude desktop app or restore if minimized.
 
 ### Community 156 - "Community 156"
 Cohesion: 1.0
-Nodes (1): Handle /claudesearch command - search conversations and show results.
+Nodes (1): Ensure Claude desktop is open, visible, and return the window.
 
 ### Community 157 - "Community 157"
 Cohesion: 1.0
-Nodes (1): Handle /claudeselect command - select a conversation from search results.
+Nodes (1): Ensure Claude desktop is open, visible, and return the window.
 
 ### Community 158 - "Community 158"
 Cohesion: 1.0
-Nodes (1): Handle /claudebranch command - select a git branch in new session.
+Nodes (1): Capture screenshot of Claude window.
 
 ### Community 159 - "Community 159"
 Cohesion: 1.0
-Nodes (1): Check if message is a repo selection. Returns True if handled.
+Nodes (1): Handle /claudeask command - send message to Claude desktop.
 
 ### Community 160 - "Community 160"
 Cohesion: 1.0
-Nodes (1): Handle /clauderepo command - show screenshot and options.
+Nodes (1): Handle /claudenew command - create new chat in Claude desktop.
 
 ### Community 161 - "Community 161"
 Cohesion: 1.0
-Nodes (1): List all repositories in the default folder.
+Nodes (1): Handle /claudescreen command - get screenshot of Claude desktop.
 
 ### Community 162 - "Community 162"
 Cohesion: 1.0
-Nodes (1): Select repository by path.
+Nodes (1): Handle /claudechat command - send message and get screenshot.
 
 ### Community 163 - "Community 163"
 Cohesion: 1.0
-Nodes (1): Open folder browser for manual selection.
+Nodes (1): Handle /claudelatest command - open the most recent session.
 
 ### Community 164 - "Community 164"
 Cohesion: 1.0
-Nodes (1): Render a human-readable timestamp for privacy mode status.
+Nodes (1): Handle /claudemode command - change Claude desktop mode.
 
 ### Community 165 - "Community 165"
 Cohesion: 1.0
-Nodes (1): Return a status summary for privacy mode.
+Nodes (1): Handle /claudeacceptedits [ask|auto|plan|bypass] — set Claude edit mode.
 
 ### Community 166 - "Community 166"
 Cohesion: 1.0
-Nodes (1): Return a status summary for privacy mode.
+Nodes (1): Handle /claudemodel — scan models (no args) or select by number / name.      S
 
 ### Community 167 - "Community 167"
 Cohesion: 1.0
-Nodes (1): Turn the display off or wake it without locking the Windows session.
+Nodes (1): Select a model by number or name (shared by command + message handler).
 
 ### Community 168 - "Community 168"
 Cohesion: 1.0
-Nodes (1): Normalize privacy-mode command arguments into a supported action.
+Nodes (1): Intercept plain-text replies when user is in model-selection state.      Retur
 
 ### Community 169 - "Community 169"
 Cohesion: 1.0
-Nodes (1): Copy image bytes into the Windows clipboard as CF_DIB.
+Nodes (1): Handle /claudesearch command - search conversations and show results.
 
 ### Community 170 - "Community 170"
 Cohesion: 1.0
-Nodes (1): Copy image bytes into the Windows clipboard as CF_DIB and return a digest.
+Nodes (1): Handle /claudeselect command - select a conversation from search results.
 
 ### Community 171 - "Community 171"
 Cohesion: 1.0
-Nodes (1): Clear clipboard only when CF_DIB image still matches expected_hash.
+Nodes (1): Handle /claudebranch command - select a git branch in new session.
 
 ### Community 172 - "Community 172"
 Cohesion: 1.0
-Nodes (1): After TTL, clear image clipboard if unchanged.
+Nodes (1): Check if message is a repo selection. Returns True if handled.
 
 ### Community 173 - "Community 173"
 Cohesion: 1.0
-Nodes (1): Schedule image clipboard auto-clear and replace any previous pending task.
+Nodes (1): Handle /clauderepo command - show screenshot and options.
 
 ### Community 174 - "Community 174"
 Cohesion: 1.0
-Nodes (1): Return an inline keyboard for app selections.
+Nodes (1): List all repositories in the default folder.
 
 ### Community 175 - "Community 175"
 Cohesion: 1.0
-Nodes (1): Return the inline keyboard for one force-close confirmation.
+Nodes (1): Select repository by path.
 
 ### Community 176 - "Community 176"
 Cohesion: 1.0
-Nodes (1): Return a short picker list of common safe apps.
+Nodes (1): Open folder browser for manual selection.
 
 ### Community 177 - "Community 177"
 Cohesion: 1.0
-Nodes (1): Handle /openapp command - search and open a safe desktop app.
+Nodes (1): Render a human-readable timestamp for privacy mode status.
 
 ### Community 178 - "Community 178"
 Cohesion: 1.0
-Nodes (1): Handle /closeapp command - gracefully close a matching desktop app.
+Nodes (1): Return a status summary for privacy mode.
 
 ### Community 179 - "Community 179"
 Cohesion: 1.0
-Nodes (1): Handle /shutdown command - shutdown laptop with confirmation.
+Nodes (1): Return a status summary for privacy mode.
 
 ### Community 180 - "Community 180"
 Cohesion: 1.0
-Nodes (1): Handle /shutdown command - shutdown laptop with confirmation.
+Nodes (1): Turn the display off or wake it without locking the Windows session.
 
 ### Community 181 - "Community 181"
 Cohesion: 1.0
-Nodes (1): Shutdown the host machine using the same OS-specific behavior as /shutdown.
+Nodes (1): Normalize privacy-mode command arguments into a supported action.
 
 ### Community 182 - "Community 182"
 Cohesion: 1.0
-Nodes (1): Put the host to sleep and return a user-facing status message.
+Nodes (1): Copy image bytes into the Windows clipboard as CF_DIB.
 
 ### Community 183 - "Community 183"
 Cohesion: 1.0
-Nodes (1): Handle /battery command - check battery status.
+Nodes (1): Copy image bytes into the Windows clipboard as CF_DIB and return a digest.
 
 ### Community 184 - "Community 184"
 Cohesion: 1.0
-Nodes (1): Handle /screenshot command - capture current screen.
+Nodes (1): Clear clipboard only when CF_DIB image still matches expected_hash.
 
 ### Community 185 - "Community 185"
 Cohesion: 1.0
-Nodes (1): Handle /sleep command - put PC to sleep.
+Nodes (1): After TTL, clear image clipboard if unchanged.
 
 ### Community 186 - "Community 186"
 Cohesion: 1.0
-Nodes (1): Handle /wakeup command - wake up PC (requires Wake-on-LAN setup).
+Nodes (1): Schedule image clipboard auto-clear and replace any previous pending task.
 
 ### Community 187 - "Community 187"
 Cohesion: 1.0
-Nodes (1): Handle /privacy command - blank or wake the display without locking.
+Nodes (1): Return an inline keyboard for app selections.
 
 ### Community 188 - "Community 188"
 Cohesion: 1.0
-Nodes (1): Handle /hotkey command - execute keyboard shortcuts.
+Nodes (1): Return the inline keyboard for one force-close confirmation.
 
 ### Community 189 - "Community 189"
 Cohesion: 1.0
-Nodes (1): Handle /windows command - list switchable desktop windows.
+Nodes (1): Return a short picker list of common safe apps.
 
 ### Community 190 - "Community 190"
 Cohesion: 1.0
-Nodes (1): Handle /focuswindow command - activate a previously listed window.
+Nodes (1): Handle /openapp command - search and open a safe desktop app.
 
 ### Community 191 - "Community 191"
 Cohesion: 1.0
-Nodes (1): Handle /clipboard command - set clipboard content.
+Nodes (1): Handle /closeapp command - gracefully close a matching desktop app.
 
 ### Community 192 - "Community 192"
 Cohesion: 1.0
-Nodes (1): Handle /pasteimage by pasting a replied Telegram image into active app.
+Nodes (1): Handle /shutdown command - shutdown laptop with confirmation.
 
 ### Community 193 - "Community 193"
 Cohesion: 1.0
-Nodes (1): Handle /pasteimages by pasting all images from a replied media group.
+Nodes (1): Handle /shutdown command - shutdown laptop with confirmation.
 
 ### Community 194 - "Community 194"
 Cohesion: 1.0
-Nodes (1): Handle /viewclipboard command - get current clipboard content.
+Nodes (1): Shutdown the host machine using the same OS-specific behavior as /shutdown.
 
 ### Community 195 - "Community 195"
 Cohesion: 1.0
-Nodes (1): Return singleton recipe registry.
+Nodes (1): Put the host to sleep and return a user-facing status message.
 
 ### Community 196 - "Community 196"
 Cohesion: 1.0
-Nodes (1): Track the last privacy-mode state requested by the bot.
+Nodes (1): Handle /battery command - check battery status.
 
 ### Community 197 - "Community 197"
 Cohesion: 1.0
-Nodes (1): Render a human-readable timestamp for privacy mode status.
+Nodes (1): Handle /screenshot command - capture current screen.
 
 ### Community 198 - "Community 198"
 Cohesion: 1.0
-Nodes (1): Return a status summary for privacy mode.
+Nodes (1): Handle /sleep command - put PC to sleep.
 
 ### Community 199 - "Community 199"
 Cohesion: 1.0
-Nodes (1): Turn the display off or wake it without locking the Windows session.
+Nodes (1): Handle /wakeup command - wake up PC (requires Wake-on-LAN setup).
 
 ### Community 200 - "Community 200"
 Cohesion: 1.0
-Nodes (1): Normalize privacy-mode command arguments into a supported action.
+Nodes (1): Handle /privacy command - blank or wake the display without locking.
 
 ### Community 201 - "Community 201"
 Cohesion: 1.0
-Nodes (1): Return a unique request token for inline app-selection callbacks.
+Nodes (1): Handle /hotkey command - execute keyboard shortcuts.
 
 ### Community 202 - "Community 202"
 Cohesion: 1.0
-Nodes (1): Return an inline keyboard for app selections.
+Nodes (1): Handle /windows command - list switchable desktop windows.
 
 ### Community 203 - "Community 203"
 Cohesion: 1.0
-Nodes (1): Return an inline keyboard for app selections.
+Nodes (1): Handle /focuswindow command - activate a previously listed window.
 
 ### Community 204 - "Community 204"
 Cohesion: 1.0
-Nodes (1): After TTL, clear image clipboard if unchanged.
+Nodes (1): Handle /clipboard command - set clipboard content.
 
 ### Community 205 - "Community 205"
 Cohesion: 1.0
-Nodes (1): Schedule image clipboard auto-clear and replace any previous pending task.
+Nodes (1): Handle /pasteimage by pasting a replied Telegram image into active app.
 
 ### Community 206 - "Community 206"
 Cohesion: 1.0
-Nodes (1): Return an inline keyboard for app selections.
+Nodes (1): Handle /pasteimages by pasting all images from a replied media group.
 
 ### Community 207 - "Community 207"
 Cohesion: 1.0
-Nodes (1): Return the inline keyboard for one force-close confirmation.
+Nodes (1): Handle /viewclipboard command - get current clipboard content.
 
 ### Community 208 - "Community 208"
 Cohesion: 1.0
-Nodes (1): Return a short picker list of common safe apps.
+Nodes (1): Return singleton recipe registry.
 
 ### Community 209 - "Community 209"
 Cohesion: 1.0
-Nodes (1): Handle /openapp command - search and open a safe desktop app.
+Nodes (1): Track the last privacy-mode state requested by the bot.
 
 ### Community 210 - "Community 210"
 Cohesion: 1.0
-Nodes (1): Handle /closeapp command - gracefully close a matching desktop app.
+Nodes (1): Render a human-readable timestamp for privacy mode status.
 
 ### Community 211 - "Community 211"
 Cohesion: 1.0
-Nodes (1): Put the host to sleep and return a user-facing status message.
+Nodes (1): Return a status summary for privacy mode.
 
 ### Community 212 - "Community 212"
 Cohesion: 1.0
-Nodes (1): Shutdown the host machine using the same OS-specific behavior as /shutdown.
+Nodes (1): Turn the display off or wake it without locking the Windows session.
 
 ### Community 213 - "Community 213"
 Cohesion: 1.0
-Nodes (1): Put the host to sleep and return a user-facing status message.
+Nodes (1): Normalize privacy-mode command arguments into a supported action.
 
 ### Community 214 - "Community 214"
 Cohesion: 1.0
-Nodes (1): Handle /screenshot command - capture current screen.
+Nodes (1): Return a unique request token for inline app-selection callbacks.
 
 ### Community 215 - "Community 215"
 Cohesion: 1.0
-Nodes (1): Handle /sleep command - put PC to sleep.
+Nodes (1): Return an inline keyboard for app selections.
 
 ### Community 216 - "Community 216"
 Cohesion: 1.0
-Nodes (1): Handle /wakeup command - wake up PC (requires Wake-on-LAN setup).
+Nodes (1): Return an inline keyboard for app selections.
 
 ### Community 217 - "Community 217"
 Cohesion: 1.0
-Nodes (1): Handle /viewclipboard command - get current clipboard content.
+Nodes (1): After TTL, clear image clipboard if unchanged.
 
 ### Community 218 - "Community 218"
 Cohesion: 1.0
-Nodes (1): Handle /windows command - list switchable desktop windows.
+Nodes (1): Schedule image clipboard auto-clear and replace any previous pending task.
 
 ### Community 219 - "Community 219"
 Cohesion: 1.0
-Nodes (1): Handle /focuswindow command - activate a previously listed window.
+Nodes (1): Return an inline keyboard for app selections.
 
 ### Community 220 - "Community 220"
 Cohesion: 1.0
-Nodes (1): Handle /clipboard command - set clipboard content.
+Nodes (1): Return the inline keyboard for one force-close confirmation.
 
 ### Community 221 - "Community 221"
 Cohesion: 1.0
-Nodes (1): Handle /pasteimage by pasting a replied Telegram image into active app.
+Nodes (1): Return a short picker list of common safe apps.
 
 ### Community 222 - "Community 222"
 Cohesion: 1.0
-Nodes (1): Handle /pasteimages by pasting all images from a replied media group.
+Nodes (1): Handle /openapp command - search and open a safe desktop app.
 
 ### Community 223 - "Community 223"
 Cohesion: 1.0
-Nodes (1): Handle /viewclipboard command - get current clipboard content.
+Nodes (1): Handle /closeapp command - gracefully close a matching desktop app.
 
 ### Community 224 - "Community 224"
 Cohesion: 1.0
-Nodes (1): Track the last privacy-mode state requested by the bot.
+Nodes (1): Put the host to sleep and return a user-facing status message.
 
 ### Community 225 - "Community 225"
 Cohesion: 1.0
-Nodes (1): Render a human-readable timestamp for privacy mode status.
+Nodes (1): Shutdown the host machine using the same OS-specific behavior as /shutdown.
 
 ### Community 226 - "Community 226"
 Cohesion: 1.0
-Nodes (1): Return a status summary for privacy mode.
+Nodes (1): Put the host to sleep and return a user-facing status message.
 
 ### Community 227 - "Community 227"
 Cohesion: 1.0
-Nodes (1): Turn the display off or wake it without locking the Windows session.
+Nodes (1): Handle /screenshot command - capture current screen.
 
 ### Community 228 - "Community 228"
 Cohesion: 1.0
-Nodes (1): Normalize privacy-mode command arguments into a supported action.
+Nodes (1): Handle /sleep command - put PC to sleep.
 
 ### Community 229 - "Community 229"
 Cohesion: 1.0
-Nodes (1): Return a unique request token for inline app-selection callbacks.
+Nodes (1): Handle /wakeup command - wake up PC (requires Wake-on-LAN setup).
 
 ### Community 230 - "Community 230"
 Cohesion: 1.0
-Nodes (1): Return the inline keyboard for one force-close confirmation.
+Nodes (1): Handle /viewclipboard command - get current clipboard content.
 
 ### Community 231 - "Community 231"
 Cohesion: 1.0
-Nodes (1): Put the host to sleep and return a user-facing status message.
+Nodes (1): Handle /windows command - list switchable desktop windows.
 
 ### Community 232 - "Community 232"
 Cohesion: 1.0
-Nodes (1): Handle /openapp command - search and open a safe desktop app.
+Nodes (1): Handle /focuswindow command - activate a previously listed window.
 
 ### Community 233 - "Community 233"
 Cohesion: 1.0
-Nodes (1): Handle /closeapp command - gracefully close a matching desktop app.
+Nodes (1): Handle /clipboard command - set clipboard content.
 
 ### Community 234 - "Community 234"
 Cohesion: 1.0
-Nodes (1): Handle /stopbot command - stop the bot process with confirmation.
+Nodes (1): Handle /pasteimage by pasting a replied Telegram image into active app.
 
 ### Community 235 - "Community 235"
 Cohesion: 1.0
-Nodes (1): Handle /privacy command - blank or wake the display without locking.
+Nodes (1): Handle /pasteimages by pasting all images from a replied media group.
 
 ### Community 236 - "Community 236"
 Cohesion: 1.0
-Nodes (1): Shutdown the host machine using the same OS-specific behavior as /shutdown.
+Nodes (1): Handle /viewclipboard command - get current clipboard content.
 
 ### Community 237 - "Community 237"
 Cohesion: 1.0
-Nodes (1): Put the host to sleep and return a user-facing status message.
+Nodes (1): Track the last privacy-mode state requested by the bot.
 
 ### Community 238 - "Community 238"
 Cohesion: 1.0
-Nodes (1): Handle /battery command - check battery status.
+Nodes (1): Render a human-readable timestamp for privacy mode status.
 
 ### Community 239 - "Community 239"
 Cohesion: 1.0
-Nodes (1): Handle /sleep command - put PC to sleep.
+Nodes (1): Return a status summary for privacy mode.
 
 ### Community 240 - "Community 240"
 Cohesion: 1.0
-Nodes (1): Handle /privacy command - blank or wake the display without locking.
+Nodes (1): Turn the display off or wake it without locking the Windows session.
 
 ### Community 241 - "Community 241"
 Cohesion: 1.0
-Nodes (1): Handle /wakeup command - wake up PC (requires Wake-on-LAN setup).
+Nodes (1): Normalize privacy-mode command arguments into a supported action.
 
 ### Community 242 - "Community 242"
 Cohesion: 1.0
-Nodes (1): Handle /privacy command - blank or wake the display without locking.
+Nodes (1): Return a unique request token for inline app-selection callbacks.
 
 ### Community 243 - "Community 243"
 Cohesion: 1.0
-Nodes (1): Handle /hotkey command - execute keyboard shortcuts.
+Nodes (1): Return the inline keyboard for one force-close confirmation.
 
 ### Community 244 - "Community 244"
 Cohesion: 1.0
-Nodes (1): Handle /windows command - list switchable desktop windows.
+Nodes (1): Put the host to sleep and return a user-facing status message.
 
 ### Community 245 - "Community 245"
 Cohesion: 1.0
-Nodes (1): Handle /focuswindow command - activate a previously listed window.
+Nodes (1): Handle /openapp command - search and open a safe desktop app.
 
 ### Community 246 - "Community 246"
 Cohesion: 1.0
-Nodes (1): Handle /clipboard command - set clipboard content.
+Nodes (1): Handle /closeapp command - gracefully close a matching desktop app.
 
 ### Community 247 - "Community 247"
 Cohesion: 1.0
-Nodes (1): Handle /pasteimage by pasting a replied Telegram image into active app.
+Nodes (1): Handle /stopbot command - stop the bot process with confirmation.
 
 ### Community 248 - "Community 248"
 Cohesion: 1.0
-Nodes (1): Handle /pasteimages by pasting all images from a replied media group.
+Nodes (1): Handle /privacy command - blank or wake the display without locking.
 
 ### Community 249 - "Community 249"
 Cohesion: 1.0
-Nodes (1): Handle /viewclipboard command - get current clipboard content.
+Nodes (1): Shutdown the host machine using the same OS-specific behavior as /shutdown.
 
 ### Community 250 - "Community 250"
 Cohesion: 1.0
-Nodes (1): Track the last privacy-mode state requested by the bot.
+Nodes (1): Put the host to sleep and return a user-facing status message.
 
 ### Community 251 - "Community 251"
 Cohesion: 1.0
-Nodes (1): Render a human-readable timestamp for privacy mode status.
+Nodes (1): Handle /battery command - check battery status.
 
 ### Community 252 - "Community 252"
 Cohesion: 1.0
-Nodes (1): Return a status summary for privacy mode.
+Nodes (1): Handle /sleep command - put PC to sleep.
 
 ### Community 253 - "Community 253"
 Cohesion: 1.0
-Nodes (1): Turn the display off or wake it without locking the Windows session.
+Nodes (1): Handle /privacy command - blank or wake the display without locking.
 
 ### Community 254 - "Community 254"
 Cohesion: 1.0
-Nodes (1): Normalize privacy-mode command arguments into a supported action.
+Nodes (1): Handle /wakeup command - wake up PC (requires Wake-on-LAN setup).
 
 ### Community 255 - "Community 255"
 Cohesion: 1.0
-Nodes (1): Return a unique request token for inline app-selection callbacks.
+Nodes (1): Handle /privacy command - blank or wake the display without locking.
 
 ### Community 256 - "Community 256"
 Cohesion: 1.0
-Nodes (1): Copy image bytes into the Windows clipboard as CF_DIB.
+Nodes (1): Handle /hotkey command - execute keyboard shortcuts.
 
 ### Community 257 - "Community 257"
 Cohesion: 1.0
-Nodes (1): Return the inline keyboard for one force-close confirmation.
+Nodes (1): Handle /windows command - list switchable desktop windows.
 
 ### Community 258 - "Community 258"
 Cohesion: 1.0
-Nodes (1): Return a short picker list of common safe apps.
+Nodes (1): Handle /focuswindow command - activate a previously listed window.
 
 ### Community 259 - "Community 259"
 Cohesion: 1.0
-Nodes (1): Handle /openapp command - search and open a safe desktop app.
+Nodes (1): Handle /clipboard command - set clipboard content.
 
 ### Community 260 - "Community 260"
 Cohesion: 1.0
-Nodes (1): Handle /stopbot command - stop the bot process with confirmation.
+Nodes (1): Handle /pasteimage by pasting a replied Telegram image into active app.
 
 ### Community 261 - "Community 261"
 Cohesion: 1.0
-Nodes (1): Handle /shutdown command - shutdown laptop with confirmation.
+Nodes (1): Handle /pasteimages by pasting all images from a replied media group.
 
 ### Community 262 - "Community 262"
 Cohesion: 1.0
-Nodes (1): Shutdown the host machine using the same OS-specific behavior as /shutdown.
+Nodes (1): Handle /viewclipboard command - get current clipboard content.
 
 ### Community 263 - "Community 263"
 Cohesion: 1.0
-Nodes (1): Handle /screenshot command - capture current screen.
+Nodes (1): Track the last privacy-mode state requested by the bot.
 
 ### Community 264 - "Community 264"
 Cohesion: 1.0
-Nodes (1): Handle /sleep command - put PC to sleep.
+Nodes (1): Render a human-readable timestamp for privacy mode status.
 
 ### Community 265 - "Community 265"
 Cohesion: 1.0
-Nodes (1): Handle /hotkey command - execute keyboard shortcuts.
+Nodes (1): Return a status summary for privacy mode.
 
 ### Community 266 - "Community 266"
 Cohesion: 1.0
-Nodes (1): Handle /privacy command - blank or wake the display without locking.
+Nodes (1): Turn the display off or wake it without locking the Windows session.
 
 ### Community 267 - "Community 267"
 Cohesion: 1.0
-Nodes (1): Handle /hotkey command - execute keyboard shortcuts.
+Nodes (1): Normalize privacy-mode command arguments into a supported action.
 
 ### Community 268 - "Community 268"
 Cohesion: 1.0
-Nodes (1): Handle /windows command - list switchable desktop windows.
+Nodes (1): Return a unique request token for inline app-selection callbacks.
 
 ### Community 269 - "Community 269"
 Cohesion: 1.0
-Nodes (1): Handle /focuswindow command - activate a previously listed window.
+Nodes (1): Copy image bytes into the Windows clipboard as CF_DIB.
 
 ### Community 270 - "Community 270"
 Cohesion: 1.0
-Nodes (1): Handle /clipboard command - set clipboard content.
+Nodes (1): Return the inline keyboard for one force-close confirmation.
 
 ### Community 271 - "Community 271"
 Cohesion: 1.0
-Nodes (1): Handle /pasteimage by pasting a replied Telegram image into active app.
+Nodes (1): Return a short picker list of common safe apps.
 
 ### Community 272 - "Community 272"
 Cohesion: 1.0
-Nodes (1): Handle /viewclipboard command - get current clipboard content.
+Nodes (1): Handle /openapp command - search and open a safe desktop app.
 
 ### Community 273 - "Community 273"
 Cohesion: 1.0
-Nodes (1): Return the inline keyboard for one force-close confirmation.
+Nodes (1): Handle /stopbot command - stop the bot process with confirmation.
 
 ### Community 274 - "Community 274"
 Cohesion: 1.0
-Nodes (1): Return a short picker list of common safe apps.
+Nodes (1): Handle /shutdown command - shutdown laptop with confirmation.
 
 ### Community 275 - "Community 275"
 Cohesion: 1.0
-Nodes (1): Handle /openapp command - search and open a safe desktop app.
+Nodes (1): Shutdown the host machine using the same OS-specific behavior as /shutdown.
 
 ### Community 276 - "Community 276"
 Cohesion: 1.0
-Nodes (1): Handle /closeapp command - gracefully close a matching desktop app.
+Nodes (1): Handle /screenshot command - capture current screen.
 
 ### Community 277 - "Community 277"
 Cohesion: 1.0
-Nodes (1): Handle /stopbot command - stop the bot process with confirmation.
+Nodes (1): Handle /sleep command - put PC to sleep.
 
 ### Community 278 - "Community 278"
 Cohesion: 1.0
-Nodes (1): Handle /shutdown command - shutdown laptop with confirmation.
+Nodes (1): Handle /hotkey command - execute keyboard shortcuts.
 
 ### Community 279 - "Community 279"
 Cohesion: 1.0
-Nodes (1): Shutdown the host machine using the same OS-specific behavior as /shutdown.
+Nodes (1): Handle /privacy command - blank or wake the display without locking.
 
 ### Community 280 - "Community 280"
 Cohesion: 1.0
-Nodes (1): Put the host to sleep and return a user-facing status message.
+Nodes (1): Handle /hotkey command - execute keyboard shortcuts.
 
 ### Community 281 - "Community 281"
 Cohesion: 1.0
-Nodes (1): Handle /battery command - check battery status.
+Nodes (1): Handle /windows command - list switchable desktop windows.
 
 ### Community 282 - "Community 282"
 Cohesion: 1.0
-Nodes (1): Handle /screenshot command - capture current screen.
+Nodes (1): Handle /focuswindow command - activate a previously listed window.
 
 ### Community 283 - "Community 283"
 Cohesion: 1.0
-Nodes (1): Handle /wakeup command - wake up PC (requires Wake-on-LAN setup).
+Nodes (1): Handle /clipboard command - set clipboard content.
 
 ### Community 284 - "Community 284"
 Cohesion: 1.0
-Nodes (1): Handle /privacy command - blank or wake the display without locking.
+Nodes (1): Handle /pasteimage by pasting a replied Telegram image into active app.
 
 ### Community 285 - "Community 285"
 Cohesion: 1.0
-Nodes (1): Handle /hotkey command - execute keyboard shortcuts.
+Nodes (1): Handle /viewclipboard command - get current clipboard content.
 
 ### Community 286 - "Community 286"
 Cohesion: 1.0
-Nodes (1): Handle /windows command - list switchable desktop windows.
+Nodes (1): Return the inline keyboard for one force-close confirmation.
 
 ### Community 287 - "Community 287"
 Cohesion: 1.0
-Nodes (1): Handle /focuswindow command - activate a previously listed window.
+Nodes (1): Return a short picker list of common safe apps.
 
 ### Community 288 - "Community 288"
 Cohesion: 1.0
-Nodes (1): Handle /clipboard command - set clipboard content.
+Nodes (1): Handle /openapp command - search and open a safe desktop app.
 
 ### Community 289 - "Community 289"
 Cohesion: 1.0
-Nodes (1): Handle /viewclipboard command - get current clipboard content.
+Nodes (1): Handle /closeapp command - gracefully close a matching desktop app.
 
 ### Community 290 - "Community 290"
 Cohesion: 1.0
-Nodes (1): Focus Claude input, paste prompt text, and optionally submit.
+Nodes (1): Handle /stopbot command - stop the bot process with confirmation.
 
 ### Community 291 - "Community 291"
 Cohesion: 1.0
-Nodes (1): Handle /clauderemote command - open a cmd window in current repo and run claude
+Nodes (1): Handle /shutdown command - shutdown laptop with confirmation.
 
 ### Community 292 - "Community 292"
 Cohesion: 1.0
-Nodes (1): Handle /stopclaude command - stop claude remote-control.
+Nodes (1): Shutdown the host machine using the same OS-specific behavior as /shutdown.
 
 ### Community 293 - "Community 293"
 Cohesion: 1.0
-Nodes (1): Handle /openclaude command - open Claude desktop app or restore if minimized.
+Nodes (1): Put the host to sleep and return a user-facing status message.
 
 ### Community 294 - "Community 294"
 Cohesion: 1.0
-Nodes (1): Find Claude desktop window and restore if minimized.
+Nodes (1): Handle /battery command - check battery status.
 
 ### Community 295 - "Community 295"
 Cohesion: 1.0
-Nodes (1): Capture screenshot of Claude window.
+Nodes (1): Handle /screenshot command - capture current screen.
 
 ### Community 296 - "Community 296"
 Cohesion: 1.0
-Nodes (1): Handle /claudeask command - send message to Claude desktop.
+Nodes (1): Handle /wakeup command - wake up PC (requires Wake-on-LAN setup).
 
 ### Community 297 - "Community 297"
 Cohesion: 1.0
-Nodes (1): Handle /claudenew command - create new chat in Claude desktop.
+Nodes (1): Handle /privacy command - blank or wake the display without locking.
 
 ### Community 298 - "Community 298"
 Cohesion: 1.0
-Nodes (1): Handle /claudescreen command - get screenshot of Claude desktop.
+Nodes (1): Handle /hotkey command - execute keyboard shortcuts.
 
 ### Community 299 - "Community 299"
 Cohesion: 1.0
-Nodes (1): Handle /claudechat command - send message and get screenshot.
+Nodes (1): Handle /windows command - list switchable desktop windows.
 
 ### Community 300 - "Community 300"
 Cohesion: 1.0
-Nodes (1): Handle /claudelatest command - open the most recent session.
+Nodes (1): Handle /focuswindow command - activate a previously listed window.
 
 ### Community 301 - "Community 301"
 Cohesion: 1.0
-Nodes (1): Handle /claudemode command - change Claude desktop mode.
+Nodes (1): Handle /clipboard command - set clipboard content.
 
 ### Community 302 - "Community 302"
 Cohesion: 1.0
-Nodes (1): Handle /claudeacceptedits [ask|auto|plan|bypass] — set Claude edit mode.
+Nodes (1): Handle /viewclipboard command - get current clipboard content.
 
 ### Community 303 - "Community 303"
 Cohesion: 1.0
-Nodes (1): Handle /claudemodel — scan models (no args) or select by number / name.      S
+Nodes (1): Focus Claude input, paste prompt text, and optionally submit.
 
 ### Community 304 - "Community 304"
 Cohesion: 1.0
-Nodes (1): Select a model by number or name (shared by command + message handler).
+Nodes (1): Handle /clauderemote command - open a cmd window in current repo and run claude
 
 ### Community 305 - "Community 305"
 Cohesion: 1.0
-Nodes (1): Intercept plain-text replies when user is in model-selection state.      Retur
+Nodes (1): Handle /stopclaude command - stop claude remote-control.
 
 ### Community 306 - "Community 306"
 Cohesion: 1.0
-Nodes (1): Handle /claudesearch command - search conversations and show results.
+Nodes (1): Handle /openclaude command - open Claude desktop app or restore if minimized.
 
 ### Community 307 - "Community 307"
 Cohesion: 1.0
-Nodes (1): Handle /claudeselect command - select a conversation from search results.
+Nodes (1): Find Claude desktop window and restore if minimized.
 
 ### Community 308 - "Community 308"
 Cohesion: 1.0
-Nodes (1): Handle /claudebranch command - select a git branch in new session.
+Nodes (1): Capture screenshot of Claude window.
 
 ### Community 309 - "Community 309"
 Cohesion: 1.0
-Nodes (1): Check if message is a repo selection. Returns True if handled.
+Nodes (1): Handle /claudeask command - send message to Claude desktop.
 
 ### Community 310 - "Community 310"
 Cohesion: 1.0
-Nodes (1): Handle /clauderepo command - show screenshot and options.
+Nodes (1): Handle /claudenew command - create new chat in Claude desktop.
 
 ### Community 311 - "Community 311"
 Cohesion: 1.0
-Nodes (1): List all repositories in the default folder.
+Nodes (1): Handle /claudescreen command - get screenshot of Claude desktop.
 
 ### Community 312 - "Community 312"
 Cohesion: 1.0
-Nodes (1): Select repository by path.
+Nodes (1): Handle /claudechat command - send message and get screenshot.
 
 ### Community 313 - "Community 313"
 Cohesion: 1.0
-Nodes (1): Open folder browser for manual selection.
+Nodes (1): Handle /claudelatest command - open the most recent session.
 
 ### Community 314 - "Community 314"
 Cohesion: 1.0
-Nodes (1): Return True if the project root is a git repository (source checkout).
+Nodes (1): Handle /claudemode command - change Claude desktop mode.
 
 ### Community 315 - "Community 315"
 Cohesion: 1.0
-Nodes (1): Public alias for _is_git_repo.
+Nodes (1): Handle /claudeacceptedits [ask|auto|plan|bypass] — set Claude edit mode.
 
 ### Community 316 - "Community 316"
 Cohesion: 1.0
-Nodes (1): Parse a semver string into a comparable tuple (major, minor, patch).
+Nodes (1): Handle /claudemodel — scan models (no args) or select by number / name.      S
 
 ### Community 317 - "Community 317"
 Cohesion: 1.0
-Nodes (1): Result of a check-for-updates query.
+Nodes (1): Select a model by number or name (shared by command + message handler).
 
 ### Community 318 - "Community 318"
 Cohesion: 1.0
-Nodes (1): Run a git sub-command and return the completed process.
+Nodes (1): Intercept plain-text replies when user is in model-selection state.      Retur
 
 ### Community 319 - "Community 319"
 Cohesion: 1.0
-Nodes (1): Return the current local HEAD commit SHA (full).
+Nodes (1): Handle /claudesearch command - search conversations and show results.
 
 ### Community 320 - "Community 320"
 Cohesion: 1.0
-Nodes (1): Return the current local HEAD commit SHA (short 7-char).
+Nodes (1): Handle /claudeselect command - select a conversation from search results.
 
 ### Community 321 - "Community 321"
 Cohesion: 1.0
-Nodes (1): Return the current local HEAD commit SHA (short 7-char).
+Nodes (1): Handle /claudebranch command - select a git branch in new session.
 
 ### Community 322 - "Community 322"
 Cohesion: 1.0
-Nodes (1): Return the date of the local HEAD commit.
+Nodes (1): Check if message is a repo selection. Returns True if handled.
 
 ### Community 323 - "Community 323"
 Cohesion: 1.0
-Nodes (1): Query PyPI for the latest published version of pocket-desk-agent.      Returns
+Nodes (1): Handle /clauderepo command - show screenshot and options.
 
 ### Community 324 - "Community 324"
 Cohesion: 1.0
-Nodes (1): Check PyPI for the latest published version of pocket-desk-agent.      Always
+Nodes (1): List all repositories in the default folder.
 
 ### Community 325 - "Community 325"
 Cohesion: 1.0
-Nodes (1): Return the cached result and timestamp of the last update check.
+Nodes (1): Select repository by path.
 
 ### Community 326 - "Community 326"
 Cohesion: 1.0
-Nodes (1): Pull the latest changes for the current tracked branch and re-install     requir
+Nodes (1): Open folder browser for manual selection.
 
 ### Community 327 - "Community 327"
 Cohesion: 1.0
-Nodes (1): Upgrade the installed package from PyPI.      Checks PyPI first — returns (Fal
+Nodes (1): Return True if the project root is a git repository (source checkout).
 
 ### Community 328 - "Community 328"
 Cohesion: 1.0
-Nodes (1): Run an update check at startup and log the result.      This is meant to be ca
+Nodes (1): Public alias for _is_git_repo.
 
 ### Community 329 - "Community 329"
 Cohesion: 1.0
-Nodes (1): Background coroutine that periodically checks for updates.      Args:
+Nodes (1): Parse a semver string into a comparable tuple (major, minor, patch).
 
 ### Community 330 - "Community 330"
 Cohesion: 1.0
-Nodes (1): Format an UpdateInfo into a user-friendly Telegram message.
+Nodes (1): Result of a check-for-updates query.
 
 ### Community 331 - "Community 331"
 Cohesion: 1.0
-Nodes (1): Save Claude process PID to file.
+Nodes (1): Run a git sub-command and return the completed process.
 
 ### Community 332 - "Community 332"
 Cohesion: 1.0
-Nodes (1): Remove Claude PID file.
+Nodes (1): Return the current local HEAD commit SHA (full).
 
 ### Community 333 - "Community 333"
 Cohesion: 1.0
-Nodes (1): Get Claude process if it's running.
+Nodes (1): Return the current local HEAD commit SHA (short 7-char).
 
 ### Community 334 - "Community 334"
 Cohesion: 1.0
-Nodes (1): Check if Claude remote-control is currently running.
+Nodes (1): Return the current local HEAD commit SHA (short 7-char).
 
 ### Community 335 - "Community 335"
 Cohesion: 1.0
-Nodes (1): Return fallback shortcuts for creating a fresh Claude conversation.
+Nodes (1): Return the date of the local HEAD commit.
 
 ### Community 336 - "Community 336"
 Cohesion: 1.0
-Nodes (1): Import pytesseract and configure a common Windows binary path if present.
+Nodes (1): Query PyPI for the latest published version of pocket-desk-agent.      Returns
 
 ### Community 337 - "Community 337"
 Cohesion: 1.0
-Nodes (1): OCR the bottom status bar and click the first word matching any keyword.
+Nodes (1): Check PyPI for the latest published version of pocket-desk-agent.      Always
 
 ### Community 338 - "Community 338"
 Cohesion: 1.0
-Nodes (1): Focus Claude's composer input using UIA/OCR fallbacks.
+Nodes (1): Return the cached result and timestamp of the last update check.
 
 ### Community 339 - "Community 339"
 Cohesion: 1.0
-Nodes (1): Focus Claude input, paste prompt text, and optionally submit.
+Nodes (1): Pull the latest changes for the current tracked branch and re-install     requir
 
 ### Community 340 - "Community 340"
 Cohesion: 1.0
-Nodes (1): Handle /clauderemote command - open a cmd window in current repo and run claude
+Nodes (1): Upgrade the installed package from PyPI.      Checks PyPI first — returns (Fal
 
 ### Community 341 - "Community 341"
 Cohesion: 1.0
-Nodes (1): Handle /stopclaude command - stop claude remote-control.
+Nodes (1): Run an update check at startup and log the result.      This is meant to be ca
 
 ### Community 342 - "Community 342"
 Cohesion: 1.0
-Nodes (1): Handle /openclaude command - open Claude desktop app or restore if minimized.
+Nodes (1): Background coroutine that periodically checks for updates.      Args:
 
 ### Community 343 - "Community 343"
 Cohesion: 1.0
-Nodes (1): Find Claude desktop window and restore if minimized.
+Nodes (1): Format an UpdateInfo into a user-friendly Telegram message.
 
 ### Community 344 - "Community 344"
 Cohesion: 1.0
-Nodes (1): Ensure Claude desktop is open, visible, and return the window.
+Nodes (1): Save Claude process PID to file.
 
 ### Community 345 - "Community 345"
 Cohesion: 1.0
-Nodes (1): Capture screenshot of Claude window.
+Nodes (1): Remove Claude PID file.
 
 ### Community 346 - "Community 346"
 Cohesion: 1.0
-Nodes (1): Handle /claudeask command - send message to Claude desktop.
+Nodes (1): Get Claude process if it's running.
 
 ### Community 347 - "Community 347"
 Cohesion: 1.0
-Nodes (1): Handle /claudenew command - create new chat in Claude desktop.
+Nodes (1): Check if Claude remote-control is currently running.
 
 ### Community 348 - "Community 348"
 Cohesion: 1.0
-Nodes (1): Handle /claudescreen command - get screenshot of Claude desktop.
+Nodes (1): Return fallback shortcuts for creating a fresh Claude conversation.
 
 ### Community 349 - "Community 349"
 Cohesion: 1.0
-Nodes (1): Handle /claudechat command - send message and get screenshot.
+Nodes (1): Import pytesseract and configure a common Windows binary path if present.
 
 ### Community 350 - "Community 350"
 Cohesion: 1.0
-Nodes (1): Handle /claudelatest command - open the most recent session.
+Nodes (1): OCR the bottom status bar and click the first word matching any keyword.
 
 ### Community 351 - "Community 351"
 Cohesion: 1.0
-Nodes (1): Handle /claudemode command - change Claude desktop mode.
+Nodes (1): Focus Claude's composer input using UIA/OCR fallbacks.
 
 ### Community 352 - "Community 352"
 Cohesion: 1.0
-Nodes (1): Handle /claudeacceptedits [ask|auto|plan|bypass] — set Claude edit mode.
+Nodes (1): Focus Claude input, paste prompt text, and optionally submit.
 
 ### Community 353 - "Community 353"
 Cohesion: 1.0
-Nodes (1): Handle /claudemodel — scan models (no args) or select by number / name.      S
+Nodes (1): Handle /clauderemote command - open a cmd window in current repo and run claude
 
 ### Community 354 - "Community 354"
 Cohesion: 1.0
-Nodes (1): Select a model by number or name (shared by command + message handler).
+Nodes (1): Handle /stopclaude command - stop claude remote-control.
 
 ### Community 355 - "Community 355"
 Cohesion: 1.0
-Nodes (1): Intercept plain-text replies when user is in model-selection state.      Retur
+Nodes (1): Handle /openclaude command - open Claude desktop app or restore if minimized.
 
 ### Community 356 - "Community 356"
 Cohesion: 1.0
-Nodes (1): Handle /claudesearch command - search conversations and show results.
+Nodes (1): Find Claude desktop window and restore if minimized.
 
 ### Community 357 - "Community 357"
 Cohesion: 1.0
-Nodes (1): Handle /claudeselect command - select a conversation from search results.
+Nodes (1): Ensure Claude desktop is open, visible, and return the window.
 
 ### Community 358 - "Community 358"
 Cohesion: 1.0
-Nodes (1): Handle /claudebranch command - select a git branch in new session.
+Nodes (1): Capture screenshot of Claude window.
 
 ### Community 359 - "Community 359"
 Cohesion: 1.0
-Nodes (1): Check if message is a repo selection. Returns True if handled.
+Nodes (1): Handle /claudeask command - send message to Claude desktop.
 
 ### Community 360 - "Community 360"
 Cohesion: 1.0
-Nodes (1): Handle /clauderepo command - show screenshot and options.
+Nodes (1): Handle /claudenew command - create new chat in Claude desktop.
 
 ### Community 361 - "Community 361"
 Cohesion: 1.0
-Nodes (1): List all repositories in the default folder.
+Nodes (1): Handle /claudescreen command - get screenshot of Claude desktop.
 
 ### Community 362 - "Community 362"
 Cohesion: 1.0
-Nodes (1): Select repository by path.
+Nodes (1): Handle /claudechat command - send message and get screenshot.
 
 ### Community 363 - "Community 363"
 Cohesion: 1.0
-Nodes (1): Open folder browser for manual selection.
+Nodes (1): Handle /claudelatest command - open the most recent session.
 
 ### Community 364 - "Community 364"
 Cohesion: 1.0
-Nodes (1): Parse a semver string into a comparable tuple (major, minor, patch).
+Nodes (1): Handle /claudemode command - change Claude desktop mode.
 
 ### Community 365 - "Community 365"
 Cohesion: 1.0
-Nodes (1): Result of a check-for-updates query.
+Nodes (1): Handle /claudeacceptedits [ask|auto|plan|bypass] — set Claude edit mode.
 
 ### Community 366 - "Community 366"
 Cohesion: 1.0
-Nodes (1): Run a git sub-command and return the completed process.
+Nodes (1): Handle /claudemodel — scan models (no args) or select by number / name.      S
 
 ### Community 367 - "Community 367"
 Cohesion: 1.0
-Nodes (1): Return the current local HEAD commit SHA (full).
+Nodes (1): Select a model by number or name (shared by command + message handler).
 
 ### Community 368 - "Community 368"
 Cohesion: 1.0
-Nodes (1): Human-readable version string: v1.0.0 (abc1234) for git, v1.0.0 for PyPI.
+Nodes (1): Intercept plain-text replies when user is in model-selection state.      Retur
 
 ### Community 369 - "Community 369"
 Cohesion: 1.0
-Nodes (1): Return the date of the local HEAD commit.
+Nodes (1): Handle /claudesearch command - search conversations and show results.
 
 ### Community 370 - "Community 370"
 Cohesion: 1.0
-Nodes (1): Query PyPI for the latest published version of pocket-desk-agent.      Returns
+Nodes (1): Handle /claudeselect command - select a conversation from search results.
 
 ### Community 371 - "Community 371"
 Cohesion: 1.0
-Nodes (1): Check PyPI for the latest published version of pocket-desk-agent.      Always
+Nodes (1): Handle /claudebranch command - select a git branch in new session.
 
 ### Community 372 - "Community 372"
 Cohesion: 1.0
-Nodes (1): Return the cached result and timestamp of the last update check.
+Nodes (1): Check if message is a repo selection. Returns True if handled.
 
 ### Community 373 - "Community 373"
 Cohesion: 1.0
-Nodes (1): Pull latest changes from GitHub and re-install requirements.      Returns (suc
+Nodes (1): Handle /clauderepo command - show screenshot and options.
 
 ### Community 374 - "Community 374"
 Cohesion: 1.0
-Nodes (1): Run an update check at startup and log the result.      This is meant to be ca
+Nodes (1): List all repositories in the default folder.
 
 ### Community 375 - "Community 375"
 Cohesion: 1.0
-Nodes (1): Background coroutine that periodically checks for updates.      Args:
+Nodes (1): Select repository by path.
 
 ### Community 376 - "Community 376"
 Cohesion: 1.0
-Nodes (1): Format an UpdateInfo into a user-friendly Telegram message.
+Nodes (1): Open folder browser for manual selection.
 
 ### Community 377 - "Community 377"
 Cohesion: 1.0
-Nodes (1): Normalized description of one launchable desktop app.
+Nodes (1): Parse a semver string into a comparable tuple (major, minor, patch).
 
 ### Community 378 - "Community 378"
 Cohesion: 1.0
-Nodes (1): Result of resolving a user query against the app catalog.
+Nodes (1): Result of a check-for-updates query.
 
 ### Community 379 - "Community 379"
 Cohesion: 1.0
-Nodes (1): Collapse punctuation and spacing into a stable lookup key.
+Nodes (1): Run a git sub-command and return the completed process.
 
 ### Community 380 - "Community 380"
 Cohesion: 1.0
-Nodes (1): Return True when a launch target uses an allowed file type.
+Nodes (1): Return the current local HEAD commit SHA (full).
 
 ### Community 381 - "Community 381"
 Cohesion: 1.0
-Nodes (1): Return the curated built-in safe app catalog.
+Nodes (1): Human-readable version string: v1.0.0 (abc1234) for git, v1.0.0 for PyPI.
 
 ### Community 382 - "Community 382"
 Cohesion: 1.0
-Nodes (1): Return built-in apps plus safe Start Menu entries on Windows.
+Nodes (1): Return the date of the local HEAD commit.
 
 ### Community 383 - "Community 383"
 Cohesion: 1.0
-Nodes (1): Resolve a user query to one app or an ambiguous list.
+Nodes (1): Query PyPI for the latest published version of pocket-desk-agent.      Returns
 
 ### Community 384 - "Community 384"
 Cohesion: 1.0
-Nodes (1): Return one catalog entry by stable app id.
+Nodes (1): Check PyPI for the latest published version of pocket-desk-agent.      Always
 
 ### Community 385 - "Community 385"
 Cohesion: 1.0
-Nodes (1): Discover launchable app shortcuts from common Start Menu locations.
+Nodes (1): Return the cached result and timestamp of the last update check.
 
 ### Community 386 - "Community 386"
 Cohesion: 1.0
-Nodes (1): Return a few simple process-name hints for close matching.
+Nodes (1): Pull latest changes from GitHub and re-install requirements.      Returns (suc
 
 ### Community 387 - "Community 387"
 Cohesion: 1.0
-Nodes (1): Keep the first entry for each normalized app identity.
+Nodes (1): Run an update check at startup and log the result.      This is meant to be ca
 
 ### Community 388 - "Community 388"
 Cohesion: 1.0
-Nodes (1): Return the first existing path or a safe fallback executable name.
+Nodes (1): Background coroutine that periodically checks for updates.      Args:
 
 ### Community 389 - "Community 389"
 Cohesion: 1.0
-Nodes (1): Create a stable unique id for one Start Menu entry.
+Nodes (1): Format an UpdateInfo into a user-friendly Telegram message.
 
 ### Community 390 - "Community 390"
 Cohesion: 1.0
-Nodes (1): Parse comma-separated Telegram user IDs, skipping malformed entries.
+Nodes (1): Normalized description of one launchable desktop app.
 
 ### Community 391 - "Community 391"
 Cohesion: 1.0
-Nodes (1): Bot configuration.      All values are read from ``os.environ`` when ``load()`
+Nodes (1): Result of resolving a user query against the app catalog.
 
 ### Community 392 - "Community 392"
 Cohesion: 1.0
-Nodes (1): (Re-)read every config value from ``os.environ``.
+Nodes (1): Collapse punctuation and spacing into a stable lookup key.
 
 ### Community 393 - "Community 393"
 Cohesion: 1.0
-Nodes (1): Validate required configuration.
+Nodes (1): Return True when a launch target uses an allowed file type.
 
 ### Community 394 - "Community 394"
 Cohesion: 1.0
-Nodes (1): Load Windows UI automation modules on first use (cached after that).
+Nodes (1): Return the curated built-in safe app catalog.
 
 ### Community 395 - "Community 395"
 Cohesion: 1.0
-Nodes (1): Save Claude process PID to file.
+Nodes (1): Return built-in apps plus safe Start Menu entries on Windows.
 
 ### Community 396 - "Community 396"
 Cohesion: 1.0
-Nodes (1): Load Claude process PID from file and verify it's still running.
+Nodes (1): Resolve a user query to one app or an ambiguous list.
 
 ### Community 397 - "Community 397"
 Cohesion: 1.0
-Nodes (1): Remove Claude PID file.
+Nodes (1): Return one catalog entry by stable app id.
 
 ### Community 398 - "Community 398"
 Cohesion: 1.0
-Nodes (1): Get Claude process if it's running.
+Nodes (1): Discover launchable app shortcuts from common Start Menu locations.
 
 ### Community 399 - "Community 399"
 Cohesion: 1.0
-Nodes (1): Check if Claude remote-control is currently running.
+Nodes (1): Return a few simple process-name hints for close matching.
 
 ### Community 400 - "Community 400"
 Cohesion: 1.0
-Nodes (1): Import pytesseract and configure a common Windows binary path if present.
+Nodes (1): Keep the first entry for each normalized app identity.
 
 ### Community 401 - "Community 401"
 Cohesion: 1.0
-Nodes (1): OCR the bottom status bar and click the first word matching any keyword.
+Nodes (1): Return the first existing path or a safe fallback executable name.
 
 ### Community 402 - "Community 402"
 Cohesion: 1.0
-Nodes (1): Focus Claude's composer input using UIA/OCR fallbacks.
+Nodes (1): Create a stable unique id for one Start Menu entry.
 
 ### Community 403 - "Community 403"
 Cohesion: 1.0
-Nodes (1): Focus Claude input, paste prompt text, and optionally submit.
+Nodes (1): Parse comma-separated Telegram user IDs, skipping malformed entries.
 
 ### Community 404 - "Community 404"
 Cohesion: 1.0
-Nodes (1): Handle /clauderemote command - open a cmd window in current repo and run claude
+Nodes (1): Bot configuration.      All values are read from ``os.environ`` when ``load()`
 
 ### Community 405 - "Community 405"
 Cohesion: 1.0
-Nodes (1): Handle /stopclaude command - stop claude remote-control.
+Nodes (1): (Re-)read every config value from ``os.environ``.
 
 ### Community 406 - "Community 406"
 Cohesion: 1.0
-Nodes (1): Handle /openclaude command - open Claude desktop app or restore if minimized.
+Nodes (1): Validate required configuration.
 
 ### Community 407 - "Community 407"
 Cohesion: 1.0
-Nodes (1): Find Claude desktop window and restore if minimized.
+Nodes (1): Load Windows UI automation modules on first use (cached after that).
 
 ### Community 408 - "Community 408"
 Cohesion: 1.0
-Nodes (1): Ensure Claude desktop is open, visible, and return the window.
+Nodes (1): Save Claude process PID to file.
 
 ### Community 409 - "Community 409"
 Cohesion: 1.0
-Nodes (1): Capture screenshot of Claude window.
+Nodes (1): Load Claude process PID from file and verify it's still running.
 
 ### Community 410 - "Community 410"
 Cohesion: 1.0
-Nodes (1): Handle /claudeask command - send message to Claude desktop.
+Nodes (1): Remove Claude PID file.
 
 ### Community 411 - "Community 411"
 Cohesion: 1.0
-Nodes (1): Handle /claudenew command - create new chat in Claude desktop.
+Nodes (1): Get Claude process if it's running.
 
 ### Community 412 - "Community 412"
 Cohesion: 1.0
-Nodes (1): Handle /claudescreen command - get screenshot of Claude desktop.
+Nodes (1): Check if Claude remote-control is currently running.
 
 ### Community 413 - "Community 413"
 Cohesion: 1.0
-Nodes (1): Handle /claudechat command - send message and get screenshot.
+Nodes (1): Import pytesseract and configure a common Windows binary path if present.
 
 ### Community 414 - "Community 414"
 Cohesion: 1.0
-Nodes (1): Handle /claudelatest command - open the most recent session.
+Nodes (1): OCR the bottom status bar and click the first word matching any keyword.
 
 ### Community 415 - "Community 415"
 Cohesion: 1.0
-Nodes (1): Handle /claudemode command - change Claude desktop mode.
+Nodes (1): Focus Claude's composer input using UIA/OCR fallbacks.
 
 ### Community 416 - "Community 416"
 Cohesion: 1.0
-Nodes (1): Handle /claudeacceptedits [ask|auto|plan|bypass] — set Claude edit mode.
+Nodes (1): Focus Claude input, paste prompt text, and optionally submit.
 
 ### Community 417 - "Community 417"
 Cohesion: 1.0
-Nodes (1): Handle /claudeselect command - select a conversation from search results.
+Nodes (1): Handle /clauderemote command - open a cmd window in current repo and run claude
 
 ### Community 418 - "Community 418"
 Cohesion: 1.0
-Nodes (1): Select a model by number or name (shared by command + message handler).
+Nodes (1): Handle /stopclaude command - stop claude remote-control.
 
 ### Community 419 - "Community 419"
 Cohesion: 1.0
-Nodes (1): Intercept plain-text replies when user is in model-selection state.      Retur
+Nodes (1): Handle /openclaude command - open Claude desktop app or restore if minimized.
 
 ### Community 420 - "Community 420"
 Cohesion: 1.0
-Nodes (1): Handle /claudesearch command - search conversations and show results.
+Nodes (1): Find Claude desktop window and restore if minimized.
 
 ### Community 421 - "Community 421"
 Cohesion: 1.0
-Nodes (1): Handle /claudeselect command - select a conversation from search results.
+Nodes (1): Ensure Claude desktop is open, visible, and return the window.
 
 ### Community 422 - "Community 422"
 Cohesion: 1.0
-Nodes (1): Handle /claudebranch command - select a git branch in new session.
+Nodes (1): Capture screenshot of Claude window.
 
 ### Community 423 - "Community 423"
 Cohesion: 1.0
-Nodes (1): Check if message is a repo selection. Returns True if handled.
+Nodes (1): Handle /claudeask command - send message to Claude desktop.
 
 ### Community 424 - "Community 424"
 Cohesion: 1.0
-Nodes (1): Handle /clauderepo command - show screenshot and options.
+Nodes (1): Handle /claudenew command - create new chat in Claude desktop.
 
 ### Community 425 - "Community 425"
 Cohesion: 1.0
-Nodes (1): List all repositories in the default folder.
+Nodes (1): Handle /claudescreen command - get screenshot of Claude desktop.
 
 ### Community 426 - "Community 426"
 Cohesion: 1.0
-Nodes (1): Select repository by path.
+Nodes (1): Handle /claudechat command - send message and get screenshot.
 
 ### Community 427 - "Community 427"
 Cohesion: 1.0
-Nodes (1): Open folder browser for manual selection.
+Nodes (1): Handle /claudelatest command - open the most recent session.
 
 ### Community 428 - "Community 428"
 Cohesion: 1.0
-Nodes (1): Track the last privacy-mode state requested by the bot.
+Nodes (1): Handle /claudemode command - change Claude desktop mode.
 
 ### Community 429 - "Community 429"
 Cohesion: 1.0
-Nodes (1): Turn the display off or wake it without locking the Windows session.
+Nodes (1): Handle /claudeacceptedits [ask|auto|plan|bypass] — set Claude edit mode.
 
 ### Community 430 - "Community 430"
 Cohesion: 1.0
-Nodes (1): Normalize privacy-mode command arguments into a supported action.
+Nodes (1): Handle /claudeselect command - select a conversation from search results.
 
 ### Community 431 - "Community 431"
 Cohesion: 1.0
-Nodes (1): Return an inline keyboard for app selections.
+Nodes (1): Select a model by number or name (shared by command + message handler).
 
 ### Community 432 - "Community 432"
 Cohesion: 1.0
-Nodes (1): Return a short picker list of common safe apps.
+Nodes (1): Intercept plain-text replies when user is in model-selection state.      Retur
 
 ### Community 433 - "Community 433"
 Cohesion: 1.0
-Nodes (1): Handle /openapp command - search and open a safe desktop app.
+Nodes (1): Handle /claudesearch command - search conversations and show results.
 
 ### Community 434 - "Community 434"
 Cohesion: 1.0
-Nodes (1): Handle /closeapp command - gracefully close a matching desktop app.
+Nodes (1): Handle /claudeselect command - select a conversation from search results.
 
 ### Community 435 - "Community 435"
 Cohesion: 1.0
-Nodes (1): Handle /stopbot command - stop the bot process with confirmation.
+Nodes (1): Handle /claudebranch command - select a git branch in new session.
 
 ### Community 436 - "Community 436"
 Cohesion: 1.0
-Nodes (1): Handle /sleep command - put PC to sleep.
+Nodes (1): Check if message is a repo selection. Returns True if handled.
 
 ### Community 437 - "Community 437"
 Cohesion: 1.0
-Nodes (1): Shutdown the host machine using the same OS-specific behavior as /shutdown.
+Nodes (1): Handle /clauderepo command - show screenshot and options.
 
 ### Community 438 - "Community 438"
 Cohesion: 1.0
-Nodes (1): Put the host to sleep and return a user-facing status message.
+Nodes (1): List all repositories in the default folder.
 
 ### Community 439 - "Community 439"
 Cohesion: 1.0
-Nodes (1): Handle /battery command - check battery status.
+Nodes (1): Select repository by path.
 
 ### Community 440 - "Community 440"
 Cohesion: 1.0
-Nodes (1): Handle /screenshot command - capture current screen.
+Nodes (1): Open folder browser for manual selection.
 
 ### Community 441 - "Community 441"
 Cohesion: 1.0
-Nodes (1): Handle /sleep command - put PC to sleep.
+Nodes (1): Track the last privacy-mode state requested by the bot.
 
 ### Community 442 - "Community 442"
 Cohesion: 1.0
-Nodes (1): Handle /wakeup command - wake up PC (requires Wake-on-LAN setup).
+Nodes (1): Turn the display off or wake it without locking the Windows session.
 
 ### Community 443 - "Community 443"
 Cohesion: 1.0
-Nodes (1): Handle /windows command - list switchable desktop windows.
+Nodes (1): Normalize privacy-mode command arguments into a supported action.
 
 ### Community 444 - "Community 444"
 Cohesion: 1.0
-Nodes (1): Handle /focuswindow command - activate a previously listed window.
+Nodes (1): Return an inline keyboard for app selections.
 
 ### Community 445 - "Community 445"
 Cohesion: 1.0
-Nodes (1): Handle /clipboard command - set clipboard content.
+Nodes (1): Return a short picker list of common safe apps.
 
 ### Community 446 - "Community 446"
 Cohesion: 1.0
-Nodes (1): Handle /viewclipboard command - get current clipboard content.
+Nodes (1): Handle /openapp command - search and open a safe desktop app.
 
 ### Community 447 - "Community 447"
 Cohesion: 1.0
-Nodes (1): Test configuration for local-source imports.
+Nodes (1): Handle /closeapp command - gracefully close a matching desktop app.
 
 ### Community 448 - "Community 448"
 Cohesion: 1.0
-Nodes (1): Load Windows UI automation modules on first use (cached after that).
+Nodes (1): Handle /stopbot command - stop the bot process with confirmation.
 
 ### Community 449 - "Community 449"
 Cohesion: 1.0
-Nodes (1): Save Claude process PID to file.
+Nodes (1): Handle /sleep command - put PC to sleep.
 
 ### Community 450 - "Community 450"
 Cohesion: 1.0
-Nodes (1): Load Claude process PID from file and verify it's still running.
+Nodes (1): Shutdown the host machine using the same OS-specific behavior as /shutdown.
 
 ### Community 451 - "Community 451"
 Cohesion: 1.0
-Nodes (1): Remove Claude PID file.
+Nodes (1): Put the host to sleep and return a user-facing status message.
 
 ### Community 452 - "Community 452"
 Cohesion: 1.0
-Nodes (1): Get Claude process if it's running.
+Nodes (1): Handle /battery command - check battery status.
 
 ### Community 453 - "Community 453"
 Cohesion: 1.0
-Nodes (1): Return fallback shortcuts for creating a fresh Claude conversation.
+Nodes (1): Handle /screenshot command - capture current screen.
 
 ### Community 454 - "Community 454"
 Cohesion: 1.0
-Nodes (1): Focus Claude's composer input using UIA/OCR fallbacks.
+Nodes (1): Handle /sleep command - put PC to sleep.
 
 ### Community 455 - "Community 455"
 Cohesion: 1.0
-Nodes (1): Handle /clauderemote command - open a cmd window in current repo and run claude
+Nodes (1): Handle /wakeup command - wake up PC (requires Wake-on-LAN setup).
 
 ### Community 456 - "Community 456"
 Cohesion: 1.0
-Nodes (1): Handle /stopclaude command - stop claude remote-control.
+Nodes (1): Handle /windows command - list switchable desktop windows.
 
 ### Community 457 - "Community 457"
 Cohesion: 1.0
-Nodes (1): Handle /openclaude command - open Claude desktop app or restore if minimized.
+Nodes (1): Handle /focuswindow command - activate a previously listed window.
 
 ### Community 458 - "Community 458"
 Cohesion: 1.0
-Nodes (1): Find Claude desktop window and restore if minimized.
+Nodes (1): Handle /clipboard command - set clipboard content.
 
 ### Community 459 - "Community 459"
 Cohesion: 1.0
-Nodes (1): Ensure Claude desktop is open, visible, and return the window.
+Nodes (1): Handle /viewclipboard command - get current clipboard content.
 
 ### Community 460 - "Community 460"
 Cohesion: 1.0
-Nodes (1): Capture screenshot of Claude window.
+Nodes (1): Test configuration for local-source imports.
 
 ### Community 461 - "Community 461"
 Cohesion: 1.0
-Nodes (1): Handle /claudeask command - send message to Claude desktop.
+Nodes (1): Load Windows UI automation modules on first use (cached after that).
 
 ### Community 462 - "Community 462"
 Cohesion: 1.0
-Nodes (1): Handle /claudenew command - create new chat in Claude desktop.
+Nodes (1): Save Claude process PID to file.
 
 ### Community 463 - "Community 463"
 Cohesion: 1.0
-Nodes (1): Handle /claudescreen command - get screenshot of Claude desktop.
+Nodes (1): Load Claude process PID from file and verify it's still running.
 
 ### Community 464 - "Community 464"
 Cohesion: 1.0
-Nodes (1): Handle /claudechat command - send message and get screenshot.
+Nodes (1): Remove Claude PID file.
 
 ### Community 465 - "Community 465"
 Cohesion: 1.0
-Nodes (1): Handle /claudelatest command - open the most recent session.
+Nodes (1): Get Claude process if it's running.
 
 ### Community 466 - "Community 466"
 Cohesion: 1.0
-Nodes (1): Handle /claudemode command - change Claude desktop mode.
+Nodes (1): Return fallback shortcuts for creating a fresh Claude conversation.
 
 ### Community 467 - "Community 467"
 Cohesion: 1.0
-Nodes (1): Handle /claudemodel command - change Claude model.
+Nodes (1): Focus Claude's composer input using UIA/OCR fallbacks.
 
 ### Community 468 - "Community 468"
 Cohesion: 1.0
-Nodes (1): Handle /claudesearch command - search conversations and show results.
+Nodes (1): Handle /clauderemote command - open a cmd window in current repo and run claude
 
 ### Community 469 - "Community 469"
 Cohesion: 1.0
-Nodes (1): Handle /claudebranch command - select a git branch in new session.
+Nodes (1): Handle /stopclaude command - stop claude remote-control.
 
 ### Community 470 - "Community 470"
 Cohesion: 1.0
-Nodes (1): Check if message is a repo selection. Returns True if handled.
+Nodes (1): Handle /openclaude command - open Claude desktop app or restore if minimized.
 
 ### Community 471 - "Community 471"
 Cohesion: 1.0
-Nodes (1): Handle /clauderepo command - show screenshot and options.
+Nodes (1): Find Claude desktop window and restore if minimized.
 
 ### Community 472 - "Community 472"
 Cohesion: 1.0
-Nodes (1): List all repositories in the default folder.
+Nodes (1): Ensure Claude desktop is open, visible, and return the window.
 
 ### Community 473 - "Community 473"
 Cohesion: 1.0
-Nodes (1): Select repository by path.
+Nodes (1): Capture screenshot of Claude window.
 
 ### Community 474 - "Community 474"
 Cohesion: 1.0
-Nodes (1): Open folder browser for manual selection.
+Nodes (1): Handle /claudeask command - send message to Claude desktop.
 
 ### Community 475 - "Community 475"
 Cohesion: 1.0
-Nodes (1): Track the last privacy-mode state requested by the bot.
+Nodes (1): Handle /claudenew command - create new chat in Claude desktop.
 
 ### Community 476 - "Community 476"
 Cohesion: 1.0
-Nodes (1): Render a human-readable timestamp for privacy mode status.
+Nodes (1): Handle /claudescreen command - get screenshot of Claude desktop.
 
 ### Community 477 - "Community 477"
 Cohesion: 1.0
-Nodes (1): Return a status summary for privacy mode.
+Nodes (1): Handle /claudechat command - send message and get screenshot.
 
 ### Community 478 - "Community 478"
 Cohesion: 1.0
-Nodes (1): Turn the display off or wake it without locking the Windows session.
+Nodes (1): Handle /claudelatest command - open the most recent session.
 
 ### Community 479 - "Community 479"
 Cohesion: 1.0
-Nodes (1): Normalize privacy-mode command arguments into a supported action.
+Nodes (1): Handle /claudemode command - change Claude desktop mode.
 
 ### Community 480 - "Community 480"
 Cohesion: 1.0
-Nodes (1): Handle /stopbot command - stop the bot process with confirmation.
+Nodes (1): Handle /claudemodel command - change Claude model.
 
 ### Community 481 - "Community 481"
 Cohesion: 1.0
-Nodes (1): Handle /shutdown command - shutdown laptop with confirmation.
+Nodes (1): Handle /claudesearch command - search conversations and show results.
 
 ### Community 482 - "Community 482"
 Cohesion: 1.0
-Nodes (1): Shutdown the host machine using the same OS-specific behavior as /shutdown.
+Nodes (1): Handle /claudebranch command - select a git branch in new session.
 
 ### Community 483 - "Community 483"
 Cohesion: 1.0
-Nodes (1): Handle /battery command - check battery status.
+Nodes (1): Check if message is a repo selection. Returns True if handled.
 
 ### Community 484 - "Community 484"
 Cohesion: 1.0
-Nodes (1): Handle /screenshot command - capture current screen.
+Nodes (1): Handle /clauderepo command - show screenshot and options.
 
 ### Community 485 - "Community 485"
 Cohesion: 1.0
-Nodes (1): Handle /wakeup command - wake up PC (requires Wake-on-LAN setup).
+Nodes (1): List all repositories in the default folder.
 
 ### Community 486 - "Community 486"
 Cohesion: 1.0
-Nodes (1): Handle /hotkey command - execute keyboard shortcuts.
+Nodes (1): Select repository by path.
 
 ### Community 487 - "Community 487"
 Cohesion: 1.0
-Nodes (1): Handle /windows command - list switchable desktop windows.
+Nodes (1): Open folder browser for manual selection.
 
 ### Community 488 - "Community 488"
 Cohesion: 1.0
-Nodes (1): Handle /focuswindow command - activate a previously listed window.
+Nodes (1): Track the last privacy-mode state requested by the bot.
 
 ### Community 489 - "Community 489"
 Cohesion: 1.0
-Nodes (1): Handle /clipboard command - set clipboard content.
+Nodes (1): Render a human-readable timestamp for privacy mode status.
 
 ### Community 490 - "Community 490"
 Cohesion: 1.0
-Nodes (1): Bot configuration.      All values are read from ``os.environ`` when ``load()`
+Nodes (1): Return a status summary for privacy mode.
 
 ### Community 491 - "Community 491"
 Cohesion: 1.0
-Nodes (1): (Re-)read every config value from ``os.environ``.
+Nodes (1): Turn the display off or wake it without locking the Windows session.
 
 ### Community 492 - "Community 492"
 Cohesion: 1.0
-Nodes (1): Validate required configuration.
+Nodes (1): Normalize privacy-mode command arguments into a supported action.
 
 ### Community 493 - "Community 493"
 Cohesion: 1.0
-Nodes (1): Run an update check at startup and log the result.      This is meant to be ca
+Nodes (1): Handle /stopbot command - stop the bot process with confirmation.
 
 ### Community 494 - "Community 494"
 Cohesion: 1.0
-Nodes (1): Background coroutine that periodically checks for updates.      Args:
+Nodes (1): Handle /shutdown command - shutdown laptop with confirmation.
 
 ### Community 495 - "Community 495"
 Cohesion: 1.0
-Nodes (1): Format an UpdateInfo into a user-friendly Telegram message.
+Nodes (1): Shutdown the host machine using the same OS-specific behavior as /shutdown.
 
 ### Community 496 - "Community 496"
 Cohesion: 1.0
-Nodes (1): Format an UpdateInfo into a user-friendly Telegram message.
+Nodes (1): Handle /battery command - check battery status.
 
 ### Community 497 - "Community 497"
 Cohesion: 1.0
-Nodes (1): Run an update check at startup and log the result.      This is meant to be ca
+Nodes (1): Handle /screenshot command - capture current screen.
 
 ### Community 498 - "Community 498"
 Cohesion: 1.0
-Nodes (1): Background coroutine that periodically checks for updates.      Args:
+Nodes (1): Handle /wakeup command - wake up PC (requires Wake-on-LAN setup).
 
 ### Community 499 - "Community 499"
 Cohesion: 1.0
-Nodes (1): Run an update check at startup and log the result.      This is meant to be ca
+Nodes (1): Handle /hotkey command - execute keyboard shortcuts.
 
 ### Community 500 - "Community 500"
 Cohesion: 1.0
-Nodes (1): Return the cached result and timestamp of the last update check.
+Nodes (1): Handle /windows command - list switchable desktop windows.
 
 ### Community 501 - "Community 501"
 Cohesion: 1.0
-Nodes (1): Pull latest changes from GitHub and re-install requirements.      Returns (suc
+Nodes (1): Handle /focuswindow command - activate a previously listed window.
 
 ### Community 502 - "Community 502"
 Cohesion: 1.0
-Nodes (1): Background coroutine that periodically checks for updates.      Args:
+Nodes (1): Handle /clipboard command - set clipboard content.
 
 ### Community 503 - "Community 503"
 Cohesion: 1.0
-Nodes (1): Format an UpdateInfo into a user-friendly Telegram message.
+Nodes (1): Bot configuration.      All values are read from ``os.environ`` when ``load()`
 
 ### Community 504 - "Community 504"
 Cohesion: 1.0
-Nodes (1): Handle Dropbox file deletion request.
+Nodes (1): (Re-)read every config value from ``os.environ``.
 
 ### Community 505 - "Community 505"
 Cohesion: 1.0
-Nodes (1): Delete file from Dropbox.      Returns:         dict with 'success' and 'error'
+Nodes (1): Validate required configuration.
 
 ### Community 506 - "Community 506"
 Cohesion: 1.0
-Nodes (1): Handle user's choice for large file upload.
+Nodes (1): Run an update check at startup and log the result.      This is meant to be ca
 
 ### Community 507 - "Community 507"
 Cohesion: 1.0
-Nodes (1): Handle /pwd command - show current directory.
+Nodes (1): Background coroutine that periodically checks for updates.      Args:
 
 ### Community 508 - "Community 508"
 Cohesion: 1.0
-Nodes (1): Handle /cd command - change directory.
+Nodes (1): Format an UpdateInfo into a user-friendly Telegram message.
 
 ### Community 509 - "Community 509"
 Cohesion: 1.0
-Nodes (1): Handle /ls command - list directory.
+Nodes (1): Format an UpdateInfo into a user-friendly Telegram message.
 
 ### Community 510 - "Community 510"
 Cohesion: 1.0
-Nodes (1): Handle /cat command - read file.
+Nodes (1): Run an update check at startup and log the result.      This is meant to be ca
 
 ### Community 511 - "Community 511"
 Cohesion: 1.0
-Nodes (1): Handle /find command - search files.
+Nodes (1): Background coroutine that periodically checks for updates.      Args:
 
 ### Community 512 - "Community 512"
 Cohesion: 1.0
-Nodes (1): Handle /info command - get file info.
+Nodes (1): Run an update check at startup and log the result.      This is meant to be ca
 
 ### Community 513 - "Community 513"
 Cohesion: 1.0
-Nodes (1): Grab the primary monitor and return a PIL Image.
+Nodes (1): Return the cached result and timestamp of the last update check.
 
 ### Community 514 - "Community 514"
 Cohesion: 1.0
-Nodes (1): Yield JPEG bytes forever until the session is torn down.      Emits ``b""`` as a
+Nodes (1): Pull latest changes from GitHub and re-install requirements.      Returns (suc
 
 ### Community 515 - "Community 515"
 Cohesion: 1.0
-Nodes (1): Per-session input dispatcher with rate limit and fail-safe tracking.
+Nodes (1): Background coroutine that periodically checks for updates.      Args:
 
 ### Community 516 - "Community 516"
 Cohesion: 1.0
-Nodes (1): Apply a single event. Returns an optional status string.
+Nodes (1): Format an UpdateInfo into a user-friendly Telegram message.
 
 ### Community 517 - "Community 517"
 Cohesion: 1.0
-Nodes (1): Idempotent teardown: stop WS, server, tunnel; drop from registry.      Each step
+Nodes (1): Handle Dropbox file deletion request.
 
 ### Community 518 - "Community 518"
 Cohesion: 1.0
-Nodes (1): Process management utility for Pocket Desk Agent. Handles stopping and status ch
+Nodes (1): Delete file from Dropbox.      Returns:         dict with 'success' and 'error'
 
 ### Community 519 - "Community 519"
 Cohesion: 1.0
-Nodes (1): Check if process is running on Windows.
+Nodes (1): Handle user's choice for large file upload.
 
 ### Community 520 - "Community 520"
 Cohesion: 1.0
-Nodes (1): Return the canonical PID file, falling back to the legacy location.
+Nodes (1): Handle /pwd command - show current directory.
 
 ### Community 521 - "Community 521"
 Cohesion: 1.0
-Nodes (1): Terminate the bot process.
+Nodes (1): Handle /cd command - change directory.
 
 ### Community 522 - "Community 522"
 Cohesion: 1.0
-Nodes (1): Check and print bot status.
+Nodes (1): Handle /ls command - list directory.
 
 ### Community 523 - "Community 523"
+Cohesion: 1.0
+Nodes (1): Handle /cat command - read file.
+
+### Community 524 - "Community 524"
+Cohesion: 1.0
+Nodes (1): Handle /find command - search files.
+
+### Community 525 - "Community 525"
+Cohesion: 1.0
+Nodes (1): Handle /info command - get file info.
+
+### Community 526 - "Community 526"
+Cohesion: 1.0
+Nodes (1): Grab the primary monitor and return a PIL Image.
+
+### Community 527 - "Community 527"
+Cohesion: 1.0
+Nodes (1): Yield JPEG bytes forever until the session is torn down.      Emits ``b""`` as a
+
+### Community 528 - "Community 528"
+Cohesion: 1.0
+Nodes (1): Per-session input dispatcher with rate limit and fail-safe tracking.
+
+### Community 529 - "Community 529"
+Cohesion: 1.0
+Nodes (1): Apply a single event. Returns an optional status string.
+
+### Community 530 - "Community 530"
+Cohesion: 1.0
+Nodes (1): Idempotent teardown: stop WS, server, tunnel; drop from registry.      Each step
+
+### Community 531 - "Community 531"
+Cohesion: 1.0
+Nodes (1): Process management utility for Pocket Desk Agent. Handles stopping and status ch
+
+### Community 532 - "Community 532"
+Cohesion: 1.0
+Nodes (1): Check if process is running on Windows.
+
+### Community 533 - "Community 533"
+Cohesion: 1.0
+Nodes (1): Return the canonical PID file, falling back to the legacy location.
+
+### Community 534 - "Community 534"
+Cohesion: 1.0
+Nodes (1): Terminate the bot process.
+
+### Community 535 - "Community 535"
+Cohesion: 1.0
+Nodes (1): Check and print bot status.
+
+### Community 536 - "Community 536"
 Cohesion: 1.0
 Nodes (1): Restart the bot process.
 
@@ -2697,997 +2762,1021 @@ Nodes (1): Restart the bot process.
   docs/AUTHENTICATION_REQUIREMENTS.md · relation: conceptually_related_to
 
 ## Knowledge Gaps
-- **1196 isolated node(s):** `Heuristic denylist for files that must never be shipped to a third-party API.`, `Strip outer ```markdown ... ``` fence when it wraps the entire output.`, `Check if a line looks like code.`, `Check if content is valid JSON.`, `Heuristic: check if content looks like YAML.` (+1191 more)
+- **1215 isolated node(s):** `Heuristic denylist for files that must never be shipped to a third-party API.`, `Strip outer ```markdown ... ``` fence when it wraps the entire output.`, `Check if a line looks like code.`, `Check if content is valid JSON.`, `Heuristic: check if content looks like YAML.` (+1210 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **Thin community `Community 28`** (2 nodes): `Centralized command registry for the bot.`, `command_map.py`
+- **Thin community `Community 29`** (2 nodes): `Centralized command registry for the bot.`, `command_map.py`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 29`** (2 nodes): `Shared constants for Pocket Desk Agent.  Single source of truth for API endpoi`, `constants.py`
+- **Thin community `Community 30`** (2 nodes): `Shared constants for Pocket Desk Agent.  Single source of truth for API endpoi`, `constants.py`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 30`** (2 nodes): `plugins/caveman/skills/compress/scripts/__init__.py`, `plugins.caveman.skills.compress.scripts`
+- **Thin community `Community 31`** (2 nodes): `plugins/caveman/skills/compress/scripts/__init__.py`, `plugins.caveman.skills.compress.scripts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 31`** (1 nodes): `Generate PKCE verifier and challenge`
+- **Thin community `Community 32`** (1 nodes): `Generate PKCE verifier and challenge`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 32`** (1 nodes): `Clear state for a new login flow.`
+- **Thin community `Community 33`** (1 nodes): `Clear state for a new login flow.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 33`** (1 nodes): `Create from dictionary.`
+- **Thin community `Community 34`** (1 nodes): `Create from dictionary.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 34`** (1 nodes): `(Re-)read every config value from ``os.environ``.`
+- **Thin community `Community 35`** (1 nodes): `(Re-)read every config value from ``os.environ``.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 35`** (1 nodes): `Validate required configuration.`
+- **Thin community `Community 36`** (1 nodes): `Validate required configuration.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 36`** (1 nodes): `Create an instance from persisted data.`
+- **Thin community `Community 37`** (1 nodes): `Create an instance from persisted data.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 37`** (1 nodes): `Escape values inserted into Task Scheduler XML.`
+- **Thin community `Community 38`** (1 nodes): `Escape values inserted into Task Scheduler XML.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 38`** (1 nodes): `Combine stdout and stderr for error reporting.`
+- **Thin community `Community 39`** (1 nodes): `Combine stdout and stderr for error reporting.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 39`** (1 nodes): `Return True when schtasks reports that the task does not exist.`
+- **Thin community `Community 40`** (1 nodes): `Return True when schtasks reports that the task does not exist.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 40`** (1 nodes): `Run a subprocess command and capture output as text.`
+- **Thin community `Community 41`** (1 nodes): `Run a subprocess command and capture output as text.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 41`** (1 nodes): `scripts.install.ps1`
+- **Thin community `Community 42`** (1 nodes): `scripts.install.ps1`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 42`** (1 nodes): `scripts`
+- **Thin community `Community 43`** (1 nodes): `scripts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 44`** (1 nodes): `Find all potential UI elements (icons, buttons, text blocks) on screen     using`
+- **Thin community `Community 45`** (1 nodes): `Render a consistent refusal for blocked file types.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 45`** (1 nodes): `Create multiple masks to capture both small icons and thin controls.`
+- **Thin community `Community 46`** (1 nodes): `Return visible child items with folders first.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 46`** (1 nodes): `Return a score for plausible UI candidates, or None when rejected.`
+- **Thin community `Community 47`** (1 nodes): `Build the interactive folder browser message for /getfile.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 47`** (1 nodes): `Merge overlapping candidates from multiple detection passes.`
+- **Thin community `Community 48`** (1 nodes): `Send a requested file using the shared Telegram or fallback upload flow.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 48`** (1 nodes): `Compute overlap ratio using the smaller box as denominator.`
+- **Thin community `Community 49`** (1 nodes): `Handle /pwd command - show current directory.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 49`** (1 nodes): `Best-effort OCR to suppress text regions from UI element detection.`
+- **Thin community `Community 50`** (1 nodes): `Handle /cd command - change directory.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 50`** (1 nodes): `Return True when a candidate substantially overlaps OCR-detected text.`
+- **Thin community `Community 51`** (1 nodes): `Handle /ls command - list directory.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 51`** (1 nodes): `Draw numbered markers on a screenshot at each match location.          Args:`
+- **Thin community `Community 52`** (1 nodes): `Handle /cat command - read file.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 52`** (1 nodes): `Map a hotkey string (e.g., 'ctrl+c') to a list of pyautogui key names.`
+- **Thin community `Community 53`** (1 nodes): `Handle /getfile command - send a file directly or start the browser.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 53`** (1 nodes): `Run a keyboard-only PyAutoGUI action with a lock-screen-friendly fallback.`
+- **Thin community `Community 54`** (1 nodes): `Handle /find command - search files.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 54`** (1 nodes): `Type text via PyAutoGUI with a safe fail-safe retry for lock screens.`
+- **Thin community `Community 55`** (1 nodes): `Handle /info command - get file info.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 55`** (1 nodes): `Type text via typewrite() with a safe fail-safe retry for lock screens.`
+- **Thin community `Community 56`** (1 nodes): `Handle reply-based navigation for the /getfile browser.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 56`** (1 nodes): `Press a key via PyAutoGUI with a safe fail-safe retry for lock screens.`
+- **Thin community `Community 57`** (1 nodes): `Find all potential UI elements (icons, buttons, text blocks) on screen     using`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 57`** (1 nodes): `Send a hotkey via PyAutoGUI with a safe fail-safe retry for lock screens.`
+- **Thin community `Community 58`** (1 nodes): `Create multiple masks to capture both small icons and thin controls.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 58`** (1 nodes): `Raise a clear error when Windows is on the secure lock-screen desktop.`
+- **Thin community `Community 59`** (1 nodes): `Return a score for plausible UI candidates, or None when rejected.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 59`** (1 nodes): `Return True when the active Windows input desktop is the secure Winlogon desktop`
+- **Thin community `Community 60`** (1 nodes): `Merge overlapping candidates from multiple detection passes.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 60`** (1 nodes): `Best-effort read of the active Windows input desktop name.`
+- **Thin community `Community 61`** (1 nodes): `Compute overlap ratio using the smaller box as denominator.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 61`** (1 nodes): `Handle /clicktext command - click at coordinates or search text.`
+- **Thin community `Community 62`** (1 nodes): `Best-effort OCR to suppress text regions from UI element detection.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 62`** (1 nodes): `Handle /findtext command - find text on screen and show coordinates.`
+- **Thin community `Community 63`** (1 nodes): `Return True when a candidate substantially overlaps OCR-detected text.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 63`** (1 nodes): `Handle /smartclick command - find text and click with disambiguation.`
+- **Thin community `Community 64`** (1 nodes): `Draw numbered markers on a screenshot at each match location.          Args:`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 64`** (1 nodes): `Handle /findelements command - find all UI elements on screen and label them.`
+- **Thin community `Community 65`** (1 nodes): `Map a hotkey string (e.g., 'ctrl+c') to a list of pyautogui key names.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 65`** (1 nodes): `Handle /pasteenter command - paste clipboard content and press Enter.`
+- **Thin community `Community 66`** (1 nodes): `Run a keyboard-only PyAutoGUI action with a lock-screen-friendly fallback.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 66`** (1 nodes): `Handle /typeenter command - type text and press Enter.`
+- **Thin community `Community 67`** (1 nodes): `Type text via PyAutoGUI with a safe fail-safe retry for lock screens.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 67`** (1 nodes): `Handle /scrollup [clicks] command.`
+- **Thin community `Community 68`** (1 nodes): `Type text via typewrite() with a safe fail-safe retry for lock screens.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 68`** (1 nodes): `Handle /scrolldown [clicks] command.`
+- **Thin community `Community 69`** (1 nodes): `Press a key via PyAutoGUI with a safe fail-safe retry for lock screens.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 69`** (1 nodes): `Load Windows UI automation modules on first use (cached after that).`
+- **Thin community `Community 70`** (1 nodes): `Send a hotkey via PyAutoGUI with a safe fail-safe retry for lock screens.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 70`** (1 nodes): `Save Claude process PID to file.`
+- **Thin community `Community 71`** (1 nodes): `Raise a clear error when Windows is on the secure lock-screen desktop.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 71`** (1 nodes): `Load Claude process PID from file and verify it's still running.`
+- **Thin community `Community 72`** (1 nodes): `Return True when the active Windows input desktop is the secure Winlogon desktop`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 72`** (1 nodes): `Remove Claude PID file.`
+- **Thin community `Community 73`** (1 nodes): `Best-effort read of the active Windows input desktop name.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 73`** (1 nodes): `Get Claude process if it's running.`
+- **Thin community `Community 74`** (1 nodes): `Handle /clicktext command - click at coordinates or search text.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 74`** (1 nodes): `Check if Claude remote-control is currently running.`
+- **Thin community `Community 75`** (1 nodes): `Handle /findtext command - find text on screen and show coordinates.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 75`** (1 nodes): `Return fallback shortcuts for creating a fresh Claude conversation.`
+- **Thin community `Community 76`** (1 nodes): `Handle /smartclick command - find text and click with disambiguation.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 76`** (1 nodes): `Import pytesseract and configure a common Windows binary path if present.`
+- **Thin community `Community 77`** (1 nodes): `Handle /findelements command - find all UI elements on screen and label them.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 77`** (1 nodes): `Focus Claude's composer input using UIA/OCR fallbacks.`
+- **Thin community `Community 78`** (1 nodes): `Handle /pasteenter command - paste clipboard content and press Enter.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 78`** (1 nodes): `Focus Claude input, paste prompt text, and optionally submit.`
+- **Thin community `Community 79`** (1 nodes): `Handle /typeenter command - type text and press Enter.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 79`** (1 nodes): `Handle /clauderemote command - open a cmd window in current repo and run claude`
+- **Thin community `Community 80`** (1 nodes): `Handle /scrollup [clicks] command.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 80`** (1 nodes): `Handle /stopclaude command - stop claude remote-control.`
+- **Thin community `Community 81`** (1 nodes): `Handle /scrolldown [clicks] command.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 81`** (1 nodes): `Handle /openclaude command - open Claude desktop app or restore if minimized.`
+- **Thin community `Community 82`** (1 nodes): `Load Windows UI automation modules on first use (cached after that).`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 82`** (1 nodes): `Find Claude desktop window and restore if minimized.`
+- **Thin community `Community 83`** (1 nodes): `Save Claude process PID to file.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 83`** (1 nodes): `Ensure Claude desktop is open, visible, and return the window.`
+- **Thin community `Community 84`** (1 nodes): `Load Claude process PID from file and verify it's still running.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 84`** (1 nodes): `Capture screenshot of Claude window.`
+- **Thin community `Community 85`** (1 nodes): `Remove Claude PID file.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 85`** (1 nodes): `Handle /claudeask command - send message to Claude desktop.`
+- **Thin community `Community 86`** (1 nodes): `Get Claude process if it's running.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 86`** (1 nodes): `Handle /claudenew command - create new chat in Claude desktop.`
+- **Thin community `Community 87`** (1 nodes): `Check if Claude remote-control is currently running.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 87`** (1 nodes): `Handle /claudescreen command - get screenshot of Claude desktop.`
+- **Thin community `Community 88`** (1 nodes): `Return fallback shortcuts for creating a fresh Claude conversation.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 88`** (1 nodes): `Handle /claudechat command - send message and get screenshot.`
+- **Thin community `Community 89`** (1 nodes): `Import pytesseract and configure a common Windows binary path if present.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 89`** (1 nodes): `Handle /claudelatest command - open the most recent session.`
+- **Thin community `Community 90`** (1 nodes): `Focus Claude's composer input using UIA/OCR fallbacks.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 90`** (1 nodes): `Handle /claudemode command - change Claude desktop mode.`
+- **Thin community `Community 91`** (1 nodes): `Focus Claude input, paste prompt text, and optionally submit.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 91`** (1 nodes): `Handle /claudeacceptedits [ask|auto|plan|bypass] — set Claude edit mode.`
+- **Thin community `Community 92`** (1 nodes): `Handle /clauderemote command - open a cmd window in current repo and run claude`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 92`** (1 nodes): `Handle /claudemodel — scan models (no args) or select by number / name.      S`
+- **Thin community `Community 93`** (1 nodes): `Handle /stopclaude command - stop claude remote-control.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 93`** (1 nodes): `Select a model by number or name (shared by command + message handler).`
+- **Thin community `Community 94`** (1 nodes): `Handle /openclaude command - open Claude desktop app or restore if minimized.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 94`** (1 nodes): `Intercept plain-text replies when user is in model-selection state.      Retur`
+- **Thin community `Community 95`** (1 nodes): `Find Claude desktop window and restore if minimized.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 95`** (1 nodes): `Handle /claudesearch command - search conversations and show results.`
+- **Thin community `Community 96`** (1 nodes): `Ensure Claude desktop is open, visible, and return the window.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 96`** (1 nodes): `Handle /claudeselect command - select a conversation from search results.`
+- **Thin community `Community 97`** (1 nodes): `Capture screenshot of Claude window.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 97`** (1 nodes): `Handle /claudebranch command - select a git branch in new session.`
+- **Thin community `Community 98`** (1 nodes): `Handle /claudeask command - send message to Claude desktop.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 98`** (1 nodes): `Check if message is a repo selection. Returns True if handled.`
+- **Thin community `Community 99`** (1 nodes): `Handle /claudenew command - create new chat in Claude desktop.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 99`** (1 nodes): `Handle /clauderepo command - show screenshot and options.`
+- **Thin community `Community 100`** (1 nodes): `Handle /claudescreen command - get screenshot of Claude desktop.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 100`** (1 nodes): `List all repositories in the default folder.`
+- **Thin community `Community 101`** (1 nodes): `Handle /claudechat command - send message and get screenshot.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 101`** (1 nodes): `Select repository by path.`
+- **Thin community `Community 102`** (1 nodes): `Handle /claudelatest command - open the most recent session.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 102`** (1 nodes): `Open folder browser for manual selection.`
+- **Thin community `Community 103`** (1 nodes): `Handle /claudemode command - change Claude desktop mode.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 103`** (1 nodes): `Build the OAuth authorization URL with PKCE`
+- **Thin community `Community 104`** (1 nodes): `Handle /claudeacceptedits [ask|auto|plan|bypass] — set Claude edit mode.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 104`** (1 nodes): `Start local HTTP server to receive OAuth callback`
+- **Thin community `Community 105`** (1 nodes): `Handle /claudemodel — scan models (no args) or select by number / name.      S`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 105`** (1 nodes): `Stop the callback server`
+- **Thin community `Community 106`** (1 nodes): `Select a model by number or name (shared by command + message handler).`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 106`** (1 nodes): `Exchange authorization code for access and refresh tokens`
+- **Thin community `Community 107`** (1 nodes): `Intercept plain-text replies when user is in model-selection state.      Retur`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 107`** (1 nodes): `Fetch user email from Google OAuth userinfo endpoint`
+- **Thin community `Community 108`** (1 nodes): `Handle /claudesearch command - search conversations and show results.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 108`** (1 nodes): `Fetch project ID from Antigravity API - matching working implementation`
+- **Thin community `Community 109`** (1 nodes): `Handle /claudeselect command - select a conversation from search results.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 109`** (1 nodes): `Load and validate saved tokens`
+- **Thin community `Community 110`** (1 nodes): `Handle /claudebranch command - select a git branch in new session.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 110`** (1 nodes): `Refresh the access token using refresh token`
+- **Thin community `Community 111`** (1 nodes): `Check if message is a repo selection. Returns True if handled.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 111`** (1 nodes): `Ensure we have a valid access token, refreshing if needed`
+- **Thin community `Community 112`** (1 nodes): `Handle /clauderepo command - show screenshot and options.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 112`** (1 nodes): `Clear all stored tokens`
+- **Thin community `Community 113`** (1 nodes): `List all repositories in the default folder.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 113`** (1 nodes): `Check if user is currently authenticated`
+- **Thin community `Community 114`** (1 nodes): `Select repository by path.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 114`** (1 nodes): `Start the complete OAuth login flow`
+- **Thin community `Community 115`** (1 nodes): `Open folder browser for manual selection.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 115`** (1 nodes): `Upgrade to the latest version from PyPI regardless of install type.      Alway`
+- **Thin community `Community 116`** (1 nodes): `Build the OAuth authorization URL with PKCE`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 116`** (1 nodes): `Wait briefly so pending messages flush, then restart the bot process.`
+- **Thin community `Community 117`** (1 nodes): `Start local HTTP server to receive OAuth callback`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 117`** (1 nodes): `Upgrade the installed package from PyPI.      Checks PyPI first — returns (Fal`
+- **Thin community `Community 118`** (1 nodes): `Stop the callback server`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 118`** (1 nodes): `Run an update check at startup and log the result.      This is meant to be ca`
+- **Thin community `Community 119`** (1 nodes): `Exchange authorization code for access and refresh tokens`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 119`** (1 nodes): `Background coroutine that periodically checks for updates.      Args:`
+- **Thin community `Community 120`** (1 nodes): `Fetch user email from Google OAuth userinfo endpoint`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 120`** (1 nodes): `Format an UpdateInfo into a user-friendly Telegram message.`
+- **Thin community `Community 121`** (1 nodes): `Fetch project ID from Antigravity API - matching working implementation`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 121`** (1 nodes): `Handle /clicktext command - click at coordinates or search text.`
+- **Thin community `Community 122`** (1 nodes): `Load and validate saved tokens`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 122`** (1 nodes): `Handle /findtext command - find text on screen and show coordinates.`
+- **Thin community `Community 123`** (1 nodes): `Refresh the access token using refresh token`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 123`** (1 nodes): `Handle /smartclick command - find text and click with disambiguation.`
+- **Thin community `Community 124`** (1 nodes): `Ensure we have a valid access token, refreshing if needed`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 124`** (1 nodes): `Handle /findelements command - find all UI elements on screen and label them.`
+- **Thin community `Community 125`** (1 nodes): `Clear all stored tokens`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 125`** (1 nodes): `Handle /clickelement command - click an element labeled by /findelements.`
+- **Thin community `Community 126`** (1 nodes): `Check if user is currently authenticated`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 126`** (1 nodes): `Handle /pasteenter command - paste clipboard content and press Enter.`
+- **Thin community `Community 127`** (1 nodes): `Start the complete OAuth login flow`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 127`** (1 nodes): `Handle /typeenter command - type text and press Enter.`
+- **Thin community `Community 128`** (1 nodes): `Upgrade to the latest version from PyPI regardless of install type.      Alway`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 128`** (1 nodes): `Handle /scrollup [clicks] command.`
+- **Thin community `Community 129`** (1 nodes): `Wait briefly so pending messages flush, then restart the bot process.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 129`** (1 nodes): `Handle /scrolldown [clicks] command.`
+- **Thin community `Community 130`** (1 nodes): `Upgrade the installed package from PyPI.      Checks PyPI first — returns (Fal`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 130`** (1 nodes): `Save Claude process PID to file.`
+- **Thin community `Community 131`** (1 nodes): `Run an update check at startup and log the result.      This is meant to be ca`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 131`** (1 nodes): `Load Claude process PID from file and verify it's still running.`
+- **Thin community `Community 132`** (1 nodes): `Background coroutine that periodically checks for updates.      Args:`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 132`** (1 nodes): `Remove Claude PID file.`
+- **Thin community `Community 133`** (1 nodes): `Format an UpdateInfo into a user-friendly Telegram message.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 133`** (1 nodes): `Get Claude process if it's running.`
+- **Thin community `Community 134`** (1 nodes): `Handle /clicktext command - click at coordinates or search text.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 134`** (1 nodes): `Check if Claude remote-control is currently running.`
+- **Thin community `Community 135`** (1 nodes): `Handle /findtext command - find text on screen and show coordinates.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 135`** (1 nodes): `Import pytesseract and configure a common Windows binary path if present.`
+- **Thin community `Community 136`** (1 nodes): `Handle /smartclick command - find text and click with disambiguation.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 136`** (1 nodes): `Import pytesseract and configure a common Windows binary path if present.`
+- **Thin community `Community 137`** (1 nodes): `Handle /findelements command - find all UI elements on screen and label them.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 137`** (1 nodes): `OCR the bottom status bar and click the first word matching any keyword.`
+- **Thin community `Community 138`** (1 nodes): `Handle /clickelement command - click an element labeled by /findelements.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 138`** (1 nodes): `Focus Claude's composer input using UIA/OCR fallbacks.`
+- **Thin community `Community 139`** (1 nodes): `Handle /pasteenter command - paste clipboard content and press Enter.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 139`** (1 nodes): `Focus Claude input, paste prompt text, and optionally submit.`
+- **Thin community `Community 140`** (1 nodes): `Handle /typeenter command - type text and press Enter.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 140`** (1 nodes): `Handle /clauderemote command - open a cmd window in current repo and run claude`
+- **Thin community `Community 141`** (1 nodes): `Handle /scrollup [clicks] command.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 141`** (1 nodes): `Handle /stopclaude command - stop claude remote-control.`
+- **Thin community `Community 142`** (1 nodes): `Handle /scrolldown [clicks] command.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 142`** (1 nodes): `Handle /openclaude command - open Claude desktop app or restore if minimized.`
+- **Thin community `Community 143`** (1 nodes): `Save Claude process PID to file.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 143`** (1 nodes): `Ensure Claude desktop is open, visible, and return the window.`
+- **Thin community `Community 144`** (1 nodes): `Load Claude process PID from file and verify it's still running.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 144`** (1 nodes): `Ensure Claude desktop is open, visible, and return the window.`
+- **Thin community `Community 145`** (1 nodes): `Remove Claude PID file.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 145`** (1 nodes): `Capture screenshot of Claude window.`
+- **Thin community `Community 146`** (1 nodes): `Get Claude process if it's running.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 146`** (1 nodes): `Handle /claudeask command - send message to Claude desktop.`
+- **Thin community `Community 147`** (1 nodes): `Check if Claude remote-control is currently running.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 147`** (1 nodes): `Handle /claudenew command - create new chat in Claude desktop.`
+- **Thin community `Community 148`** (1 nodes): `Import pytesseract and configure a common Windows binary path if present.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 148`** (1 nodes): `Handle /claudescreen command - get screenshot of Claude desktop.`
+- **Thin community `Community 149`** (1 nodes): `Import pytesseract and configure a common Windows binary path if present.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 149`** (1 nodes): `Handle /claudechat command - send message and get screenshot.`
+- **Thin community `Community 150`** (1 nodes): `OCR the bottom status bar and click the first word matching any keyword.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 150`** (1 nodes): `Handle /claudelatest command - open the most recent session.`
+- **Thin community `Community 151`** (1 nodes): `Focus Claude's composer input using UIA/OCR fallbacks.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 151`** (1 nodes): `Handle /claudemode command - change Claude desktop mode.`
+- **Thin community `Community 152`** (1 nodes): `Focus Claude input, paste prompt text, and optionally submit.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 152`** (1 nodes): `Handle /claudeacceptedits [ask|auto|plan|bypass] — set Claude edit mode.`
+- **Thin community `Community 153`** (1 nodes): `Handle /clauderemote command - open a cmd window in current repo and run claude`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 153`** (1 nodes): `Handle /claudemodel — scan models (no args) or select by number / name.      S`
+- **Thin community `Community 154`** (1 nodes): `Handle /stopclaude command - stop claude remote-control.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 154`** (1 nodes): `Select a model by number or name (shared by command + message handler).`
+- **Thin community `Community 155`** (1 nodes): `Handle /openclaude command - open Claude desktop app or restore if minimized.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 155`** (1 nodes): `Intercept plain-text replies when user is in model-selection state.      Retur`
+- **Thin community `Community 156`** (1 nodes): `Ensure Claude desktop is open, visible, and return the window.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 156`** (1 nodes): `Handle /claudesearch command - search conversations and show results.`
+- **Thin community `Community 157`** (1 nodes): `Ensure Claude desktop is open, visible, and return the window.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 157`** (1 nodes): `Handle /claudeselect command - select a conversation from search results.`
+- **Thin community `Community 158`** (1 nodes): `Capture screenshot of Claude window.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 158`** (1 nodes): `Handle /claudebranch command - select a git branch in new session.`
+- **Thin community `Community 159`** (1 nodes): `Handle /claudeask command - send message to Claude desktop.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 159`** (1 nodes): `Check if message is a repo selection. Returns True if handled.`
+- **Thin community `Community 160`** (1 nodes): `Handle /claudenew command - create new chat in Claude desktop.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 160`** (1 nodes): `Handle /clauderepo command - show screenshot and options.`
+- **Thin community `Community 161`** (1 nodes): `Handle /claudescreen command - get screenshot of Claude desktop.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 161`** (1 nodes): `List all repositories in the default folder.`
+- **Thin community `Community 162`** (1 nodes): `Handle /claudechat command - send message and get screenshot.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 162`** (1 nodes): `Select repository by path.`
+- **Thin community `Community 163`** (1 nodes): `Handle /claudelatest command - open the most recent session.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 163`** (1 nodes): `Open folder browser for manual selection.`
+- **Thin community `Community 164`** (1 nodes): `Handle /claudemode command - change Claude desktop mode.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 164`** (1 nodes): `Render a human-readable timestamp for privacy mode status.`
+- **Thin community `Community 165`** (1 nodes): `Handle /claudeacceptedits [ask|auto|plan|bypass] — set Claude edit mode.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 165`** (1 nodes): `Return a status summary for privacy mode.`
+- **Thin community `Community 166`** (1 nodes): `Handle /claudemodel — scan models (no args) or select by number / name.      S`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 166`** (1 nodes): `Return a status summary for privacy mode.`
+- **Thin community `Community 167`** (1 nodes): `Select a model by number or name (shared by command + message handler).`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 167`** (1 nodes): `Turn the display off or wake it without locking the Windows session.`
+- **Thin community `Community 168`** (1 nodes): `Intercept plain-text replies when user is in model-selection state.      Retur`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 168`** (1 nodes): `Normalize privacy-mode command arguments into a supported action.`
+- **Thin community `Community 169`** (1 nodes): `Handle /claudesearch command - search conversations and show results.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 169`** (1 nodes): `Copy image bytes into the Windows clipboard as CF_DIB.`
+- **Thin community `Community 170`** (1 nodes): `Handle /claudeselect command - select a conversation from search results.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 170`** (1 nodes): `Copy image bytes into the Windows clipboard as CF_DIB and return a digest.`
+- **Thin community `Community 171`** (1 nodes): `Handle /claudebranch command - select a git branch in new session.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 171`** (1 nodes): `Clear clipboard only when CF_DIB image still matches expected_hash.`
+- **Thin community `Community 172`** (1 nodes): `Check if message is a repo selection. Returns True if handled.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 172`** (1 nodes): `After TTL, clear image clipboard if unchanged.`
+- **Thin community `Community 173`** (1 nodes): `Handle /clauderepo command - show screenshot and options.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 173`** (1 nodes): `Schedule image clipboard auto-clear and replace any previous pending task.`
+- **Thin community `Community 174`** (1 nodes): `List all repositories in the default folder.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 174`** (1 nodes): `Return an inline keyboard for app selections.`
+- **Thin community `Community 175`** (1 nodes): `Select repository by path.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 175`** (1 nodes): `Return the inline keyboard for one force-close confirmation.`
+- **Thin community `Community 176`** (1 nodes): `Open folder browser for manual selection.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 176`** (1 nodes): `Return a short picker list of common safe apps.`
+- **Thin community `Community 177`** (1 nodes): `Render a human-readable timestamp for privacy mode status.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 177`** (1 nodes): `Handle /openapp command - search and open a safe desktop app.`
+- **Thin community `Community 178`** (1 nodes): `Return a status summary for privacy mode.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 178`** (1 nodes): `Handle /closeapp command - gracefully close a matching desktop app.`
+- **Thin community `Community 179`** (1 nodes): `Return a status summary for privacy mode.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 179`** (1 nodes): `Handle /shutdown command - shutdown laptop with confirmation.`
+- **Thin community `Community 180`** (1 nodes): `Turn the display off or wake it without locking the Windows session.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 180`** (1 nodes): `Handle /shutdown command - shutdown laptop with confirmation.`
+- **Thin community `Community 181`** (1 nodes): `Normalize privacy-mode command arguments into a supported action.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 181`** (1 nodes): `Shutdown the host machine using the same OS-specific behavior as /shutdown.`
+- **Thin community `Community 182`** (1 nodes): `Copy image bytes into the Windows clipboard as CF_DIB.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 182`** (1 nodes): `Put the host to sleep and return a user-facing status message.`
+- **Thin community `Community 183`** (1 nodes): `Copy image bytes into the Windows clipboard as CF_DIB and return a digest.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 183`** (1 nodes): `Handle /battery command - check battery status.`
+- **Thin community `Community 184`** (1 nodes): `Clear clipboard only when CF_DIB image still matches expected_hash.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 184`** (1 nodes): `Handle /screenshot command - capture current screen.`
+- **Thin community `Community 185`** (1 nodes): `After TTL, clear image clipboard if unchanged.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 185`** (1 nodes): `Handle /sleep command - put PC to sleep.`
+- **Thin community `Community 186`** (1 nodes): `Schedule image clipboard auto-clear and replace any previous pending task.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 186`** (1 nodes): `Handle /wakeup command - wake up PC (requires Wake-on-LAN setup).`
+- **Thin community `Community 187`** (1 nodes): `Return an inline keyboard for app selections.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 187`** (1 nodes): `Handle /privacy command - blank or wake the display without locking.`
+- **Thin community `Community 188`** (1 nodes): `Return the inline keyboard for one force-close confirmation.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 188`** (1 nodes): `Handle /hotkey command - execute keyboard shortcuts.`
+- **Thin community `Community 189`** (1 nodes): `Return a short picker list of common safe apps.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 189`** (1 nodes): `Handle /windows command - list switchable desktop windows.`
+- **Thin community `Community 190`** (1 nodes): `Handle /openapp command - search and open a safe desktop app.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 190`** (1 nodes): `Handle /focuswindow command - activate a previously listed window.`
+- **Thin community `Community 191`** (1 nodes): `Handle /closeapp command - gracefully close a matching desktop app.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 191`** (1 nodes): `Handle /clipboard command - set clipboard content.`
+- **Thin community `Community 192`** (1 nodes): `Handle /shutdown command - shutdown laptop with confirmation.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 192`** (1 nodes): `Handle /pasteimage by pasting a replied Telegram image into active app.`
+- **Thin community `Community 193`** (1 nodes): `Handle /shutdown command - shutdown laptop with confirmation.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 193`** (1 nodes): `Handle /pasteimages by pasting all images from a replied media group.`
+- **Thin community `Community 194`** (1 nodes): `Shutdown the host machine using the same OS-specific behavior as /shutdown.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 194`** (1 nodes): `Handle /viewclipboard command - get current clipboard content.`
+- **Thin community `Community 195`** (1 nodes): `Put the host to sleep and return a user-facing status message.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 195`** (1 nodes): `Return singleton recipe registry.`
+- **Thin community `Community 196`** (1 nodes): `Handle /battery command - check battery status.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 196`** (1 nodes): `Track the last privacy-mode state requested by the bot.`
+- **Thin community `Community 197`** (1 nodes): `Handle /screenshot command - capture current screen.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 197`** (1 nodes): `Render a human-readable timestamp for privacy mode status.`
+- **Thin community `Community 198`** (1 nodes): `Handle /sleep command - put PC to sleep.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 198`** (1 nodes): `Return a status summary for privacy mode.`
+- **Thin community `Community 199`** (1 nodes): `Handle /wakeup command - wake up PC (requires Wake-on-LAN setup).`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 199`** (1 nodes): `Turn the display off or wake it without locking the Windows session.`
+- **Thin community `Community 200`** (1 nodes): `Handle /privacy command - blank or wake the display without locking.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 200`** (1 nodes): `Normalize privacy-mode command arguments into a supported action.`
+- **Thin community `Community 201`** (1 nodes): `Handle /hotkey command - execute keyboard shortcuts.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 201`** (1 nodes): `Return a unique request token for inline app-selection callbacks.`
+- **Thin community `Community 202`** (1 nodes): `Handle /windows command - list switchable desktop windows.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 202`** (1 nodes): `Return an inline keyboard for app selections.`
+- **Thin community `Community 203`** (1 nodes): `Handle /focuswindow command - activate a previously listed window.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 203`** (1 nodes): `Return an inline keyboard for app selections.`
+- **Thin community `Community 204`** (1 nodes): `Handle /clipboard command - set clipboard content.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 204`** (1 nodes): `After TTL, clear image clipboard if unchanged.`
+- **Thin community `Community 205`** (1 nodes): `Handle /pasteimage by pasting a replied Telegram image into active app.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 205`** (1 nodes): `Schedule image clipboard auto-clear and replace any previous pending task.`
+- **Thin community `Community 206`** (1 nodes): `Handle /pasteimages by pasting all images from a replied media group.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 206`** (1 nodes): `Return an inline keyboard for app selections.`
+- **Thin community `Community 207`** (1 nodes): `Handle /viewclipboard command - get current clipboard content.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 207`** (1 nodes): `Return the inline keyboard for one force-close confirmation.`
+- **Thin community `Community 208`** (1 nodes): `Return singleton recipe registry.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 208`** (1 nodes): `Return a short picker list of common safe apps.`
+- **Thin community `Community 209`** (1 nodes): `Track the last privacy-mode state requested by the bot.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 209`** (1 nodes): `Handle /openapp command - search and open a safe desktop app.`
+- **Thin community `Community 210`** (1 nodes): `Render a human-readable timestamp for privacy mode status.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 210`** (1 nodes): `Handle /closeapp command - gracefully close a matching desktop app.`
+- **Thin community `Community 211`** (1 nodes): `Return a status summary for privacy mode.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 211`** (1 nodes): `Put the host to sleep and return a user-facing status message.`
+- **Thin community `Community 212`** (1 nodes): `Turn the display off or wake it without locking the Windows session.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 212`** (1 nodes): `Shutdown the host machine using the same OS-specific behavior as /shutdown.`
+- **Thin community `Community 213`** (1 nodes): `Normalize privacy-mode command arguments into a supported action.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 213`** (1 nodes): `Put the host to sleep and return a user-facing status message.`
+- **Thin community `Community 214`** (1 nodes): `Return a unique request token for inline app-selection callbacks.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 214`** (1 nodes): `Handle /screenshot command - capture current screen.`
+- **Thin community `Community 215`** (1 nodes): `Return an inline keyboard for app selections.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 215`** (1 nodes): `Handle /sleep command - put PC to sleep.`
+- **Thin community `Community 216`** (1 nodes): `Return an inline keyboard for app selections.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 216`** (1 nodes): `Handle /wakeup command - wake up PC (requires Wake-on-LAN setup).`
+- **Thin community `Community 217`** (1 nodes): `After TTL, clear image clipboard if unchanged.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 217`** (1 nodes): `Handle /viewclipboard command - get current clipboard content.`
+- **Thin community `Community 218`** (1 nodes): `Schedule image clipboard auto-clear and replace any previous pending task.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 218`** (1 nodes): `Handle /windows command - list switchable desktop windows.`
+- **Thin community `Community 219`** (1 nodes): `Return an inline keyboard for app selections.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 219`** (1 nodes): `Handle /focuswindow command - activate a previously listed window.`
+- **Thin community `Community 220`** (1 nodes): `Return the inline keyboard for one force-close confirmation.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 220`** (1 nodes): `Handle /clipboard command - set clipboard content.`
+- **Thin community `Community 221`** (1 nodes): `Return a short picker list of common safe apps.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 221`** (1 nodes): `Handle /pasteimage by pasting a replied Telegram image into active app.`
+- **Thin community `Community 222`** (1 nodes): `Handle /openapp command - search and open a safe desktop app.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 222`** (1 nodes): `Handle /pasteimages by pasting all images from a replied media group.`
+- **Thin community `Community 223`** (1 nodes): `Handle /closeapp command - gracefully close a matching desktop app.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 223`** (1 nodes): `Handle /viewclipboard command - get current clipboard content.`
+- **Thin community `Community 224`** (1 nodes): `Put the host to sleep and return a user-facing status message.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 224`** (1 nodes): `Track the last privacy-mode state requested by the bot.`
+- **Thin community `Community 225`** (1 nodes): `Shutdown the host machine using the same OS-specific behavior as /shutdown.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 225`** (1 nodes): `Render a human-readable timestamp for privacy mode status.`
+- **Thin community `Community 226`** (1 nodes): `Put the host to sleep and return a user-facing status message.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 226`** (1 nodes): `Return a status summary for privacy mode.`
+- **Thin community `Community 227`** (1 nodes): `Handle /screenshot command - capture current screen.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 227`** (1 nodes): `Turn the display off or wake it without locking the Windows session.`
+- **Thin community `Community 228`** (1 nodes): `Handle /sleep command - put PC to sleep.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 228`** (1 nodes): `Normalize privacy-mode command arguments into a supported action.`
+- **Thin community `Community 229`** (1 nodes): `Handle /wakeup command - wake up PC (requires Wake-on-LAN setup).`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 229`** (1 nodes): `Return a unique request token for inline app-selection callbacks.`
+- **Thin community `Community 230`** (1 nodes): `Handle /viewclipboard command - get current clipboard content.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 230`** (1 nodes): `Return the inline keyboard for one force-close confirmation.`
+- **Thin community `Community 231`** (1 nodes): `Handle /windows command - list switchable desktop windows.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 231`** (1 nodes): `Put the host to sleep and return a user-facing status message.`
+- **Thin community `Community 232`** (1 nodes): `Handle /focuswindow command - activate a previously listed window.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 232`** (1 nodes): `Handle /openapp command - search and open a safe desktop app.`
+- **Thin community `Community 233`** (1 nodes): `Handle /clipboard command - set clipboard content.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 233`** (1 nodes): `Handle /closeapp command - gracefully close a matching desktop app.`
+- **Thin community `Community 234`** (1 nodes): `Handle /pasteimage by pasting a replied Telegram image into active app.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 234`** (1 nodes): `Handle /stopbot command - stop the bot process with confirmation.`
+- **Thin community `Community 235`** (1 nodes): `Handle /pasteimages by pasting all images from a replied media group.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 235`** (1 nodes): `Handle /privacy command - blank or wake the display without locking.`
+- **Thin community `Community 236`** (1 nodes): `Handle /viewclipboard command - get current clipboard content.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 236`** (1 nodes): `Shutdown the host machine using the same OS-specific behavior as /shutdown.`
+- **Thin community `Community 237`** (1 nodes): `Track the last privacy-mode state requested by the bot.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 237`** (1 nodes): `Put the host to sleep and return a user-facing status message.`
+- **Thin community `Community 238`** (1 nodes): `Render a human-readable timestamp for privacy mode status.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 238`** (1 nodes): `Handle /battery command - check battery status.`
+- **Thin community `Community 239`** (1 nodes): `Return a status summary for privacy mode.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 239`** (1 nodes): `Handle /sleep command - put PC to sleep.`
+- **Thin community `Community 240`** (1 nodes): `Turn the display off or wake it without locking the Windows session.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 240`** (1 nodes): `Handle /privacy command - blank or wake the display without locking.`
+- **Thin community `Community 241`** (1 nodes): `Normalize privacy-mode command arguments into a supported action.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 241`** (1 nodes): `Handle /wakeup command - wake up PC (requires Wake-on-LAN setup).`
+- **Thin community `Community 242`** (1 nodes): `Return a unique request token for inline app-selection callbacks.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 242`** (1 nodes): `Handle /privacy command - blank or wake the display without locking.`
+- **Thin community `Community 243`** (1 nodes): `Return the inline keyboard for one force-close confirmation.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 243`** (1 nodes): `Handle /hotkey command - execute keyboard shortcuts.`
+- **Thin community `Community 244`** (1 nodes): `Put the host to sleep and return a user-facing status message.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 244`** (1 nodes): `Handle /windows command - list switchable desktop windows.`
+- **Thin community `Community 245`** (1 nodes): `Handle /openapp command - search and open a safe desktop app.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 245`** (1 nodes): `Handle /focuswindow command - activate a previously listed window.`
+- **Thin community `Community 246`** (1 nodes): `Handle /closeapp command - gracefully close a matching desktop app.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 246`** (1 nodes): `Handle /clipboard command - set clipboard content.`
+- **Thin community `Community 247`** (1 nodes): `Handle /stopbot command - stop the bot process with confirmation.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 247`** (1 nodes): `Handle /pasteimage by pasting a replied Telegram image into active app.`
+- **Thin community `Community 248`** (1 nodes): `Handle /privacy command - blank or wake the display without locking.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 248`** (1 nodes): `Handle /pasteimages by pasting all images from a replied media group.`
+- **Thin community `Community 249`** (1 nodes): `Shutdown the host machine using the same OS-specific behavior as /shutdown.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 249`** (1 nodes): `Handle /viewclipboard command - get current clipboard content.`
+- **Thin community `Community 250`** (1 nodes): `Put the host to sleep and return a user-facing status message.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 250`** (1 nodes): `Track the last privacy-mode state requested by the bot.`
+- **Thin community `Community 251`** (1 nodes): `Handle /battery command - check battery status.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 251`** (1 nodes): `Render a human-readable timestamp for privacy mode status.`
+- **Thin community `Community 252`** (1 nodes): `Handle /sleep command - put PC to sleep.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 252`** (1 nodes): `Return a status summary for privacy mode.`
+- **Thin community `Community 253`** (1 nodes): `Handle /privacy command - blank or wake the display without locking.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 253`** (1 nodes): `Turn the display off or wake it without locking the Windows session.`
+- **Thin community `Community 254`** (1 nodes): `Handle /wakeup command - wake up PC (requires Wake-on-LAN setup).`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 254`** (1 nodes): `Normalize privacy-mode command arguments into a supported action.`
+- **Thin community `Community 255`** (1 nodes): `Handle /privacy command - blank or wake the display without locking.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 255`** (1 nodes): `Return a unique request token for inline app-selection callbacks.`
+- **Thin community `Community 256`** (1 nodes): `Handle /hotkey command - execute keyboard shortcuts.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 256`** (1 nodes): `Copy image bytes into the Windows clipboard as CF_DIB.`
+- **Thin community `Community 257`** (1 nodes): `Handle /windows command - list switchable desktop windows.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 257`** (1 nodes): `Return the inline keyboard for one force-close confirmation.`
+- **Thin community `Community 258`** (1 nodes): `Handle /focuswindow command - activate a previously listed window.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 258`** (1 nodes): `Return a short picker list of common safe apps.`
+- **Thin community `Community 259`** (1 nodes): `Handle /clipboard command - set clipboard content.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 259`** (1 nodes): `Handle /openapp command - search and open a safe desktop app.`
+- **Thin community `Community 260`** (1 nodes): `Handle /pasteimage by pasting a replied Telegram image into active app.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 260`** (1 nodes): `Handle /stopbot command - stop the bot process with confirmation.`
+- **Thin community `Community 261`** (1 nodes): `Handle /pasteimages by pasting all images from a replied media group.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 261`** (1 nodes): `Handle /shutdown command - shutdown laptop with confirmation.`
+- **Thin community `Community 262`** (1 nodes): `Handle /viewclipboard command - get current clipboard content.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 262`** (1 nodes): `Shutdown the host machine using the same OS-specific behavior as /shutdown.`
+- **Thin community `Community 263`** (1 nodes): `Track the last privacy-mode state requested by the bot.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 263`** (1 nodes): `Handle /screenshot command - capture current screen.`
+- **Thin community `Community 264`** (1 nodes): `Render a human-readable timestamp for privacy mode status.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 264`** (1 nodes): `Handle /sleep command - put PC to sleep.`
+- **Thin community `Community 265`** (1 nodes): `Return a status summary for privacy mode.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 265`** (1 nodes): `Handle /hotkey command - execute keyboard shortcuts.`
+- **Thin community `Community 266`** (1 nodes): `Turn the display off or wake it without locking the Windows session.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 266`** (1 nodes): `Handle /privacy command - blank or wake the display without locking.`
+- **Thin community `Community 267`** (1 nodes): `Normalize privacy-mode command arguments into a supported action.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 267`** (1 nodes): `Handle /hotkey command - execute keyboard shortcuts.`
+- **Thin community `Community 268`** (1 nodes): `Return a unique request token for inline app-selection callbacks.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 268`** (1 nodes): `Handle /windows command - list switchable desktop windows.`
+- **Thin community `Community 269`** (1 nodes): `Copy image bytes into the Windows clipboard as CF_DIB.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 269`** (1 nodes): `Handle /focuswindow command - activate a previously listed window.`
+- **Thin community `Community 270`** (1 nodes): `Return the inline keyboard for one force-close confirmation.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 270`** (1 nodes): `Handle /clipboard command - set clipboard content.`
+- **Thin community `Community 271`** (1 nodes): `Return a short picker list of common safe apps.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 271`** (1 nodes): `Handle /pasteimage by pasting a replied Telegram image into active app.`
+- **Thin community `Community 272`** (1 nodes): `Handle /openapp command - search and open a safe desktop app.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 272`** (1 nodes): `Handle /viewclipboard command - get current clipboard content.`
+- **Thin community `Community 273`** (1 nodes): `Handle /stopbot command - stop the bot process with confirmation.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 273`** (1 nodes): `Return the inline keyboard for one force-close confirmation.`
+- **Thin community `Community 274`** (1 nodes): `Handle /shutdown command - shutdown laptop with confirmation.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 274`** (1 nodes): `Return a short picker list of common safe apps.`
+- **Thin community `Community 275`** (1 nodes): `Shutdown the host machine using the same OS-specific behavior as /shutdown.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 275`** (1 nodes): `Handle /openapp command - search and open a safe desktop app.`
+- **Thin community `Community 276`** (1 nodes): `Handle /screenshot command - capture current screen.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 276`** (1 nodes): `Handle /closeapp command - gracefully close a matching desktop app.`
+- **Thin community `Community 277`** (1 nodes): `Handle /sleep command - put PC to sleep.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 277`** (1 nodes): `Handle /stopbot command - stop the bot process with confirmation.`
+- **Thin community `Community 278`** (1 nodes): `Handle /hotkey command - execute keyboard shortcuts.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 278`** (1 nodes): `Handle /shutdown command - shutdown laptop with confirmation.`
+- **Thin community `Community 279`** (1 nodes): `Handle /privacy command - blank or wake the display without locking.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 279`** (1 nodes): `Shutdown the host machine using the same OS-specific behavior as /shutdown.`
+- **Thin community `Community 280`** (1 nodes): `Handle /hotkey command - execute keyboard shortcuts.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 280`** (1 nodes): `Put the host to sleep and return a user-facing status message.`
+- **Thin community `Community 281`** (1 nodes): `Handle /windows command - list switchable desktop windows.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 281`** (1 nodes): `Handle /battery command - check battery status.`
+- **Thin community `Community 282`** (1 nodes): `Handle /focuswindow command - activate a previously listed window.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 282`** (1 nodes): `Handle /screenshot command - capture current screen.`
+- **Thin community `Community 283`** (1 nodes): `Handle /clipboard command - set clipboard content.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 283`** (1 nodes): `Handle /wakeup command - wake up PC (requires Wake-on-LAN setup).`
+- **Thin community `Community 284`** (1 nodes): `Handle /pasteimage by pasting a replied Telegram image into active app.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 284`** (1 nodes): `Handle /privacy command - blank or wake the display without locking.`
+- **Thin community `Community 285`** (1 nodes): `Handle /viewclipboard command - get current clipboard content.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 285`** (1 nodes): `Handle /hotkey command - execute keyboard shortcuts.`
+- **Thin community `Community 286`** (1 nodes): `Return the inline keyboard for one force-close confirmation.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 286`** (1 nodes): `Handle /windows command - list switchable desktop windows.`
+- **Thin community `Community 287`** (1 nodes): `Return a short picker list of common safe apps.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 287`** (1 nodes): `Handle /focuswindow command - activate a previously listed window.`
+- **Thin community `Community 288`** (1 nodes): `Handle /openapp command - search and open a safe desktop app.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 288`** (1 nodes): `Handle /clipboard command - set clipboard content.`
+- **Thin community `Community 289`** (1 nodes): `Handle /closeapp command - gracefully close a matching desktop app.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 289`** (1 nodes): `Handle /viewclipboard command - get current clipboard content.`
+- **Thin community `Community 290`** (1 nodes): `Handle /stopbot command - stop the bot process with confirmation.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 290`** (1 nodes): `Focus Claude input, paste prompt text, and optionally submit.`
+- **Thin community `Community 291`** (1 nodes): `Handle /shutdown command - shutdown laptop with confirmation.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 291`** (1 nodes): `Handle /clauderemote command - open a cmd window in current repo and run claude`
+- **Thin community `Community 292`** (1 nodes): `Shutdown the host machine using the same OS-specific behavior as /shutdown.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 292`** (1 nodes): `Handle /stopclaude command - stop claude remote-control.`
+- **Thin community `Community 293`** (1 nodes): `Put the host to sleep and return a user-facing status message.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 293`** (1 nodes): `Handle /openclaude command - open Claude desktop app or restore if minimized.`
+- **Thin community `Community 294`** (1 nodes): `Handle /battery command - check battery status.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 294`** (1 nodes): `Find Claude desktop window and restore if minimized.`
+- **Thin community `Community 295`** (1 nodes): `Handle /screenshot command - capture current screen.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 295`** (1 nodes): `Capture screenshot of Claude window.`
+- **Thin community `Community 296`** (1 nodes): `Handle /wakeup command - wake up PC (requires Wake-on-LAN setup).`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 296`** (1 nodes): `Handle /claudeask command - send message to Claude desktop.`
+- **Thin community `Community 297`** (1 nodes): `Handle /privacy command - blank or wake the display without locking.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 297`** (1 nodes): `Handle /claudenew command - create new chat in Claude desktop.`
+- **Thin community `Community 298`** (1 nodes): `Handle /hotkey command - execute keyboard shortcuts.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 298`** (1 nodes): `Handle /claudescreen command - get screenshot of Claude desktop.`
+- **Thin community `Community 299`** (1 nodes): `Handle /windows command - list switchable desktop windows.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 299`** (1 nodes): `Handle /claudechat command - send message and get screenshot.`
+- **Thin community `Community 300`** (1 nodes): `Handle /focuswindow command - activate a previously listed window.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 300`** (1 nodes): `Handle /claudelatest command - open the most recent session.`
+- **Thin community `Community 301`** (1 nodes): `Handle /clipboard command - set clipboard content.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 301`** (1 nodes): `Handle /claudemode command - change Claude desktop mode.`
+- **Thin community `Community 302`** (1 nodes): `Handle /viewclipboard command - get current clipboard content.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 302`** (1 nodes): `Handle /claudeacceptedits [ask|auto|plan|bypass] — set Claude edit mode.`
+- **Thin community `Community 303`** (1 nodes): `Focus Claude input, paste prompt text, and optionally submit.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 303`** (1 nodes): `Handle /claudemodel — scan models (no args) or select by number / name.      S`
+- **Thin community `Community 304`** (1 nodes): `Handle /clauderemote command - open a cmd window in current repo and run claude`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 304`** (1 nodes): `Select a model by number or name (shared by command + message handler).`
+- **Thin community `Community 305`** (1 nodes): `Handle /stopclaude command - stop claude remote-control.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 305`** (1 nodes): `Intercept plain-text replies when user is in model-selection state.      Retur`
+- **Thin community `Community 306`** (1 nodes): `Handle /openclaude command - open Claude desktop app or restore if minimized.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 306`** (1 nodes): `Handle /claudesearch command - search conversations and show results.`
+- **Thin community `Community 307`** (1 nodes): `Find Claude desktop window and restore if minimized.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 307`** (1 nodes): `Handle /claudeselect command - select a conversation from search results.`
+- **Thin community `Community 308`** (1 nodes): `Capture screenshot of Claude window.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 308`** (1 nodes): `Handle /claudebranch command - select a git branch in new session.`
+- **Thin community `Community 309`** (1 nodes): `Handle /claudeask command - send message to Claude desktop.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 309`** (1 nodes): `Check if message is a repo selection. Returns True if handled.`
+- **Thin community `Community 310`** (1 nodes): `Handle /claudenew command - create new chat in Claude desktop.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 310`** (1 nodes): `Handle /clauderepo command - show screenshot and options.`
+- **Thin community `Community 311`** (1 nodes): `Handle /claudescreen command - get screenshot of Claude desktop.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 311`** (1 nodes): `List all repositories in the default folder.`
+- **Thin community `Community 312`** (1 nodes): `Handle /claudechat command - send message and get screenshot.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 312`** (1 nodes): `Select repository by path.`
+- **Thin community `Community 313`** (1 nodes): `Handle /claudelatest command - open the most recent session.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 313`** (1 nodes): `Open folder browser for manual selection.`
+- **Thin community `Community 314`** (1 nodes): `Handle /claudemode command - change Claude desktop mode.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 314`** (1 nodes): `Return True if the project root is a git repository (source checkout).`
+- **Thin community `Community 315`** (1 nodes): `Handle /claudeacceptedits [ask|auto|plan|bypass] — set Claude edit mode.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 315`** (1 nodes): `Public alias for _is_git_repo.`
+- **Thin community `Community 316`** (1 nodes): `Handle /claudemodel — scan models (no args) or select by number / name.      S`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 316`** (1 nodes): `Parse a semver string into a comparable tuple (major, minor, patch).`
+- **Thin community `Community 317`** (1 nodes): `Select a model by number or name (shared by command + message handler).`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 317`** (1 nodes): `Result of a check-for-updates query.`
+- **Thin community `Community 318`** (1 nodes): `Intercept plain-text replies when user is in model-selection state.      Retur`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 318`** (1 nodes): `Run a git sub-command and return the completed process.`
+- **Thin community `Community 319`** (1 nodes): `Handle /claudesearch command - search conversations and show results.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 319`** (1 nodes): `Return the current local HEAD commit SHA (full).`
+- **Thin community `Community 320`** (1 nodes): `Handle /claudeselect command - select a conversation from search results.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 320`** (1 nodes): `Return the current local HEAD commit SHA (short 7-char).`
+- **Thin community `Community 321`** (1 nodes): `Handle /claudebranch command - select a git branch in new session.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 321`** (1 nodes): `Return the current local HEAD commit SHA (short 7-char).`
+- **Thin community `Community 322`** (1 nodes): `Check if message is a repo selection. Returns True if handled.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 322`** (1 nodes): `Return the date of the local HEAD commit.`
+- **Thin community `Community 323`** (1 nodes): `Handle /clauderepo command - show screenshot and options.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 323`** (1 nodes): `Query PyPI for the latest published version of pocket-desk-agent.      Returns`
+- **Thin community `Community 324`** (1 nodes): `List all repositories in the default folder.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 324`** (1 nodes): `Check PyPI for the latest published version of pocket-desk-agent.      Always`
+- **Thin community `Community 325`** (1 nodes): `Select repository by path.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 325`** (1 nodes): `Return the cached result and timestamp of the last update check.`
+- **Thin community `Community 326`** (1 nodes): `Open folder browser for manual selection.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 326`** (1 nodes): `Pull the latest changes for the current tracked branch and re-install     requir`
+- **Thin community `Community 327`** (1 nodes): `Return True if the project root is a git repository (source checkout).`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 327`** (1 nodes): `Upgrade the installed package from PyPI.      Checks PyPI first — returns (Fal`
+- **Thin community `Community 328`** (1 nodes): `Public alias for _is_git_repo.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 328`** (1 nodes): `Run an update check at startup and log the result.      This is meant to be ca`
+- **Thin community `Community 329`** (1 nodes): `Parse a semver string into a comparable tuple (major, minor, patch).`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 329`** (1 nodes): `Background coroutine that periodically checks for updates.      Args:`
+- **Thin community `Community 330`** (1 nodes): `Result of a check-for-updates query.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 330`** (1 nodes): `Format an UpdateInfo into a user-friendly Telegram message.`
+- **Thin community `Community 331`** (1 nodes): `Run a git sub-command and return the completed process.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 331`** (1 nodes): `Save Claude process PID to file.`
+- **Thin community `Community 332`** (1 nodes): `Return the current local HEAD commit SHA (full).`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 332`** (1 nodes): `Remove Claude PID file.`
+- **Thin community `Community 333`** (1 nodes): `Return the current local HEAD commit SHA (short 7-char).`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 333`** (1 nodes): `Get Claude process if it's running.`
+- **Thin community `Community 334`** (1 nodes): `Return the current local HEAD commit SHA (short 7-char).`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 334`** (1 nodes): `Check if Claude remote-control is currently running.`
+- **Thin community `Community 335`** (1 nodes): `Return the date of the local HEAD commit.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 335`** (1 nodes): `Return fallback shortcuts for creating a fresh Claude conversation.`
+- **Thin community `Community 336`** (1 nodes): `Query PyPI for the latest published version of pocket-desk-agent.      Returns`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 336`** (1 nodes): `Import pytesseract and configure a common Windows binary path if present.`
+- **Thin community `Community 337`** (1 nodes): `Check PyPI for the latest published version of pocket-desk-agent.      Always`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 337`** (1 nodes): `OCR the bottom status bar and click the first word matching any keyword.`
+- **Thin community `Community 338`** (1 nodes): `Return the cached result and timestamp of the last update check.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 338`** (1 nodes): `Focus Claude's composer input using UIA/OCR fallbacks.`
+- **Thin community `Community 339`** (1 nodes): `Pull the latest changes for the current tracked branch and re-install     requir`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 339`** (1 nodes): `Focus Claude input, paste prompt text, and optionally submit.`
+- **Thin community `Community 340`** (1 nodes): `Upgrade the installed package from PyPI.      Checks PyPI first — returns (Fal`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 340`** (1 nodes): `Handle /clauderemote command - open a cmd window in current repo and run claude`
+- **Thin community `Community 341`** (1 nodes): `Run an update check at startup and log the result.      This is meant to be ca`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 341`** (1 nodes): `Handle /stopclaude command - stop claude remote-control.`
+- **Thin community `Community 342`** (1 nodes): `Background coroutine that periodically checks for updates.      Args:`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 342`** (1 nodes): `Handle /openclaude command - open Claude desktop app or restore if minimized.`
+- **Thin community `Community 343`** (1 nodes): `Format an UpdateInfo into a user-friendly Telegram message.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 343`** (1 nodes): `Find Claude desktop window and restore if minimized.`
+- **Thin community `Community 344`** (1 nodes): `Save Claude process PID to file.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 344`** (1 nodes): `Ensure Claude desktop is open, visible, and return the window.`
+- **Thin community `Community 345`** (1 nodes): `Remove Claude PID file.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 345`** (1 nodes): `Capture screenshot of Claude window.`
+- **Thin community `Community 346`** (1 nodes): `Get Claude process if it's running.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 346`** (1 nodes): `Handle /claudeask command - send message to Claude desktop.`
+- **Thin community `Community 347`** (1 nodes): `Check if Claude remote-control is currently running.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 347`** (1 nodes): `Handle /claudenew command - create new chat in Claude desktop.`
+- **Thin community `Community 348`** (1 nodes): `Return fallback shortcuts for creating a fresh Claude conversation.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 348`** (1 nodes): `Handle /claudescreen command - get screenshot of Claude desktop.`
+- **Thin community `Community 349`** (1 nodes): `Import pytesseract and configure a common Windows binary path if present.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 349`** (1 nodes): `Handle /claudechat command - send message and get screenshot.`
+- **Thin community `Community 350`** (1 nodes): `OCR the bottom status bar and click the first word matching any keyword.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 350`** (1 nodes): `Handle /claudelatest command - open the most recent session.`
+- **Thin community `Community 351`** (1 nodes): `Focus Claude's composer input using UIA/OCR fallbacks.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 351`** (1 nodes): `Handle /claudemode command - change Claude desktop mode.`
+- **Thin community `Community 352`** (1 nodes): `Focus Claude input, paste prompt text, and optionally submit.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 352`** (1 nodes): `Handle /claudeacceptedits [ask|auto|plan|bypass] — set Claude edit mode.`
+- **Thin community `Community 353`** (1 nodes): `Handle /clauderemote command - open a cmd window in current repo and run claude`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 353`** (1 nodes): `Handle /claudemodel — scan models (no args) or select by number / name.      S`
+- **Thin community `Community 354`** (1 nodes): `Handle /stopclaude command - stop claude remote-control.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 354`** (1 nodes): `Select a model by number or name (shared by command + message handler).`
+- **Thin community `Community 355`** (1 nodes): `Handle /openclaude command - open Claude desktop app or restore if minimized.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 355`** (1 nodes): `Intercept plain-text replies when user is in model-selection state.      Retur`
+- **Thin community `Community 356`** (1 nodes): `Find Claude desktop window and restore if minimized.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 356`** (1 nodes): `Handle /claudesearch command - search conversations and show results.`
+- **Thin community `Community 357`** (1 nodes): `Ensure Claude desktop is open, visible, and return the window.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 357`** (1 nodes): `Handle /claudeselect command - select a conversation from search results.`
+- **Thin community `Community 358`** (1 nodes): `Capture screenshot of Claude window.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 358`** (1 nodes): `Handle /claudebranch command - select a git branch in new session.`
+- **Thin community `Community 359`** (1 nodes): `Handle /claudeask command - send message to Claude desktop.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 359`** (1 nodes): `Check if message is a repo selection. Returns True if handled.`
+- **Thin community `Community 360`** (1 nodes): `Handle /claudenew command - create new chat in Claude desktop.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 360`** (1 nodes): `Handle /clauderepo command - show screenshot and options.`
+- **Thin community `Community 361`** (1 nodes): `Handle /claudescreen command - get screenshot of Claude desktop.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 361`** (1 nodes): `List all repositories in the default folder.`
+- **Thin community `Community 362`** (1 nodes): `Handle /claudechat command - send message and get screenshot.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 362`** (1 nodes): `Select repository by path.`
+- **Thin community `Community 363`** (1 nodes): `Handle /claudelatest command - open the most recent session.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 363`** (1 nodes): `Open folder browser for manual selection.`
+- **Thin community `Community 364`** (1 nodes): `Handle /claudemode command - change Claude desktop mode.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 364`** (1 nodes): `Parse a semver string into a comparable tuple (major, minor, patch).`
+- **Thin community `Community 365`** (1 nodes): `Handle /claudeacceptedits [ask|auto|plan|bypass] — set Claude edit mode.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 365`** (1 nodes): `Result of a check-for-updates query.`
+- **Thin community `Community 366`** (1 nodes): `Handle /claudemodel — scan models (no args) or select by number / name.      S`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 366`** (1 nodes): `Run a git sub-command and return the completed process.`
+- **Thin community `Community 367`** (1 nodes): `Select a model by number or name (shared by command + message handler).`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 367`** (1 nodes): `Return the current local HEAD commit SHA (full).`
+- **Thin community `Community 368`** (1 nodes): `Intercept plain-text replies when user is in model-selection state.      Retur`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 368`** (1 nodes): `Human-readable version string: v1.0.0 (abc1234) for git, v1.0.0 for PyPI.`
+- **Thin community `Community 369`** (1 nodes): `Handle /claudesearch command - search conversations and show results.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 369`** (1 nodes): `Return the date of the local HEAD commit.`
+- **Thin community `Community 370`** (1 nodes): `Handle /claudeselect command - select a conversation from search results.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 370`** (1 nodes): `Query PyPI for the latest published version of pocket-desk-agent.      Returns`
+- **Thin community `Community 371`** (1 nodes): `Handle /claudebranch command - select a git branch in new session.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 371`** (1 nodes): `Check PyPI for the latest published version of pocket-desk-agent.      Always`
+- **Thin community `Community 372`** (1 nodes): `Check if message is a repo selection. Returns True if handled.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 372`** (1 nodes): `Return the cached result and timestamp of the last update check.`
+- **Thin community `Community 373`** (1 nodes): `Handle /clauderepo command - show screenshot and options.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 373`** (1 nodes): `Pull latest changes from GitHub and re-install requirements.      Returns (suc`
+- **Thin community `Community 374`** (1 nodes): `List all repositories in the default folder.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 374`** (1 nodes): `Run an update check at startup and log the result.      This is meant to be ca`
+- **Thin community `Community 375`** (1 nodes): `Select repository by path.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 375`** (1 nodes): `Background coroutine that periodically checks for updates.      Args:`
+- **Thin community `Community 376`** (1 nodes): `Open folder browser for manual selection.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 376`** (1 nodes): `Format an UpdateInfo into a user-friendly Telegram message.`
+- **Thin community `Community 377`** (1 nodes): `Parse a semver string into a comparable tuple (major, minor, patch).`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 377`** (1 nodes): `Normalized description of one launchable desktop app.`
+- **Thin community `Community 378`** (1 nodes): `Result of a check-for-updates query.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 378`** (1 nodes): `Result of resolving a user query against the app catalog.`
+- **Thin community `Community 379`** (1 nodes): `Run a git sub-command and return the completed process.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 379`** (1 nodes): `Collapse punctuation and spacing into a stable lookup key.`
+- **Thin community `Community 380`** (1 nodes): `Return the current local HEAD commit SHA (full).`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 380`** (1 nodes): `Return True when a launch target uses an allowed file type.`
+- **Thin community `Community 381`** (1 nodes): `Human-readable version string: v1.0.0 (abc1234) for git, v1.0.0 for PyPI.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 381`** (1 nodes): `Return the curated built-in safe app catalog.`
+- **Thin community `Community 382`** (1 nodes): `Return the date of the local HEAD commit.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 382`** (1 nodes): `Return built-in apps plus safe Start Menu entries on Windows.`
+- **Thin community `Community 383`** (1 nodes): `Query PyPI for the latest published version of pocket-desk-agent.      Returns`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 383`** (1 nodes): `Resolve a user query to one app or an ambiguous list.`
+- **Thin community `Community 384`** (1 nodes): `Check PyPI for the latest published version of pocket-desk-agent.      Always`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 384`** (1 nodes): `Return one catalog entry by stable app id.`
+- **Thin community `Community 385`** (1 nodes): `Return the cached result and timestamp of the last update check.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 385`** (1 nodes): `Discover launchable app shortcuts from common Start Menu locations.`
+- **Thin community `Community 386`** (1 nodes): `Pull latest changes from GitHub and re-install requirements.      Returns (suc`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 386`** (1 nodes): `Return a few simple process-name hints for close matching.`
+- **Thin community `Community 387`** (1 nodes): `Run an update check at startup and log the result.      This is meant to be ca`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 387`** (1 nodes): `Keep the first entry for each normalized app identity.`
+- **Thin community `Community 388`** (1 nodes): `Background coroutine that periodically checks for updates.      Args:`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 388`** (1 nodes): `Return the first existing path or a safe fallback executable name.`
+- **Thin community `Community 389`** (1 nodes): `Format an UpdateInfo into a user-friendly Telegram message.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 389`** (1 nodes): `Create a stable unique id for one Start Menu entry.`
+- **Thin community `Community 390`** (1 nodes): `Normalized description of one launchable desktop app.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 390`** (1 nodes): `Parse comma-separated Telegram user IDs, skipping malformed entries.`
+- **Thin community `Community 391`** (1 nodes): `Result of resolving a user query against the app catalog.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 391`** (1 nodes): `Bot configuration.      All values are read from ``os.environ`` when ``load()``
+- **Thin community `Community 392`** (1 nodes): `Collapse punctuation and spacing into a stable lookup key.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 392`** (1 nodes): `(Re-)read every config value from ``os.environ``.`
+- **Thin community `Community 393`** (1 nodes): `Return True when a launch target uses an allowed file type.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 393`** (1 nodes): `Validate required configuration.`
+- **Thin community `Community 394`** (1 nodes): `Return the curated built-in safe app catalog.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 394`** (1 nodes): `Load Windows UI automation modules on first use (cached after that).`
+- **Thin community `Community 395`** (1 nodes): `Return built-in apps plus safe Start Menu entries on Windows.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 395`** (1 nodes): `Save Claude process PID to file.`
+- **Thin community `Community 396`** (1 nodes): `Resolve a user query to one app or an ambiguous list.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 396`** (1 nodes): `Load Claude process PID from file and verify it's still running.`
+- **Thin community `Community 397`** (1 nodes): `Return one catalog entry by stable app id.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 397`** (1 nodes): `Remove Claude PID file.`
+- **Thin community `Community 398`** (1 nodes): `Discover launchable app shortcuts from common Start Menu locations.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 398`** (1 nodes): `Get Claude process if it's running.`
+- **Thin community `Community 399`** (1 nodes): `Return a few simple process-name hints for close matching.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 399`** (1 nodes): `Check if Claude remote-control is currently running.`
+- **Thin community `Community 400`** (1 nodes): `Keep the first entry for each normalized app identity.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 400`** (1 nodes): `Import pytesseract and configure a common Windows binary path if present.`
+- **Thin community `Community 401`** (1 nodes): `Return the first existing path or a safe fallback executable name.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 401`** (1 nodes): `OCR the bottom status bar and click the first word matching any keyword.`
+- **Thin community `Community 402`** (1 nodes): `Create a stable unique id for one Start Menu entry.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 402`** (1 nodes): `Focus Claude's composer input using UIA/OCR fallbacks.`
+- **Thin community `Community 403`** (1 nodes): `Parse comma-separated Telegram user IDs, skipping malformed entries.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 403`** (1 nodes): `Focus Claude input, paste prompt text, and optionally submit.`
+- **Thin community `Community 404`** (1 nodes): `Bot configuration.      All values are read from ``os.environ`` when ``load()``
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 404`** (1 nodes): `Handle /clauderemote command - open a cmd window in current repo and run claude`
+- **Thin community `Community 405`** (1 nodes): `(Re-)read every config value from ``os.environ``.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 405`** (1 nodes): `Handle /stopclaude command - stop claude remote-control.`
+- **Thin community `Community 406`** (1 nodes): `Validate required configuration.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 406`** (1 nodes): `Handle /openclaude command - open Claude desktop app or restore if minimized.`
+- **Thin community `Community 407`** (1 nodes): `Load Windows UI automation modules on first use (cached after that).`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 407`** (1 nodes): `Find Claude desktop window and restore if minimized.`
+- **Thin community `Community 408`** (1 nodes): `Save Claude process PID to file.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 408`** (1 nodes): `Ensure Claude desktop is open, visible, and return the window.`
+- **Thin community `Community 409`** (1 nodes): `Load Claude process PID from file and verify it's still running.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 409`** (1 nodes): `Capture screenshot of Claude window.`
+- **Thin community `Community 410`** (1 nodes): `Remove Claude PID file.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 410`** (1 nodes): `Handle /claudeask command - send message to Claude desktop.`
+- **Thin community `Community 411`** (1 nodes): `Get Claude process if it's running.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 411`** (1 nodes): `Handle /claudenew command - create new chat in Claude desktop.`
+- **Thin community `Community 412`** (1 nodes): `Check if Claude remote-control is currently running.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 412`** (1 nodes): `Handle /claudescreen command - get screenshot of Claude desktop.`
+- **Thin community `Community 413`** (1 nodes): `Import pytesseract and configure a common Windows binary path if present.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 413`** (1 nodes): `Handle /claudechat command - send message and get screenshot.`
+- **Thin community `Community 414`** (1 nodes): `OCR the bottom status bar and click the first word matching any keyword.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 414`** (1 nodes): `Handle /claudelatest command - open the most recent session.`
+- **Thin community `Community 415`** (1 nodes): `Focus Claude's composer input using UIA/OCR fallbacks.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 415`** (1 nodes): `Handle /claudemode command - change Claude desktop mode.`
+- **Thin community `Community 416`** (1 nodes): `Focus Claude input, paste prompt text, and optionally submit.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 416`** (1 nodes): `Handle /claudeacceptedits [ask|auto|plan|bypass] — set Claude edit mode.`
+- **Thin community `Community 417`** (1 nodes): `Handle /clauderemote command - open a cmd window in current repo and run claude`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 417`** (1 nodes): `Handle /claudeselect command - select a conversation from search results.`
+- **Thin community `Community 418`** (1 nodes): `Handle /stopclaude command - stop claude remote-control.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 418`** (1 nodes): `Select a model by number or name (shared by command + message handler).`
+- **Thin community `Community 419`** (1 nodes): `Handle /openclaude command - open Claude desktop app or restore if minimized.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 419`** (1 nodes): `Intercept plain-text replies when user is in model-selection state.      Retur`
+- **Thin community `Community 420`** (1 nodes): `Find Claude desktop window and restore if minimized.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 420`** (1 nodes): `Handle /claudesearch command - search conversations and show results.`
+- **Thin community `Community 421`** (1 nodes): `Ensure Claude desktop is open, visible, and return the window.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 421`** (1 nodes): `Handle /claudeselect command - select a conversation from search results.`
+- **Thin community `Community 422`** (1 nodes): `Capture screenshot of Claude window.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 422`** (1 nodes): `Handle /claudebranch command - select a git branch in new session.`
+- **Thin community `Community 423`** (1 nodes): `Handle /claudeask command - send message to Claude desktop.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 423`** (1 nodes): `Check if message is a repo selection. Returns True if handled.`
+- **Thin community `Community 424`** (1 nodes): `Handle /claudenew command - create new chat in Claude desktop.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 424`** (1 nodes): `Handle /clauderepo command - show screenshot and options.`
+- **Thin community `Community 425`** (1 nodes): `Handle /claudescreen command - get screenshot of Claude desktop.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 425`** (1 nodes): `List all repositories in the default folder.`
+- **Thin community `Community 426`** (1 nodes): `Handle /claudechat command - send message and get screenshot.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 426`** (1 nodes): `Select repository by path.`
+- **Thin community `Community 427`** (1 nodes): `Handle /claudelatest command - open the most recent session.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 427`** (1 nodes): `Open folder browser for manual selection.`
+- **Thin community `Community 428`** (1 nodes): `Handle /claudemode command - change Claude desktop mode.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 428`** (1 nodes): `Track the last privacy-mode state requested by the bot.`
+- **Thin community `Community 429`** (1 nodes): `Handle /claudeacceptedits [ask|auto|plan|bypass] — set Claude edit mode.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 429`** (1 nodes): `Turn the display off or wake it without locking the Windows session.`
+- **Thin community `Community 430`** (1 nodes): `Handle /claudeselect command - select a conversation from search results.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 430`** (1 nodes): `Normalize privacy-mode command arguments into a supported action.`
+- **Thin community `Community 431`** (1 nodes): `Select a model by number or name (shared by command + message handler).`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 431`** (1 nodes): `Return an inline keyboard for app selections.`
+- **Thin community `Community 432`** (1 nodes): `Intercept plain-text replies when user is in model-selection state.      Retur`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 432`** (1 nodes): `Return a short picker list of common safe apps.`
+- **Thin community `Community 433`** (1 nodes): `Handle /claudesearch command - search conversations and show results.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 433`** (1 nodes): `Handle /openapp command - search and open a safe desktop app.`
+- **Thin community `Community 434`** (1 nodes): `Handle /claudeselect command - select a conversation from search results.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 434`** (1 nodes): `Handle /closeapp command - gracefully close a matching desktop app.`
+- **Thin community `Community 435`** (1 nodes): `Handle /claudebranch command - select a git branch in new session.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 435`** (1 nodes): `Handle /stopbot command - stop the bot process with confirmation.`
+- **Thin community `Community 436`** (1 nodes): `Check if message is a repo selection. Returns True if handled.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 436`** (1 nodes): `Handle /sleep command - put PC to sleep.`
+- **Thin community `Community 437`** (1 nodes): `Handle /clauderepo command - show screenshot and options.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 437`** (1 nodes): `Shutdown the host machine using the same OS-specific behavior as /shutdown.`
+- **Thin community `Community 438`** (1 nodes): `List all repositories in the default folder.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 438`** (1 nodes): `Put the host to sleep and return a user-facing status message.`
+- **Thin community `Community 439`** (1 nodes): `Select repository by path.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 439`** (1 nodes): `Handle /battery command - check battery status.`
+- **Thin community `Community 440`** (1 nodes): `Open folder browser for manual selection.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 440`** (1 nodes): `Handle /screenshot command - capture current screen.`
+- **Thin community `Community 441`** (1 nodes): `Track the last privacy-mode state requested by the bot.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 441`** (1 nodes): `Handle /sleep command - put PC to sleep.`
+- **Thin community `Community 442`** (1 nodes): `Turn the display off or wake it without locking the Windows session.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 442`** (1 nodes): `Handle /wakeup command - wake up PC (requires Wake-on-LAN setup).`
+- **Thin community `Community 443`** (1 nodes): `Normalize privacy-mode command arguments into a supported action.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 443`** (1 nodes): `Handle /windows command - list switchable desktop windows.`
+- **Thin community `Community 444`** (1 nodes): `Return an inline keyboard for app selections.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 444`** (1 nodes): `Handle /focuswindow command - activate a previously listed window.`
+- **Thin community `Community 445`** (1 nodes): `Return a short picker list of common safe apps.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 445`** (1 nodes): `Handle /clipboard command - set clipboard content.`
+- **Thin community `Community 446`** (1 nodes): `Handle /openapp command - search and open a safe desktop app.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 446`** (1 nodes): `Handle /viewclipboard command - get current clipboard content.`
+- **Thin community `Community 447`** (1 nodes): `Handle /closeapp command - gracefully close a matching desktop app.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 447`** (1 nodes): `Test configuration for local-source imports.`
+- **Thin community `Community 448`** (1 nodes): `Handle /stopbot command - stop the bot process with confirmation.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 448`** (1 nodes): `Load Windows UI automation modules on first use (cached after that).`
+- **Thin community `Community 449`** (1 nodes): `Handle /sleep command - put PC to sleep.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 449`** (1 nodes): `Save Claude process PID to file.`
+- **Thin community `Community 450`** (1 nodes): `Shutdown the host machine using the same OS-specific behavior as /shutdown.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 450`** (1 nodes): `Load Claude process PID from file and verify it's still running.`
+- **Thin community `Community 451`** (1 nodes): `Put the host to sleep and return a user-facing status message.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 451`** (1 nodes): `Remove Claude PID file.`
+- **Thin community `Community 452`** (1 nodes): `Handle /battery command - check battery status.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 452`** (1 nodes): `Get Claude process if it's running.`
+- **Thin community `Community 453`** (1 nodes): `Handle /screenshot command - capture current screen.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 453`** (1 nodes): `Return fallback shortcuts for creating a fresh Claude conversation.`
+- **Thin community `Community 454`** (1 nodes): `Handle /sleep command - put PC to sleep.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 454`** (1 nodes): `Focus Claude's composer input using UIA/OCR fallbacks.`
+- **Thin community `Community 455`** (1 nodes): `Handle /wakeup command - wake up PC (requires Wake-on-LAN setup).`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 455`** (1 nodes): `Handle /clauderemote command - open a cmd window in current repo and run claude`
+- **Thin community `Community 456`** (1 nodes): `Handle /windows command - list switchable desktop windows.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 456`** (1 nodes): `Handle /stopclaude command - stop claude remote-control.`
+- **Thin community `Community 457`** (1 nodes): `Handle /focuswindow command - activate a previously listed window.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 457`** (1 nodes): `Handle /openclaude command - open Claude desktop app or restore if minimized.`
+- **Thin community `Community 458`** (1 nodes): `Handle /clipboard command - set clipboard content.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 458`** (1 nodes): `Find Claude desktop window and restore if minimized.`
+- **Thin community `Community 459`** (1 nodes): `Handle /viewclipboard command - get current clipboard content.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 459`** (1 nodes): `Ensure Claude desktop is open, visible, and return the window.`
+- **Thin community `Community 460`** (1 nodes): `Test configuration for local-source imports.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 460`** (1 nodes): `Capture screenshot of Claude window.`
+- **Thin community `Community 461`** (1 nodes): `Load Windows UI automation modules on first use (cached after that).`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 461`** (1 nodes): `Handle /claudeask command - send message to Claude desktop.`
+- **Thin community `Community 462`** (1 nodes): `Save Claude process PID to file.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 462`** (1 nodes): `Handle /claudenew command - create new chat in Claude desktop.`
+- **Thin community `Community 463`** (1 nodes): `Load Claude process PID from file and verify it's still running.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 463`** (1 nodes): `Handle /claudescreen command - get screenshot of Claude desktop.`
+- **Thin community `Community 464`** (1 nodes): `Remove Claude PID file.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 464`** (1 nodes): `Handle /claudechat command - send message and get screenshot.`
+- **Thin community `Community 465`** (1 nodes): `Get Claude process if it's running.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 465`** (1 nodes): `Handle /claudelatest command - open the most recent session.`
+- **Thin community `Community 466`** (1 nodes): `Return fallback shortcuts for creating a fresh Claude conversation.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 466`** (1 nodes): `Handle /claudemode command - change Claude desktop mode.`
+- **Thin community `Community 467`** (1 nodes): `Focus Claude's composer input using UIA/OCR fallbacks.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 467`** (1 nodes): `Handle /claudemodel command - change Claude model.`
+- **Thin community `Community 468`** (1 nodes): `Handle /clauderemote command - open a cmd window in current repo and run claude`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 468`** (1 nodes): `Handle /claudesearch command - search conversations and show results.`
+- **Thin community `Community 469`** (1 nodes): `Handle /stopclaude command - stop claude remote-control.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 469`** (1 nodes): `Handle /claudebranch command - select a git branch in new session.`
+- **Thin community `Community 470`** (1 nodes): `Handle /openclaude command - open Claude desktop app or restore if minimized.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 470`** (1 nodes): `Check if message is a repo selection. Returns True if handled.`
+- **Thin community `Community 471`** (1 nodes): `Find Claude desktop window and restore if minimized.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 471`** (1 nodes): `Handle /clauderepo command - show screenshot and options.`
+- **Thin community `Community 472`** (1 nodes): `Ensure Claude desktop is open, visible, and return the window.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 472`** (1 nodes): `List all repositories in the default folder.`
+- **Thin community `Community 473`** (1 nodes): `Capture screenshot of Claude window.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 473`** (1 nodes): `Select repository by path.`
+- **Thin community `Community 474`** (1 nodes): `Handle /claudeask command - send message to Claude desktop.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 474`** (1 nodes): `Open folder browser for manual selection.`
+- **Thin community `Community 475`** (1 nodes): `Handle /claudenew command - create new chat in Claude desktop.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 475`** (1 nodes): `Track the last privacy-mode state requested by the bot.`
+- **Thin community `Community 476`** (1 nodes): `Handle /claudescreen command - get screenshot of Claude desktop.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 476`** (1 nodes): `Render a human-readable timestamp for privacy mode status.`
+- **Thin community `Community 477`** (1 nodes): `Handle /claudechat command - send message and get screenshot.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 477`** (1 nodes): `Return a status summary for privacy mode.`
+- **Thin community `Community 478`** (1 nodes): `Handle /claudelatest command - open the most recent session.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 478`** (1 nodes): `Turn the display off or wake it without locking the Windows session.`
+- **Thin community `Community 479`** (1 nodes): `Handle /claudemode command - change Claude desktop mode.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 479`** (1 nodes): `Normalize privacy-mode command arguments into a supported action.`
+- **Thin community `Community 480`** (1 nodes): `Handle /claudemodel command - change Claude model.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 480`** (1 nodes): `Handle /stopbot command - stop the bot process with confirmation.`
+- **Thin community `Community 481`** (1 nodes): `Handle /claudesearch command - search conversations and show results.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 481`** (1 nodes): `Handle /shutdown command - shutdown laptop with confirmation.`
+- **Thin community `Community 482`** (1 nodes): `Handle /claudebranch command - select a git branch in new session.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 482`** (1 nodes): `Shutdown the host machine using the same OS-specific behavior as /shutdown.`
+- **Thin community `Community 483`** (1 nodes): `Check if message is a repo selection. Returns True if handled.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 483`** (1 nodes): `Handle /battery command - check battery status.`
+- **Thin community `Community 484`** (1 nodes): `Handle /clauderepo command - show screenshot and options.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 484`** (1 nodes): `Handle /screenshot command - capture current screen.`
+- **Thin community `Community 485`** (1 nodes): `List all repositories in the default folder.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 485`** (1 nodes): `Handle /wakeup command - wake up PC (requires Wake-on-LAN setup).`
+- **Thin community `Community 486`** (1 nodes): `Select repository by path.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 486`** (1 nodes): `Handle /hotkey command - execute keyboard shortcuts.`
+- **Thin community `Community 487`** (1 nodes): `Open folder browser for manual selection.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 487`** (1 nodes): `Handle /windows command - list switchable desktop windows.`
+- **Thin community `Community 488`** (1 nodes): `Track the last privacy-mode state requested by the bot.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 488`** (1 nodes): `Handle /focuswindow command - activate a previously listed window.`
+- **Thin community `Community 489`** (1 nodes): `Render a human-readable timestamp for privacy mode status.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 489`** (1 nodes): `Handle /clipboard command - set clipboard content.`
+- **Thin community `Community 490`** (1 nodes): `Return a status summary for privacy mode.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 490`** (1 nodes): `Bot configuration.      All values are read from ``os.environ`` when ``load()``
+- **Thin community `Community 491`** (1 nodes): `Turn the display off or wake it without locking the Windows session.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 491`** (1 nodes): `(Re-)read every config value from ``os.environ``.`
+- **Thin community `Community 492`** (1 nodes): `Normalize privacy-mode command arguments into a supported action.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 492`** (1 nodes): `Validate required configuration.`
+- **Thin community `Community 493`** (1 nodes): `Handle /stopbot command - stop the bot process with confirmation.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 493`** (1 nodes): `Run an update check at startup and log the result.      This is meant to be ca`
+- **Thin community `Community 494`** (1 nodes): `Handle /shutdown command - shutdown laptop with confirmation.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 494`** (1 nodes): `Background coroutine that periodically checks for updates.      Args:`
+- **Thin community `Community 495`** (1 nodes): `Shutdown the host machine using the same OS-specific behavior as /shutdown.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 495`** (1 nodes): `Format an UpdateInfo into a user-friendly Telegram message.`
+- **Thin community `Community 496`** (1 nodes): `Handle /battery command - check battery status.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 496`** (1 nodes): `Format an UpdateInfo into a user-friendly Telegram message.`
+- **Thin community `Community 497`** (1 nodes): `Handle /screenshot command - capture current screen.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 497`** (1 nodes): `Run an update check at startup and log the result.      This is meant to be ca`
+- **Thin community `Community 498`** (1 nodes): `Handle /wakeup command - wake up PC (requires Wake-on-LAN setup).`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 498`** (1 nodes): `Background coroutine that periodically checks for updates.      Args:`
+- **Thin community `Community 499`** (1 nodes): `Handle /hotkey command - execute keyboard shortcuts.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 499`** (1 nodes): `Run an update check at startup and log the result.      This is meant to be ca`
+- **Thin community `Community 500`** (1 nodes): `Handle /windows command - list switchable desktop windows.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 500`** (1 nodes): `Return the cached result and timestamp of the last update check.`
+- **Thin community `Community 501`** (1 nodes): `Handle /focuswindow command - activate a previously listed window.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 501`** (1 nodes): `Pull latest changes from GitHub and re-install requirements.      Returns (suc`
+- **Thin community `Community 502`** (1 nodes): `Handle /clipboard command - set clipboard content.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 502`** (1 nodes): `Background coroutine that periodically checks for updates.      Args:`
+- **Thin community `Community 503`** (1 nodes): `Bot configuration.      All values are read from ``os.environ`` when ``load()``
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 503`** (1 nodes): `Format an UpdateInfo into a user-friendly Telegram message.`
+- **Thin community `Community 504`** (1 nodes): `(Re-)read every config value from ``os.environ``.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 504`** (1 nodes): `Handle Dropbox file deletion request.`
+- **Thin community `Community 505`** (1 nodes): `Validate required configuration.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 505`** (1 nodes): `Delete file from Dropbox.      Returns:         dict with 'success' and 'error'`
+- **Thin community `Community 506`** (1 nodes): `Run an update check at startup and log the result.      This is meant to be ca`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 506`** (1 nodes): `Handle user's choice for large file upload.`
+- **Thin community `Community 507`** (1 nodes): `Background coroutine that periodically checks for updates.      Args:`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 507`** (1 nodes): `Handle /pwd command - show current directory.`
+- **Thin community `Community 508`** (1 nodes): `Format an UpdateInfo into a user-friendly Telegram message.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 508`** (1 nodes): `Handle /cd command - change directory.`
+- **Thin community `Community 509`** (1 nodes): `Format an UpdateInfo into a user-friendly Telegram message.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 509`** (1 nodes): `Handle /ls command - list directory.`
+- **Thin community `Community 510`** (1 nodes): `Run an update check at startup and log the result.      This is meant to be ca`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 510`** (1 nodes): `Handle /cat command - read file.`
+- **Thin community `Community 511`** (1 nodes): `Background coroutine that periodically checks for updates.      Args:`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 511`** (1 nodes): `Handle /find command - search files.`
+- **Thin community `Community 512`** (1 nodes): `Run an update check at startup and log the result.      This is meant to be ca`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 512`** (1 nodes): `Handle /info command - get file info.`
+- **Thin community `Community 513`** (1 nodes): `Return the cached result and timestamp of the last update check.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 513`** (1 nodes): `Grab the primary monitor and return a PIL Image.`
+- **Thin community `Community 514`** (1 nodes): `Pull latest changes from GitHub and re-install requirements.      Returns (suc`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 514`** (1 nodes): `Yield JPEG bytes forever until the session is torn down.      Emits ``b""`` as a`
+- **Thin community `Community 515`** (1 nodes): `Background coroutine that periodically checks for updates.      Args:`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 515`** (1 nodes): `Per-session input dispatcher with rate limit and fail-safe tracking.`
+- **Thin community `Community 516`** (1 nodes): `Format an UpdateInfo into a user-friendly Telegram message.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 516`** (1 nodes): `Apply a single event. Returns an optional status string.`
+- **Thin community `Community 517`** (1 nodes): `Handle Dropbox file deletion request.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 517`** (1 nodes): `Idempotent teardown: stop WS, server, tunnel; drop from registry.      Each step`
+- **Thin community `Community 518`** (1 nodes): `Delete file from Dropbox.      Returns:         dict with 'success' and 'error'`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 518`** (1 nodes): `Process management utility for Pocket Desk Agent. Handles stopping and status ch`
+- **Thin community `Community 519`** (1 nodes): `Handle user's choice for large file upload.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 519`** (1 nodes): `Check if process is running on Windows.`
+- **Thin community `Community 520`** (1 nodes): `Handle /pwd command - show current directory.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 520`** (1 nodes): `Return the canonical PID file, falling back to the legacy location.`
+- **Thin community `Community 521`** (1 nodes): `Handle /cd command - change directory.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 521`** (1 nodes): `Terminate the bot process.`
+- **Thin community `Community 522`** (1 nodes): `Handle /ls command - list directory.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 522`** (1 nodes): `Check and print bot status.`
+- **Thin community `Community 523`** (1 nodes): `Handle /cat command - read file.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 523`** (1 nodes): `Restart the bot process.`
+- **Thin community `Community 524`** (1 nodes): `Handle /find command - search files.`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 525`** (1 nodes): `Handle /info command - get file info.`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 526`** (1 nodes): `Grab the primary monitor and return a PIL Image.`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 527`** (1 nodes): `Yield JPEG bytes forever until the session is torn down.      Emits ``b""`` as a`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 528`** (1 nodes): `Per-session input dispatcher with rate limit and fail-safe tracking.`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 529`** (1 nodes): `Apply a single event. Returns an optional status string.`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 530`** (1 nodes): `Idempotent teardown: stop WS, server, tunnel; drop from registry.      Each step`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 531`** (1 nodes): `Process management utility for Pocket Desk Agent. Handles stopping and status ch`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 532`** (1 nodes): `Check if process is running on Windows.`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 533`** (1 nodes): `Return the canonical PID file, falling back to the legacy location.`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 534`** (1 nodes): `Terminate the bot process.`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 535`** (1 nodes): `Check and print bot status.`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 536`** (1 nodes): `Restart the bot process.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 
 ## Suggested Questions
@@ -3697,13 +3786,13 @@ _Questions this graph is uniquely positioned to answer:_
   _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
 - **What is the exact relationship between `docs/AUTHENTICATION_REQUIREMENTS.md` and `docs/COMMANDS.md`?**
   _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
-- **Why does `Config` connect `Community 0` to `Community 1`, `Community 3`, `Community 6`, `Community 7`, `Community 9`, `Community 17`, `Community 19`?**
-  _High betweenness centrality (0.251) - this node is a cross-community bridge._
-- **Why does `pocket_desk_agent.handlers.scheduling` connect `Community 5` to `Community 2`, `Community 3`, `Community 10`, `Community 11`?**
-  _High betweenness centrality (0.126) - this node is a cross-community bridge._
-- **Why does `scripts.manage_auth` connect `Community 6` to `Community 10`, `Community 2`, `Community 12`, `Community 5`?**
-  _High betweenness centrality (0.091) - this node is a cross-community bridge._
-- **Are the 785 inferred relationships involving `Config` (e.g. with `AntigravityAuth` and `Authentication command handlers (login, authcode, checkauth, logout).  /login`) actually correct?**
-  _`Config` has 785 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 238 inferred relationships involving `ScheduledTask` (e.g. with `GeminiToolResult` and `PendingGeminiAction`) actually correct?**
-  _`ScheduledTask` has 238 INFERRED edges - model-reasoned connections that need verification._
+- **Why does `Config` connect `Community 0` to `Community 1`, `Community 2`, `Community 7`, `Community 8`, `Community 14`, `Community 16`, `Community 18`?**
+  _High betweenness centrality (0.288) - this node is a cross-community bridge._
+- **Why does `pocket_desk_agent.handlers.scheduling` connect `Community 5` to `Community 0`, `Community 9`, `Community 3`, `Community 6`?**
+  _High betweenness centrality (0.143) - this node is a cross-community bridge._
+- **Why does `scripts.manage_auth` connect `Community 5` to `Community 2`, `Community 10`, `Community 3`, `Community 6`?**
+  _High betweenness centrality (0.105) - this node is a cross-community bridge._
+- **Are the 867 inferred relationships involving `Config` (e.g. with `AntigravityAuth` and `Authentication command handlers (login, authcode, checkauth, logout).  /login`) actually correct?**
+  _`Config` has 867 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 264 inferred relationships involving `ScheduledTask` (e.g. with `GeminiToolResult` and `PendingGeminiAction`) actually correct?**
+  _`ScheduledTask` has 264 INFERRED edges - model-reasoned connections that need verification._
