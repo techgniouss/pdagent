@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 async def clicktext_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /clicktext command - click at coordinates or search text."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
     
     # Get arguments
@@ -192,7 +192,7 @@ async def findtext_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def smartclick_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /smartclick command - find text and click with disambiguation."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
     
     user_id = update.effective_user.id
@@ -360,7 +360,7 @@ async def smartclick_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def pasteenter_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /pasteenter command - paste clipboard content and press Enter."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
     
     try:
@@ -492,7 +492,7 @@ async def typeenter_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def scrollup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /scrollup [clicks] command."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
         
     amount = 500
@@ -536,7 +536,7 @@ async def scrollup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def scrolldown_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /scrolldown [clicks] command."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
         
     amount = 500

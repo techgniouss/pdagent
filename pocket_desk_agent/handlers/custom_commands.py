@@ -14,9 +14,9 @@ logger = logging.getLogger(__name__)
 
 async def savecommand_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /savecommand command - start recording a custom command."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
-    
+
     user_id = update.effective_user.id
     
     # Get command name argument
@@ -95,9 +95,9 @@ async def savecommand_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def done_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /done command - finish recording and save custom command."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
-    
+
     user_id = update.effective_user.id
     
     # Check if user has active recording session
@@ -209,9 +209,9 @@ async def done_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cancelrecord_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /cancelrecord command - cancel recording session."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
-    
+
     user_id = update.effective_user.id
     
     # Check if user has active recording session

@@ -78,6 +78,11 @@ _TOOL_NAME_ALIASES: dict[str, str] = {
     "vscode_open_folder": "open_vscode_folder",
     "launch_claude_cli": "open_claude_cli",
     "send_claude_cli_message": "claude_cli_send_message",
+    "run_command": "execute_command",
+    "shell_command": "execute_command",
+    "run_shell": "execute_command",
+    "exec_command": "execute_command",
+    "run_in_folder": "execute_command",
 }
 
 # ============================================================================
@@ -92,6 +97,7 @@ You have access to comprehensive tools for files, desktop context, and automatio
 - get_current_directory / change_directory: Handle requests like /pwd and /cd
 - list_directory / search_files / read_file / get_file_info: Handle requests like /ls, /find, /cat, and /info
 - get_tree_structure: Get complete project structure (use this first to understand the project!)
+- execute_command: Run allowlisted shell commands (git, npm, npx, python, pip, ls, dir, etc.) in the current directory
 
 **Desktop Tools**:
 - capture_screenshot: Capture the current screen and send it back to the chat
@@ -126,7 +132,9 @@ These tools send an approval prompt to the user before any risky action happens.
 3. Explain what you're doing and why
 4. For risky actions, tell the user an approval prompt has been sent
 5. All file paths are relative to the current working directory unless the tool says otherwise
-6. Prefer existing workflows for slash-command-style requests. Examples:
+6. When the user asks to do something **in a specific folder**, ALWAYS call change_directory first to navigate there, then use the relevant tool. Example: "run npm test in my emploi project" → change_directory("emploi") → execute_command("npm test")
+7. For running shell commands use execute_command. Allowed: git, npm, npx, node, yarn, python, pip, ls/dir, find, grep, echo, etc. Shell chains (&&, |, ;) are blocked — run one command at a time.
+8. Prefer existing workflows for slash-command-style requests. Examples:
    - "build emploi project" -> start_build_workflow
    - "get apk from emploi" -> start_apk_retrieval_workflow
    - "watch Claude every minute for Allow and press enter with 30s cooldown" -> start_screen_watch
@@ -140,7 +148,8 @@ These tools send an approval prompt to the user before any risky action happens.
    - "stop remote" / "end remote session" -> request_stop_remote_session
    - "show current folder" -> get_current_directory or list_directory
    - "open/read/find file" -> use the filesystem tools above
-7. Users may phrase commands naturally (aliases like "start remote", "get apk", "watch screen", "at 22:30", "every 1m"). Map those to the canonical tool names and expected arguments.
+   - "run git status" / "run npm install" / "run python script.py" -> execute_command
+9. Users may phrase commands naturally (aliases like "start remote", "get apk", "watch screen", "at 22:30", "every 1m"). Map those to the canonical tool names and expected arguments.
 
 Use these tools proactively to understand context and complete tasks efficiently!
 """
@@ -367,6 +376,8 @@ def _normalize_tool_args(func_name: str, args: dict[str, Any]) -> dict[str, Any]
     if func_name == "open_browser":
         browser = _first_string(args, "browser", "name", "app", "target", default="edge").lower()
         return {"browser": browser}
+    if func_name == "execute_command":
+        return {"command": _first_string(args, "command", "cmd", "shell", "run", "exec", "script")}
     if func_name in {"open_vscode_folder", "open_claude_cli"}:
         folder = _first_string(args, "folder", "path", "repo", "project", "name", "directory")
         normalized = {"folder": folder}
@@ -570,6 +581,23 @@ def _get_api_tools() -> list:
                     "required": ["path"]
                 }
             },
+            {
+                "name": "execute_command",
+                "description": (
+                    "Run an allowlisted shell command in the current working directory. "
+                    "Permitted first tokens: git, npm, npx, node, yarn, pnpm, python, python3, pip, pip3, "
+                    "ls, dir, cat, type, head, tail, tree, pwd, find, grep, findstr, echo, whoami, hostname, tasklist. "
+                    "Shell chain operators (&&, ||, ;, |) are blocked — run one command at a time. "
+                    "Use change_directory first when you need to run in a specific folder."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "command": {"type": "string", "description": "The shell command to run, e.g. 'git status' or 'npm test'."}
+                    },
+                    "required": ["command"]
+                }
+            },
         ]
     declarations.extend(get_gemini_action_tools())
     return [{"functionDeclarations": declarations}]
@@ -586,6 +614,7 @@ _ALLOWED_TOOLS = frozenset({
     "delete_file",
     "create_directory",
     "get_file_info",
+    "execute_command",
     "get_current_directory",
     "change_directory",
     "get_battery_status",
@@ -935,6 +964,11 @@ class GeminiClient:
                     tool_result = {"result": result_text, "success": success}
                 elif func_name == "get_file_info":
                     success, result_text = await loop.run_in_executor(None, file_manager.get_file_info, user_id, args.get('path'))
+                    tool_result = {"result": result_text, "success": success}
+                elif func_name == "execute_command":
+                    success, result_text = await loop.run_in_executor(
+                        None, file_manager.execute_command, user_id, args.get('command', '')
+                    )
                     tool_result = {"result": result_text, "success": success}
                 else:
                     dispatched = await dispatch_gemini_tool(

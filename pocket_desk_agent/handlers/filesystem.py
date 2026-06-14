@@ -100,7 +100,7 @@ async def _send_requested_file(
 
 async def pwd_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /pwd command - show current directory."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
 
     user_id = update.effective_user.id
@@ -111,7 +111,7 @@ async def pwd_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cd_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /cd command - change directory."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
 
     user_id = update.effective_user.id
@@ -131,7 +131,7 @@ async def cd_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def ls_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /ls command - list directory."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
 
     user_id = update.effective_user.id
@@ -146,7 +146,7 @@ async def ls_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cat_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /cat command - read file."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
 
     user_id = update.effective_user.id
@@ -198,7 +198,7 @@ async def getfile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def find_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /find command - search files."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
 
     user_id = update.effective_user.id
@@ -218,7 +218,7 @@ async def find_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def info_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /info command - get file info."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
 
     user_id = update.effective_user.id

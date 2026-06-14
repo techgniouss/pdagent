@@ -499,7 +499,7 @@ async def openclaudeinvscode_command(update: Update, context: ContextTypes.DEFAU
 
 async def claudecli_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /claudecli - open directly when a folder arg resolves, else show picker."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
 
     user_id = update.effective_user.id
@@ -586,7 +586,7 @@ async def claudeclisend_command(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def antigravityopenfolder_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /antigravityopenfolder - open a provided path or show folder picker."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
 
     user_id = update.effective_user.id

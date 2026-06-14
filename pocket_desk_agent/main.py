@@ -108,9 +108,11 @@ def _tesseract_available() -> bool:
 
 async def post_init(application: Application):
     """Sync commands with Telegram on startup and launch background tasks."""
-    # Use the helper that pulls from COMMAND_REGISTRY
-    await application.bot.set_my_commands(get_bot_commands())
-    logger.info("Command menu sync completed.")
+    try:
+        await application.bot.set_my_commands(get_bot_commands())
+        logger.info("Command menu sync completed.")
+    except Exception as exc:
+        logger.warning(f"[post_init] Failed to sync command menu: {exc}")
 
     # ── Tesseract OCR check ───────────────────────────────────────────────
     if not _tesseract_available():

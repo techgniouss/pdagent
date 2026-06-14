@@ -650,7 +650,7 @@ async def watchscreen_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """Handle /watchscreen <text> every <interval> press <hotkey>."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
 
     if platform.system() != "Windows":
@@ -692,7 +692,7 @@ async def watchnotify_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """Handle /watchnotify <text> every <interval>."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
 
     if platform.system() != "Windows":
@@ -735,7 +735,7 @@ async def watchstatus_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """Handle /watchstatus by listing active watcher tasks only."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
 
     user_id = update.effective_user.id
@@ -762,7 +762,7 @@ async def stopscreenwatch_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """Handle /stopscreenwatch [task_id]."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
 
     task_id = context.args[0].strip() if context.args else None
@@ -786,7 +786,7 @@ async def listschedules_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """Handle /listschedules."""
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
 
     user_id = update.effective_user.id
