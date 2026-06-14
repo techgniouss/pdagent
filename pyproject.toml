@@ -14,13 +14,25 @@ authors = [
 ]
 keywords = [
     "telegram",
+    "telegram-bot",
     "bot",
     "gemini",
     "ai",
+    "ai-agent",
     "automation",
     "remote-control",
+    "remote-desktop",
     "windows",
     "desktop-agent",
+    "computer-use",
+    "ocr",
+    "screenshot",
+    "self-hosted",
+    "keyboard-automation",
+    "macro",
+    "pyautogui",
+    "tesseract",
+    "pc-control",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -34,6 +46,9 @@ classifiers = [
     "Topic :: Communications :: Chat",
     "Topic :: Desktop Environment",
     "Topic :: Office/Business",
+    "Topic :: System :: Monitoring",
+    "Topic :: Utilities",
+    "Environment :: Win32 (MS Windows)",
 ]
 dependencies = [
     "python-telegram-bot>=21.0",
