@@ -45,8 +45,12 @@ PYPI_JSON_URL = "https://pypi.org/pypi/pocket-desk-agent/json"
 
 
 def _is_git_repo() -> bool:
-    """Return True if the project root is a git repository (source checkout)."""
-    return (PROJECT_ROOT / ".git").is_dir()
+    """Return True if the project root is a git repository (source checkout).
+
+    ``.git`` is a directory in a normal clone but a file in git worktrees,
+    so check for existence rather than ``is_dir()``.
+    """
+    return (PROJECT_ROOT / ".git").exists()
 
 
 def is_git_repo() -> bool:
@@ -286,12 +290,15 @@ def _apply_git_update() -> tuple[bool, str]:
 
 def apply_update() -> tuple[bool, str]:
     """
-    Upgrade to the latest version from PyPI regardless of install type.
+    Apply an update using the flow that matches the install type.
 
-    Always uses pip so that the installed package version matches what the
-    update-checker notifications track.  Git checkouts that want to sync
-    uncommitted source changes should use _apply_git_update() directly.
+    Git checkouts (editable installs) pull the tracked branch so local
+    source actually changes; PyPI installs upgrade via pip. A pip upgrade
+    on a git checkout would report "already up to date" forever because
+    the editable version usually matches or exceeds the PyPI release.
     """
+    if _is_git_repo():
+        return _apply_git_update()
     return apply_pypi_update()
 
 

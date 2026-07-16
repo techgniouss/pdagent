@@ -55,6 +55,11 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+# httpx logs every Telegram API request URL at INFO level, and those URLs
+# embed the bot token — keep them out of bot.log.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
 SCHEDULER_POLL_INTERVAL_SECONDS = 5
 
 
@@ -329,11 +334,22 @@ async def scheduler_loop(application: Application):
                         except Exception:
                             pass
                 else:
-                    task.command = describe_task(task)
+                    summary = describe_task(task)
+                    if updated_task and updated_task.status == "pending":
+                        failure_note = (
+                            f"⚠️ Scheduled task errored (will retry): {summary}\n"
+                            f"Error: {error}\n"
+                            f"Consecutive failures: {updated_task.consecutive_failures}"
+                        )
+                    else:
+                        failure_note = (
+                            f"❌ Scheduled task failed and stopped: {summary}\n"
+                            f"Error: {error}"
+                        )
                     try:
                         await application.bot.send_message(
                             chat_id=task.user_id,
-                            text=f"❌ Scheduled task failed: {task.command}\nError: {error}"
+                            text=failure_note,
                         )
                     except Exception:
                         pass

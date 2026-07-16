@@ -5,7 +5,7 @@ import os
 import time
 from pathlib import Path
 
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 from pocket_desk_agent.handlers._shared import (
@@ -57,12 +57,15 @@ def _render_getfile_browser(folder_path: Path) -> str:
                 continue
 
             try:
-                size_str = file_manager._format_size(item.stat().st_size)
+                item_stat = item.stat()
+                size_str = file_manager._format_size(item_stat.st_size)
+                mtime_str = time.strftime("%Y-%m-%d %H:%M", time.localtime(item_stat.st_mtime))
             except Exception:
                 size_str = "unknown size"
+                mtime_str = "unknown date"
 
             label = "🚫" if file_manager.is_blocked_download_file(item) else "📄"
-            message += f"{index}. {label} {item.name} ({size_str})\n"
+            message += f"{index}. {label} {item.name} ({size_str}, modified {mtime_str})\n"
 
     message += (
         "\nReply with:\n"
@@ -79,11 +82,14 @@ async def _send_requested_file(
     file_path: Path,
 ) -> None:
     """Send a requested file using the shared Telegram or fallback upload flow."""
-    file_size_mb = file_path.stat().st_size / (1024 * 1024)
+    file_stat = file_path.stat()
+    file_size_mb = file_stat.st_size / (1024 * 1024)
+    modified_str = time.strftime("%Y-%m-%d %H:%M", time.localtime(file_stat.st_mtime))
     await update.message.reply_text(
         f"📦 Found file!\n\n"
         f"File: {file_path.name}\n"
         f"Size: {file_size_mb:.2f} MB\n"
+        f"Modified: {modified_str}\n"
         f"Path: {file_path}\n\n"
         f"Preparing to send..."
     )
@@ -308,6 +314,50 @@ async def check_getfile_selection(update: Update, context: ContextTypes.DEFAULT_
     return True
 
 
+def approvedirs_list_text() -> str:
+    """Render the current approved-directory list, noting the implicit repo path."""
+    from pocket_desk_agent.config import Config
+
+    dirs = Config.APPROVED_DIRECTORIES or [Path.home()]
+    lines = [f"  {i}. {d}" for i, d in enumerate(dirs, 1)]
+    text = "Approved directories:\n" + "\n".join(lines)
+    repo_path_raw = Config.CLAUDE_DEFAULT_REPO_PATH
+    if repo_path_raw and Path(repo_path_raw) not in dirs:
+        text += f"\n\nℹ️ Also implicitly allowed (Default Projects Directory): {repo_path_raw}"
+    return text
+
+
+def apply_approved_dirs(new_dirs: list[Path]) -> None:
+    """Apply a new approved-directory list at runtime and persist it to disk."""
+    from pocket_desk_agent.config import Config
+    from pocket_desk_agent.configure import persist_approved_directories
+
+    raw = ",".join(str(d) for d in new_dirs)
+    os.environ["APPROVED_DIRECTORIES"] = raw
+    Config.APPROVED_DIRECTORIES = new_dirs
+
+    # Mirror FileManager.__init__'s implicit-append logic so the live
+    # sandbox never silently loses access to the default repo path
+    # (used by /getapk, /build, /claudecli) after an add/remove/reset.
+    effective_dirs = list(new_dirs)
+    if Config.CLAUDE_DEFAULT_REPO_PATH:
+        repo_path = Path(Config.CLAUDE_DEFAULT_REPO_PATH)
+        if repo_path not in effective_dirs:
+            effective_dirs.append(repo_path)
+    if not effective_dirs:
+        effective_dirs = [Path.home()]
+    file_manager.approved_dirs = effective_dirs
+
+    # Drop any cached current-directory that now falls outside the sandbox,
+    # so /pwd doesn't keep showing a path that's no longer accessible.
+    # get_current_dir() re-derives a safe default the next time it's called.
+    for user_id, current_dir in list(file_manager.current_dirs.items()):
+        if not file_manager._is_safe_path(current_dir):
+            file_manager.current_dirs.pop(user_id, None)
+
+    persist_approved_directories(new_dirs)
+
+
 async def approvedirs_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Manage approved (sandbox) directories from Telegram.
 
@@ -315,31 +365,18 @@ async def approvedirs_command(update: Update, context: ContextTypes.DEFAULT_TYPE
       /approvedirs              — list current directories
       /approvedirs add <path>   — add a directory
       /approvedirs remove <n>   — remove directory by 1-based index
-      /approvedirs reset        — reset to home directory only
+      /approvedirs reset        — reset to home directory only (asks for confirmation)
     """
     if not update.message or not update.effective_user:
         return
 
     from pocket_desk_agent.config import Config
-    from pocket_desk_agent.configure import persist_approved_directories
 
     args = context.args or []
     subcommand = args[0].lower() if args else ""
 
-    def _current_dirs_text() -> str:
-        dirs = Config.APPROVED_DIRECTORIES or [Path.home()]
-        lines = [f"  {i}. {d}" for i, d in enumerate(dirs, 1)]
-        return "Approved directories:\n" + "\n".join(lines)
-
-    def _apply(new_dirs: list[Path]) -> None:
-        raw = ",".join(str(d) for d in new_dirs)
-        os.environ["APPROVED_DIRECTORIES"] = raw
-        Config.APPROVED_DIRECTORIES = new_dirs
-        file_manager.approved_dirs = list(new_dirs)
-        persist_approved_directories(new_dirs)
-
     if not subcommand:
-        await update.message.reply_text(_current_dirs_text())
+        await update.message.reply_text(approvedirs_list_text())
         return
 
     if subcommand == "add":
@@ -363,8 +400,8 @@ async def approvedirs_command(update: Update, context: ContextTypes.DEFAULT_TYPE
             await update.message.reply_text(f"Already in approved list:\n{new_dir}")
             return
         current.append(new_dir)
-        _apply(current)
-        await update.message.reply_text(f"✅ Added:\n{new_dir}\n\n{_current_dirs_text()}")
+        apply_approved_dirs(current)
+        await update.message.reply_text(f"✅ Added:\n{new_dir}\n\n{approvedirs_list_text()}")
         return
 
     if subcommand == "remove":
@@ -384,14 +421,24 @@ async def approvedirs_command(update: Update, context: ContextTypes.DEFAULT_TYPE
             await update.message.reply_text("❌ Cannot remove the last approved directory. Use /approvedirs reset to switch to home.")
             return
         removed = current.pop(idx - 1)
-        _apply(current)
-        await update.message.reply_text(f"✅ Removed:\n{removed}\n\n{_current_dirs_text()}")
+        apply_approved_dirs(current)
+        await update.message.reply_text(f"✅ Removed:\n{removed}\n\n{approvedirs_list_text()}")
         return
 
     if subcommand == "reset":
-        new_dirs = [Path.home()]
-        _apply(new_dirs)
-        await update.message.reply_text(f"✅ Reset to home directory.\n\n{_current_dirs_text()}")
+        keyboard = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton("✅ Yes, reset to home", callback_data="confirm_approvedirs_reset"),
+                    InlineKeyboardButton("❌ Cancel", callback_data="cancel_approvedirs_reset"),
+                ]
+            ]
+        )
+        await update.message.reply_text(
+            "⚠️ Reset approved directories to your home folder only?\n\n"
+            f"This replaces your current list:\n{approvedirs_list_text()}",
+            reply_markup=keyboard,
+        )
         return
 
     await update.message.reply_text(

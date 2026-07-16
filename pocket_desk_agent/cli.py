@@ -156,12 +156,12 @@ def _stop_via_pidfile() -> int:
 
     pid_file = existing_app_path("bot.pid")
     if not pid_file.exists():
-        print("X No PID file found. Is the bot running?")
+        _safe_print("❌ No PID file found. Is the bot running?")
         return 1
     try:
         pid = int(pid_file.read_text().strip())
     except Exception as exc:
-        print(f"❌ Could not read PID file: {exc}")
+        _safe_print(f"❌ Could not read PID file: {exc}")
         return 1
 
     try:
@@ -172,10 +172,10 @@ def _stop_via_pidfile() -> int:
         else:
             os.kill(pid, signal.SIGTERM)
         pid_file.unlink(missing_ok=True)
-        print(f"✅ Bot stopped (PID {pid}).")
+        _safe_print(f"✅ Bot stopped (PID {pid}).")
         return 0
     except Exception as exc:
-        print(f"❌ Error stopping bot: {exc}")
+        _safe_print(f"❌ Error stopping bot: {exc}")
         return 1
 
 
@@ -183,13 +183,13 @@ def _status() -> int:
     """Print whether the bot is currently running."""
     pid_file = existing_app_path("bot.pid")
     if not pid_file.exists():
-        print("Status: 🛑 NOT RUNNING")
+        _safe_print("Status: 🛑 NOT RUNNING")
         return 0
     try:
         pid = int(pid_file.read_text().strip())
-        print(f"Status: 🚀 RUNNING (PID {pid})")
+        _safe_print(f"Status: 🚀 RUNNING (PID {pid})")
     except Exception:
-        print("Status: ❓ UNKNOWN (could not read PID file)")
+        _safe_print("Status: ❓ UNKNOWN (could not read PID file)")
     return 0
 
 
@@ -240,21 +240,21 @@ def _auth() -> int:
         input("Press Enter to continue...")
         success = oauth.start_login_flow()
         if success and oauth.is_authenticated():
-            print(f"\n✅ LOGIN SUCCESSFUL — {oauth.email}")
+            _safe_print(f"\n✅ LOGIN SUCCESSFUL — {oauth.email}")
             if getattr(oauth, 'project_id', None):
                 print(f"Project: {oauth.project_id}")
         else:
-            print("\n❌ LOGIN FAILED — please try again.")
+            _safe_print("\n❌ LOGIN FAILED — please try again.")
     elif choice == "2":
         if oauth.load_saved_tokens():
-            print(f"\n✅ Authenticated as {oauth.email}")
+            _safe_print(f"\n✅ Authenticated as {oauth.email}")
             if getattr(oauth, 'project_id', None):
                 print(f"Project: {oauth.project_id}")
         else:
-            print("\n❌ Not authenticated. Run option 1 to login.")
+            _safe_print("\n❌ Not authenticated. Run option 1 to login.")
     elif choice == "3":
         oauth.logout()
-        print("\n✅ Logged out.")
+        _safe_print("\n✅ Logged out.")
     else:
         print("Goodbye!")
     return 0

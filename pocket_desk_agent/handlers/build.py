@@ -294,12 +294,13 @@ def _format_apk_folder_contents(folder_path: str) -> tuple[bool, str]:
     for index, filename in enumerate(sorted(files), len(folders) + 1):
         file_path = os.path.join(folder_path, filename)
         lower_name = filename.lower()
+        mtime_str = time.strftime("%Y-%m-%d %H:%M", time.localtime(os.path.getmtime(file_path)))
         if lower_name.endswith(".apk") or lower_name.endswith(".aab"):
             file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
             tag = "APK" if lower_name.endswith(".apk") else "AAB"
-            message += f"{index}. [{tag}] {filename} ({file_size_mb:.2f} MB)\n"
+            message += f"{index}. [{tag}] {filename} ({file_size_mb:.2f} MB, modified {mtime_str})\n"
         else:
-            message += f"{index}. [FILE] {filename}\n"
+            message += f"{index}. [FILE] {filename} (modified {mtime_str})\n"
 
     message += "\nReply with:\n"
     message += "- Number to navigate/select\n"
@@ -1216,11 +1217,13 @@ async def send_apk_file(update: Update, context: ContextTypes.DEFAULT_TYPE, apk_
     """Send an APK/AAB artifact via Telegram, with the large-file fallback."""
     artifact_label = "AAB" if apk_path.lower().endswith(".aab") else "APK"
     file_size_mb = os.path.getsize(apk_path) / (1024 * 1024)
+    modified_str = time.strftime("%Y-%m-%d %H:%M", time.localtime(os.path.getmtime(apk_path)))
 
     await update.message.reply_text(
         f"📦 Found {artifact_label} file!\n\n"
         f"File: {os.path.basename(apk_path)}\n"
         f"Size: {file_size_mb:.2f} MB\n"
+        f"Modified: {modified_str}\n"
         f"Path: {apk_path}\n\n"
         f"Preparing to send..."
     )

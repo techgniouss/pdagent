@@ -524,6 +524,21 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not success:
             logger.warning("Browser callback failed for %s: %s", browser_key, message)
 
+    # Handle /approvedirs reset confirmation
+    elif query.data == "confirm_approvedirs_reset":
+        from pathlib import Path
+
+        from pocket_desk_agent.handlers.filesystem import (
+            apply_approved_dirs,
+            approvedirs_list_text,
+        )
+
+        apply_approved_dirs([Path.home()])
+        await query.edit_message_text(f"✅ Reset to home directory.\n\n{approvedirs_list_text()}")
+
+    elif query.data == "cancel_approvedirs_reset":
+        await query.edit_message_text("Reset cancelled. Approved directories unchanged.")
+
 
 async def handle_dropbox_delete(
     update: Update, context: ContextTypes.DEFAULT_TYPE, query

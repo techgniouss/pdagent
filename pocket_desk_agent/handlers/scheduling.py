@@ -387,9 +387,15 @@ async def claudeschedule_command(
         )
         return
 
+    if execute_at <= local_now():
+        await update.message.reply_text(
+            "That time is in the past. Please provide a future time."
+        )
+        return
+
     prompt = " ".join(prompt_parts)
     task = ScheduledTask(
-        id=f"claude_{int(time.time())}",
+        id=f"claude_{int(time.time() * 1000)}",
         user_id=update.effective_user.id,
         command=f"claude_msg:{prompt}",
         execute_at=execute_at.isoformat(),
@@ -935,7 +941,9 @@ async def run_custom_actions(actions: Iterable) -> None:
 
                 if len(action.args) > 1:
                     await asyncio.sleep(0.5)
-                    typewrite_text(pyautogui, action.args[1], interval=0.02)
+                    await asyncio.to_thread(
+                        typewrite_text, pyautogui, action.args[1], interval=0.02
+                    )
 
         elif action.type == "clipboard":
             if action.args:
@@ -944,7 +952,10 @@ async def run_custom_actions(actions: Iterable) -> None:
         elif action.type == "findtext":
             if action.args:
                 try:
-                    matches = find_text_in_image(pyautogui.screenshot(), action.args[0])
+                    screenshot = await asyncio.to_thread(pyautogui.screenshot)
+                    matches = await asyncio.to_thread(
+                        find_text_in_image, screenshot, action.args[0]
+                    )
                     logger.info(
                         "[scheduler] findtext '%s': %s",
                         action.args[0],
@@ -956,7 +967,10 @@ async def run_custom_actions(actions: Iterable) -> None:
         elif action.type == "smartclick":
             if action.args:
                 try:
-                    matches = find_text_in_image(pyautogui.screenshot(), action.args[0])
+                    screenshot = await asyncio.to_thread(pyautogui.screenshot)
+                    matches = await asyncio.to_thread(
+                        find_text_in_image, screenshot, action.args[0]
+                    )
                     if matches:
                         pyautogui.click(matches[0].x, matches[0].y)
                         logger.info(
@@ -987,7 +1001,9 @@ async def run_custom_actions(actions: Iterable) -> None:
                     text_to_type = "".join(action.args[1:])
                 else:
                     text_to_type = " ".join(action.args)
-                typewrite_text(pyautogui, text_to_type, interval=0.02)
+                await asyncio.to_thread(
+                    typewrite_text, pyautogui, text_to_type, interval=0.02
+                )
                 press_key(pyautogui, "enter")
 
         elif action.type == "scrollup":
@@ -1015,17 +1031,22 @@ async def _execute_scheduled_claude_prompt(
         send_prompt_to_claude,
     )
 
-    window = ensure_claude_open()
+    # ensure_claude_open / send_prompt_to_claude block for many seconds
+    # (app launch waits, OCR, typing) — keep them off the event loop.
+    window = await asyncio.to_thread(ensure_claude_open)
     if not window:
         raise RuntimeError("Could not open or find the Claude desktop app")
 
-    try:
-        window.activate()
-    except Exception:
-        pass
+    def _activate_claude_window() -> None:
+        try:
+            window.activate()
+        except Exception:
+            pass
+
+    await asyncio.to_thread(_activate_claude_window)
     await asyncio.sleep(1.5)
 
-    send_prompt_to_claude(window, prompt)
+    await asyncio.to_thread(send_prompt_to_claude, window, prompt)
 
     await bot.send_message(
         chat_id=task.user_id,
@@ -1112,11 +1133,13 @@ async def _execute_screen_watch(task: ScheduledTask, bot) -> tuple[bool, Optiona
     except ImportError as exc:
         return False, f"Missing dependency: {exc}"
 
+    # Screen grabs and OCR take hundreds of ms to seconds — run them in a
+    # worker thread so the bot's event loop stays responsive.
     screenshot = None
     if scope == "screen":
-        screenshot = pyautogui.screenshot()
+        screenshot = await asyncio.to_thread(pyautogui.screenshot)
     else:
-        window = _find_permission_target_window(scope)
+        window = await asyncio.to_thread(_find_permission_target_window, scope)
         if not window:
             logger.info("Screen watcher skipped because %s window was not found", scope)
             return True, None
@@ -1126,10 +1149,10 @@ async def _execute_screen_watch(task: ScheduledTask, bot) -> tuple[bool, Optiona
                 "Screen watcher skipped because %s window bounds were invalid", scope
             )
             return True, None
-        screenshot = pyautogui.screenshot(region=region)
+        screenshot = await asyncio.to_thread(pyautogui.screenshot, region=region)
 
     try:
-        matches = find_text_in_image(screenshot, search_text)
+        matches = await asyncio.to_thread(find_text_in_image, screenshot, search_text)
     except Exception as exc:
         logger.warning("Screen watcher OCR failed for '%s': %s", search_text, exc)
         return False, str(exc)
@@ -1159,9 +1182,9 @@ async def _execute_screen_watch(task: ScheduledTask, bot) -> tuple[bool, Optiona
             return False, f"Could not parse hotkey '{hotkey}'."
 
         if len(keys) == 1:
-            press_key(pyautogui, keys[0])
+            await asyncio.to_thread(press_key, pyautogui, keys[0])
         else:
-            send_hotkey(pyautogui, *keys)
+            await asyncio.to_thread(send_hotkey, pyautogui, *keys)
 
     if cooldown_seconds > 0 and action_mode != "notify":
         metadata["last_triggered_at"] = local_now().isoformat()
@@ -1214,7 +1237,7 @@ async def _execute_permission_watch(
     except ImportError as exc:
         return False, f"Missing dependency: {exc}"
 
-    window = _find_permission_target_window(target)
+    window = await asyncio.to_thread(_find_permission_target_window, target)
     if not window:
         logger.info(
             "Permission watcher skipped because %s window was not found", target
@@ -1230,11 +1253,11 @@ async def _execute_permission_watch(
         )
         return True, None
 
-    screenshot = pyautogui.screenshot(region=region)
+    screenshot = await asyncio.to_thread(pyautogui.screenshot, region=region)
     candidates = []
     for label in labels:
         try:
-            matches = find_text_in_image(screenshot, label)
+            matches = await asyncio.to_thread(find_text_in_image, screenshot, label)
         except Exception as exc:
             logger.warning(
                 "Permission watcher OCR failed for label '%s' on %s: %s",
@@ -1269,7 +1292,7 @@ async def _execute_permission_watch(
         return True, None
 
     candidate = candidates[0]
-    pyautogui.click(candidate["x"], candidate["y"])
+    await asyncio.to_thread(pyautogui.click, candidate["x"], candidate["y"])
     await bot.send_message(
         chat_id=task.user_id,
         text=(
