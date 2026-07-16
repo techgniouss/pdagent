@@ -19,6 +19,11 @@ logger = logging.getLogger(__name__)
 
 SCHEDULER_PATH = app_path("scheduled_tasks.json")
 
+# Repeating tasks (watchers, /repeatschedule) tolerate this many consecutive
+# failed runs before being marked failed permanently. A single transient error
+# (OCR hiccup, locked screen grab) must not kill a long-running watcher.
+MAX_CONSECUTIVE_FAILURES = 5
+
 
 @dataclass
 class ScheduledTask:
@@ -38,6 +43,7 @@ class ScheduledTask:
     run_count: int = 0
     last_run_at: Optional[str] = None
     temporary_command: bool = False
+    consecutive_failures: int = 0
     metadata: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
@@ -165,22 +171,33 @@ class SchedulerRegistry:
             task_dict["last_run_at"] = executed.isoformat()
             task_dict["run_count"] = int(task_dict.get("run_count", 0)) + 1
 
-            if error:
-                task_dict["error"] = error
-            else:
+            if success:
                 task_dict["error"] = None
+                task_dict["consecutive_failures"] = 0
+            else:
+                task_dict["error"] = error or task_dict.get("error")
+                task_dict["consecutive_failures"] = (
+                    int(task_dict.get("consecutive_failures", 0)) + 1
+                )
 
             interval_seconds = task_dict.get("interval_seconds")
             repeat_until = parse_iso_datetime(str(task_dict.get("repeat_until") or ""))
+            failures = int(task_dict.get("consecutive_failures", 0))
 
-            if success and interval_seconds and repeat_until:
+            # Repeating tasks keep running through transient failures; they
+            # only stop when past repeat_until or too many failures in a row.
+            if (
+                interval_seconds
+                and repeat_until
+                and failures < MAX_CONSECUTIVE_FAILURES
+            ):
                 next_run_at = executed + dt.timedelta(seconds=int(interval_seconds))
                 if next_run_at <= repeat_until:
                     task_dict["next_run_at"] = next_run_at.isoformat()
                     task_dict["status"] = "pending"
                 else:
                     task_dict["next_run_at"] = None
-                    task_dict["status"] = "completed"
+                    task_dict["status"] = "completed" if success else "failed"
             else:
                 task_dict["next_run_at"] = None
                 task_dict["status"] = "completed" if success else "failed"

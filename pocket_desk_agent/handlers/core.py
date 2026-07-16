@@ -369,8 +369,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Check if this is a custom command (starts with /)
     user_message = update.message.text
-    if user_message.startswith("/"):
-        command_name = user_message[1:].split()[0]  # Remove / and get first word
+    if user_message.startswith("/") and user_message[1:].strip():
+        # Remove /, strip optional @botname suffix, take first word
+        command_name = user_message[1:].split()[0].split("@")[0]
 
         # Check if it's a saved custom command
         from pocket_desk_agent.command_registry import get_registry
@@ -380,6 +381,35 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if registry.command_exists(command_name):
             await execute_custom_command(update, context, command_name)
             return
+
+        # Unknown slash command — suggest the closest match instead of
+        # silently forwarding it to Gemini as chat text.
+        import difflib
+
+        from pocket_desk_agent.command_map import COMMAND_REGISTRY
+
+        known_commands = [cmd for cmd, _, _ in COMMAND_REGISTRY]
+        known_commands.extend(registry.list_commands().keys())
+        typo = command_name.lower()
+        # Anagram pass catches swapped compound words that difflib misses,
+        # e.g. /scheduleclaude -> /claudeschedule.
+        suggestions = [
+            cmd for cmd in known_commands if sorted(cmd) == sorted(typo)
+        ]
+        for match in difflib.get_close_matches(
+            typo, known_commands, n=3, cutoff=0.6
+        ):
+            if match not in suggestions:
+                suggestions.append(match)
+        suggestions = suggestions[:3]
+        reply = f"Unknown command /{command_name}."
+        if suggestions:
+            reply += "\n\nDid you mean:\n" + "\n".join(
+                f"/{name}" for name in suggestions
+            )
+        reply += "\n\nUse /help to see all commands."
+        await update.message.reply_text(reply)
+        return
 
     # Check authentication only after non-Gemini reply workflows are handled.
     if not auth_client.is_authenticated(user_id):

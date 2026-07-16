@@ -67,6 +67,7 @@ Browse, read, and search files on the host machine. All operations are confined 
 | `/getfile <file>` | Download a file directly to Telegram (or as a large-file upload for files over the Telegram limit). | `/getfile build/app-release.apk` |
 | `/find <pattern>` | Search for files matching a glob pattern. | `/find *.py` |
 | `/info <path>` | Show metadata, size, and permissions for a file or folder. | `/info C:\data\log.txt` |
+| `/approvedirs` | View or change the sandbox's approved-directory allowlist at runtime — no restart needed. | `/approvedirs add C:\Projects` |
 
 ---
 
