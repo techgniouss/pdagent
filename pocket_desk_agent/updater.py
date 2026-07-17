@@ -1,9 +1,10 @@
 """
 Auto-update manager for Pocket Desk Agent.
 
-Checks PyPI for released updates and can apply updates through either the
-local git checkout or the installed PyPI package, depending on how the bot
-is running.
+Checks PyPI for released updates and applies updates via ``pip install
+--upgrade`` — always, regardless of whether the bot is running from a git
+checkout. This tracks published releases only; it never pulls unreleased
+commits into a checkout.
 
 Public API
 ----------
@@ -39,7 +40,6 @@ VERSION = _PACKAGE_VERSION
 
 # ── Repo coordinates ─────────────────────────────────────────────────────────
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
-REQUIREMENTS_FILE = PROJECT_ROOT / "requirements.txt"
 
 PYPI_JSON_URL = "https://pypi.org/pypi/pocket-desk-agent/json"
 
@@ -208,97 +208,14 @@ def get_last_check() -> tuple[Optional["UpdateInfo"], Optional[datetime]]:
 
 # ── Apply update ──────────────────────────────────────────────────────────────
 
-def _apply_git_update() -> tuple[bool, str]:
-    """
-    Pull the latest changes for the current tracked branch and re-install
-    requirements.
-
-    Returns (success, message).  On success the calling code should restart
-    the bot (the existing reloader in main.py will handle that automatically
-    once a .py file changes on disk after the pull).
-    """
-    try:
-        # 1. Stash any local changes to avoid merge conflicts
-        logger.info("[updater] Stashing local changes...")
-        _run_git("stash", "--include-untracked")
-
-        # 2. Pull the currently tracked upstream branch instead of hardcoding
-        # origin/main so editable installs on other branches update correctly.
-        logger.info("[updater] Running git pull…")
-        pull = _run_git("pull")
-        if pull.returncode != 0:
-            err = pull.stderr.strip() or pull.stdout.strip()
-            # Try to pop stash on failure
-            _run_git("stash", "pop")
-            return False, f"git pull failed:\n{err}"
-
-        pull_output = pull.stdout.strip()
-        logger.info(f"[updater] git pull output: {pull_output}")
-
-        # Nothing changed (already up to date)
-        if "Already up to date" in pull_output:
-            _run_git("stash", "pop")
-            return False, "✅ Already up to date — no changes were pulled."
-
-        # 3. Re-apply stashed local changes (if any were stashed)
-        logger.info("[updater] Re-applying stashed changes...")
-        stash_pop = _run_git("stash", "pop")
-        if stash_pop.returncode != 0:
-            pop_err = stash_pop.stderr.strip()
-            # "No stash entries found" is fine — means stash was a no-op
-            if "No stash entries" not in pop_err:
-                logger.warning(f"[updater] stash pop had issues: {pop_err}")
-
-        # 4. Re-install dependencies (non-interactive, upgrade)
-        if REQUIREMENTS_FILE.exists():
-            logger.info("[updater] Re-installing dependencies…")
-            pip = subprocess.run(
-                [sys.executable, "-m", "pip", "install", "-r",
-                 str(REQUIREMENTS_FILE), "--quiet", "--upgrade"],
-                cwd=str(PROJECT_ROOT),
-                capture_output=True,
-                text=True,
-                timeout=120,
-            )
-            if pip.returncode != 0:
-                logger.warning(f"[updater] pip install had warnings: {pip.stderr[:300]}")
-                # Not fatal — continue
-
-        new_version = get_version_string()
-
-        # Count files changed
-        files_changed = ""
-        try:
-            stat_lines = [l for l in pull_output.split("\n") if l.strip()]
-            files_changed = f"\n📄 {len(stat_lines)} lines of output"
-        except Exception:
-            pass
-
-        return True, (
-            f"✅ Update applied successfully!\n\n"
-            f"📦 New version: `{new_version}`\n"
-            f"{files_changed}\n\n"
-            f"🔄 The bot will restart automatically in a moment…"
-        )
-
-    except subprocess.TimeoutExpired:
-        return False, "❌ Update timed out. Please try again or update manually."
-    except Exception as exc:
-        logger.error(f"[updater] apply_update crashed: {exc}", exc_info=True)
-        return False, f"❌ Unexpected error during update: {exc}"
-
-
 def apply_update() -> tuple[bool, str]:
     """
-    Apply an update using the flow that matches the install type.
+    Apply an update by upgrading the ``pocket-desk-agent`` package from PyPI.
 
-    Git checkouts (editable installs) pull the tracked branch so local
-    source actually changes; PyPI installs upgrade via pip. A pip upgrade
-    on a git checkout would report "already up to date" forever because
-    the editable version usually matches or exceeds the PyPI release.
+    Always goes through PyPI, even when running from a git checkout — this
+    keeps /update scoped to published releases instead of pulling unreleased
+    commits into a checkout.
     """
-    if _is_git_repo():
-        return _apply_git_update()
     return apply_pypi_update()
 
 
