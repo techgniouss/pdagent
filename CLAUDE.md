@@ -70,7 +70,7 @@ pocket-desk-agent/
 │   ├── scheduler_registry.py   # Persistent scheduled task storage
 │   ├── startup_manager.py      # Windows logon-task startup management
 │   ├── rate_limiter.py         # Token-bucket rate limiter
-│   ├── updater.py              # Auto-update manager (git pull for checkouts, PyPI otherwise; /update)
+│   ├── updater.py              # Auto-update manager (PyPI only via pip upgrade, regardless of install type; /update)
 │   ├── automation_utils.py     # OCR/UI automation helpers
 │   ├── desktop_adapters.py     # Centralized find/activate logic for Claude, Antigravity, etc.
 │   ├── recipe_registry.py      # Persistent workflow recipe storage (~/.pdagent/workflow_recipes.json)
