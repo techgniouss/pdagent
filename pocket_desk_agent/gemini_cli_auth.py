@@ -351,8 +351,18 @@ class GeminiCLIOAuth:
             self.expires_at = time.time() + data.get("expires_in", 3600)
 
             self._fetch_user_info()
-            self.ensure_code_assist_ready()
+            code_assist_ok = self.ensure_code_assist_ready()
+            # Always persist the OAuth credential so refresh / retry can reuse it.
             self._save_tokens()
+
+            if not code_assist_ok:
+                self._update_status(
+                    "OAuth login succeeded but Code Assist setup failed. "
+                    "If a Google Cloud project is required, set the "
+                    "GOOGLE_CLOUD_PROJECT environment variable and run "
+                    "/login again."
+                )
+                return False
 
             self._update_status(
                 f"Authenticated as {self.email or 'Unknown'} (Gemini CLI mode)"

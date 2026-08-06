@@ -852,7 +852,13 @@ class GeminiClient:
         if resolved_mode == AUTH_MODE_GEMINI_CLI:
             if isinstance(resolved_oauth, GeminiCLIOAuth):
                 try:
-                    resolved_oauth.ensure_code_assist_ready()
+                    code_assist_ok = resolved_oauth.ensure_code_assist_ready()
+                    if not code_assist_ok:
+                        logger.warning(
+                            "_get_project: Code Assist setup not ready — "
+                            "project ID may be missing. Set GOOGLE_CLOUD_PROJECT "
+                            "or GOOGLE_CLOUD_PROJECT_ID and re-authenticate."
+                        )
                 except Exception as exc:
                     logger.warning(
                         "_get_project: ensure_code_assist_ready raised: %s", exc
