@@ -55,6 +55,37 @@ jobs:
             exit 1
           fi
 
+      - name: Inject OAuth Secrets into Code
+        env:
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          GEMINI_CLI_OAUTH_CLIENT_ID: ${{ secrets.GEMINI_CLI_OAUTH_CLIENT_ID }}
+          GEMINI_CLI_OAUTH_CLIENT_SECRET: ${{ secrets.GEMINI_CLI_OAUTH_CLIENT_SECRET }}
+        run: |
+          python -c "
+          import os, re
+          path = 'pocket_desk_agent/constants.py'
+          with open(path, 'r', encoding='utf-8') as f:
+              content = f.read()
+
+          client_id = os.getenv('GOOGLE_OAUTH_CLIENT_ID')
+          client_secret = os.getenv('GOOGLE_OAUTH_CLIENT_SECRET')
+          cli_id = os.getenv('GEMINI_CLI_OAUTH_CLIENT_ID')
+          cli_secret = os.getenv('GEMINI_CLI_OAUTH_CLIENT_SECRET')
+
+          if client_id:
+              content = re.sub(r'DEFAULT_OAUTH_CLIENT_ID\s*=\s*\([^\)]+\)|DEFAULT_OAUTH_CLIENT_ID\s*=\s*\"[^\"]+\"', f'DEFAULT_OAUTH_CLIENT_ID = \"{client_id}\"', content)
+          if client_secret:
+              content = re.sub(r'DEFAULT_OAUTH_CLIENT_SECRET\s*=\s*\"[^\"]+\"', f'DEFAULT_OAUTH_CLIENT_SECRET = \"{client_secret}\"', content)
+          if cli_id:
+              content = re.sub(r'GEMINI_CLI_OAUTH_CLIENT_ID\s*=\s*\([^\)]+\)|GEMINI_CLI_OAUTH_CLIENT_ID\s*=\s*\"[^\"]+\"', f'GEMINI_CLI_OAUTH_CLIENT_ID = \"{cli_id}\"', content)
+          if cli_secret:
+              content = re.sub(r'GEMINI_CLI_OAUTH_CLIENT_SECRET\s*=\s*\"[^\"]+\"', f'GEMINI_CLI_OAUTH_CLIENT_SECRET = \"{cli_secret}\"', content)
+
+          with open(path, 'w', encoding='utf-8') as f:
+              f.write(content)
+          "
+
       - name: Build sdist and wheel
         run: python -m build
 

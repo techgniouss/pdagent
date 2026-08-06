@@ -34,12 +34,18 @@ from pocket_desk_agent.antigravity_auth import (
 
 logger = logging.getLogger(__name__)
 
-_CLIENT_ID = (
-    os.getenv("GEMINI_CLI_OAUTH_CLIENT_ID") or GEMINI_CLI_OAUTH_CLIENT_ID
-)
-_CLIENT_SECRET = (
-    os.getenv("GEMINI_CLI_OAUTH_CLIENT_SECRET") or GEMINI_CLI_OAUTH_CLIENT_SECRET
-)
+def get_gemini_cli_client_id() -> str:
+    return (
+        os.getenv("GEMINI_CLI_OAUTH_CLIENT_ID") or GEMINI_CLI_OAUTH_CLIENT_ID
+    )
+
+def get_gemini_cli_client_secret() -> str:
+    return (
+        os.getenv("GEMINI_CLI_OAUTH_CLIENT_SECRET") or GEMINI_CLI_OAUTH_CLIENT_SECRET
+    )
+
+_CLIENT_ID = get_gemini_cli_client_id()
+_CLIENT_SECRET = get_gemini_cli_client_secret()
 
 # Gemini CLI stores its own creds at ~/.gemini/oauth_creds.json.
 _GEMINI_CLI_CREDS_PATH = Path.home() / ".gemini" / "oauth_creds.json"
@@ -93,8 +99,12 @@ class GeminiCLIOAuth:
                 return project_id.strip()
         return None
 
-    def _load_code_assist_profile(self) -> None:
-        """Initialize project selection for the Code Assist backend."""
+    def _load_code_assist_profile(self) -> bool:
+        """Initialize project selection for the Code Assist backend.
+
+        Returns True on success, False on any network or API failure.
+        Never raises — all errors are logged so the bot stays alive.
+        """
         project_id = self._configured_project_id() or self.project_id
         client_metadata = {
             "ideType": "IDE_UNSPECIFIED",
@@ -103,25 +113,33 @@ class GeminiCLIOAuth:
             "duetProject": project_id,
         }
 
-        load_response = requests.post(
-            f"{ANTIGRAVITY_ENDPOINT_PROD}/v1internal:loadCodeAssist",
-            headers={
-                "Authorization": f"Bearer {self.access_token}",
-                "Content-Type": "application/json",
-                **self._request_headers(),
-            },
-            json={
-                "cloudaicompanionProject": project_id,
-                "metadata": client_metadata,
-            },
-            timeout=30,
-        )
+        try:
+            load_response = requests.post(
+                f"{ANTIGRAVITY_ENDPOINT_PROD}/v1internal:loadCodeAssist",
+                headers={
+                    "Authorization": f"Bearer {self.access_token}",
+                    "Content-Type": "application/json",
+                    **self._request_headers(),
+                },
+                json={
+                    "cloudaicompanionProject": project_id,
+                    "metadata": client_metadata,
+                },
+                timeout=30,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Gemini CLI Code Assist setup failed (network error): %s", exc
+            )
+            return False
 
         if not load_response.ok:
-            raise RuntimeError(
-                f"Gemini CLI setup failed: HTTP {load_response.status_code}: "
-                f"{load_response.text[:300]}"
+            logger.warning(
+                "Gemini CLI Code Assist setup failed: HTTP %s: %s",
+                load_response.status_code,
+                load_response.text[:300],
             )
+            return False
 
         load_data = load_response.json()
         if not project_id:
@@ -142,40 +160,19 @@ class GeminiCLIOAuth:
             }
 
         if current_tier.get("userDefinedCloudaicompanionProject") and not project_id:
-            raise RuntimeError(
-                "This Gemini CLI login requires a Google Cloud project. "
+            logger.warning(
+                "Gemini CLI login requires a Google Cloud project. "
                 "Set GOOGLE_CLOUD_PROJECT or GOOGLE_CLOUD_PROJECT_ID and try again."
             )
+            return False
 
         onboard_payload = {
             "tierId": current_tier.get("id"),
             "cloudaicompanionProject": project_id,
             "metadata": client_metadata,
         }
-        onboard_response = requests.post(
-            f"{ANTIGRAVITY_ENDPOINT_PROD}/v1internal:onboardUser",
-            headers={
-                "Authorization": f"Bearer {self.access_token}",
-                "Content-Type": "application/json",
-                **self._request_headers(),
-            },
-            json=onboard_payload,
-            timeout=30,
-        )
 
-        if not onboard_response.ok:
-            raise RuntimeError(
-                f"Gemini CLI onboarding failed: HTTP {onboard_response.status_code}: "
-                f"{onboard_response.text[:300]}"
-            )
-
-        onboard_data = onboard_response.json()
-        attempts = 0
-        while not onboard_data.get("done", False):
-            attempts += 1
-            if attempts >= 12:
-                raise RuntimeError("Gemini CLI onboarding did not finish in time.")
-            time.sleep(1)
+        try:
             onboard_response = requests.post(
                 f"{ANTIGRAVITY_ENDPOINT_PROD}/v1internal:onboardUser",
                 headers={
@@ -186,28 +183,93 @@ class GeminiCLIOAuth:
                 json=onboard_payload,
                 timeout=30,
             )
-            if not onboard_response.ok:
-                raise RuntimeError(
-                    f"Gemini CLI onboarding failed: HTTP {onboard_response.status_code}: "
-                    f"{onboard_response.text[:300]}"
+        except Exception as exc:
+            logger.warning(
+                "Gemini CLI onboarding failed (network error): %s", exc
+            )
+            return False
+
+        if not onboard_response.ok:
+            logger.warning(
+                "Gemini CLI onboarding failed: HTTP %s: %s",
+                onboard_response.status_code,
+                onboard_response.text[:300],
+            )
+            return False
+
+        onboard_data = onboard_response.json()
+        attempts = 0
+        while not onboard_data.get("done", False):
+            attempts += 1
+            if attempts >= 12:
+                logger.warning(
+                    "Gemini CLI onboarding did not finish in time (12 attempts)."
                 )
+                return False
+            time.sleep(1)
+            try:
+                onboard_response = requests.post(
+                    f"{ANTIGRAVITY_ENDPOINT_PROD}/v1internal:onboardUser",
+                    headers={
+                        "Authorization": f"Bearer {self.access_token}",
+                        "Content-Type": "application/json",
+                        **self._request_headers(),
+                    },
+                    json=onboard_payload,
+                    timeout=30,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Gemini CLI onboarding poll failed (network error): %s", exc
+                )
+                return False
+            if not onboard_response.ok:
+                logger.warning(
+                    "Gemini CLI onboarding poll failed: HTTP %s: %s",
+                    onboard_response.status_code,
+                    onboard_response.text[:300],
+                )
+                return False
             onboard_data = onboard_response.json()
 
         onboard_project = self._extract_project_id(
             (onboard_data.get("response") or {}).get("cloudaicompanionProject")
         )
         self.project_id = onboard_project or project_id
+        return True
 
     def ensure_code_assist_ready(self) -> bool:
-        """Ensure CLI tokens are ready for Code Assist requests."""
+        """Ensure CLI tokens are ready for Code Assist requests.
+
+        Returns True when ready, False when setup could not complete.
+        Never raises — failures are logged so the bot stays alive.
+        """
         if self._code_assist_ready:
             return True
         if not self.access_token:
             return False
 
-        self._load_code_assist_profile()
-        self._code_assist_ready = True
-        return True
+        try:
+            ok = self._load_code_assist_profile()
+        except Exception as exc:
+            # Belt-and-suspenders: _load_code_assist_profile should not raise,
+            # but guard here so any future regression cannot crash the caller.
+            logger.warning(
+                "Unexpected error in _load_code_assist_profile: %s", exc,
+                exc_info=True,
+            )
+            return False
+
+        self._code_assist_ready = ok
+        return ok
+
+    @property
+    def client_id(self) -> str:
+        return get_gemini_cli_client_id()
+
+    @property
+    def client_secret(self) -> str:
+        return get_gemini_cli_client_secret()
 
     def build_authorization_url(self) -> Tuple[str, str]:
         """Build the OAuth authorization URL with PKCE."""
@@ -224,7 +286,7 @@ class GeminiCLIOAuth:
         state = _b64.urlsafe_b64encode(payload.encode()).decode().rstrip("=")
 
         params = {
-            "client_id": _CLIENT_ID,
+            "client_id": self.client_id,
             "response_type": "code",
             "redirect_uri": OAUTH_REDIRECT_URI,
             "scope": " ".join(GEMINI_CLI_SCOPES),
@@ -269,8 +331,8 @@ class GeminiCLIOAuth:
                     "Accept": "*/*",
                 },
                 data={
-                    "client_id": _CLIENT_ID,
-                    "client_secret": _CLIENT_SECRET,
+                    "client_id": self.client_id,
+                    "client_secret": self.client_secret,
                     "code": code,
                     "grant_type": "authorization_code",
                     "redirect_uri": OAUTH_REDIRECT_URI,
@@ -366,6 +428,7 @@ class GeminiCLIOAuth:
 
     def refresh_access_token(self) -> bool:
         if not self.refresh_token:
+            self.logout()
             return False
 
         self._update_status("Refreshing access token...")
@@ -376,8 +439,8 @@ class GeminiCLIOAuth:
                     "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
                 },
                 data={
-                    "client_id": _CLIENT_ID,
-                    "client_secret": _CLIENT_SECRET,
+                    "client_id": self.client_id,
+                    "client_secret": self.client_secret,
                     "refresh_token": self.refresh_token,
                     "grant_type": "refresh_token",
                 },
@@ -395,6 +458,12 @@ class GeminiCLIOAuth:
                 return True
 
             self._update_status(f"Token refresh failed: {response.text}")
+            if response.status_code in (400, 401, 403) or "invalid_grant" in response.text:
+                logger.warning(
+                    "Gemini CLI token refresh rejected by Google (HTTP %d). Auto-logging out.",
+                    response.status_code,
+                )
+                self.logout()
             return False
 
         except Exception as exc:

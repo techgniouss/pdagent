@@ -413,7 +413,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Check authentication only after non-Gemini reply workflows are handled.
     if not auth_client.is_authenticated(user_id):
-        await update.message.reply_text("Please authenticate first using /start")
+        await update.message.reply_text(
+            "🔓 Gemini AI requires authentication (session expired or signed out).\n\n"
+            "Use /login to sign in again."
+        )
         return
 
     # Show typing indicator
@@ -453,7 +456,10 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     if not auth_client.is_authenticated(user_id):
-        await update.message.reply_text("Please authenticate first using /start")
+        await update.message.reply_text(
+            "🔓 Gemini AI requires authentication (session expired or signed out).\n\n"
+            "Use /login to sign in again."
+        )
         return
 
     # Get the largest photo
@@ -489,7 +495,10 @@ async def handle_image_document(update: Update, context: ContextTypes.DEFAULT_TY
         )
 
     if not auth_client.is_authenticated(user_id):
-        await update.message.reply_text("Please authenticate first using /start")
+        await update.message.reply_text(
+            "🔓 Gemini AI requires authentication (session expired or signed out).\n\n"
+            "Use /login to sign in again."
+        )
         return
 
     document_file = await document.get_file()

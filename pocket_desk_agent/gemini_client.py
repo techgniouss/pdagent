@@ -711,6 +711,35 @@ def _trim_history(history: list) -> list:
         return history[-max_items:]
     return history
 
+
+_AUTH_ERROR_SIGNATURES = (
+    "HTTP 401",
+    "HTTP 403",
+    "401 ",
+    "403 ",
+    "invalid_grant",
+    "token has been expired",
+    "token has been revoked",
+    "UNAUTHENTICATED",
+    "PERMISSION_DENIED",
+)
+
+_SESSION_EXPIRED_MESSAGE = (
+    "🔓 Your Gemini AI session has expired and you've been automatically "
+    "signed out to keep your account secure.\n\n"
+    "Use /login to reconnect."
+)
+
+
+def _is_auth_error(error_text: str) -> bool:
+    """Return True when the API error indicates expired or revoked credentials."""
+    if not isinstance(error_text, str):
+        return False
+    for sig in _AUTH_ERROR_SIGNATURES:
+        if sig in error_text:
+            return True
+    return False
+
 _MAX_RETRIES = 3
 
 
@@ -784,13 +813,26 @@ class GeminiClient:
         auth_mode: Optional[str] = None,
         oauth: Optional[OAuthProvider] = None,
     ) -> str:
-        """Return the access token for the resolved auth context."""
+        """Return the access token for the resolved auth context.
+
+        Returns an empty string when auth is not configured or the token
+        refresh fails — never raises so callers can handle gracefully.
+        """
         resolved_mode, resolved_oauth = self._resolve_auth_context(auth_mode, oauth)
         if resolved_mode == AUTH_MODE_APIKEY:
             return ""
         if resolved_oauth is None:
-            raise RuntimeError("Google authentication is not configured.")
-        resolved_oauth.ensure_valid_token()
+            logger.warning(
+                "_get_request_token: Google authentication is not configured "
+                "(no OAuth instance). Returning empty token."
+            )
+            return ""
+        try:
+            resolved_oauth.ensure_valid_token()
+        except Exception as exc:
+            logger.warning(
+                "_get_request_token: ensure_valid_token raised unexpectedly: %s", exc
+            )
         return resolved_oauth.access_token or ""
 
     def _get_project(
@@ -802,11 +844,19 @@ class GeminiClient:
         if resolved_mode == AUTH_MODE_APIKEY:
             return ""  # Public API — no project needed
         if resolved_oauth is None:
-            raise RuntimeError("Google authentication is not configured.")
+            logger.warning(
+                "_get_project: no OAuth instance available — returning empty project."
+            )
+            return ""
 
         if resolved_mode == AUTH_MODE_GEMINI_CLI:
             if isinstance(resolved_oauth, GeminiCLIOAuth):
-                resolved_oauth.ensure_code_assist_ready()
+                try:
+                    resolved_oauth.ensure_code_assist_ready()
+                except Exception as exc:
+                    logger.warning(
+                        "_get_project: ensure_code_assist_ready raised: %s", exc
+                    )
                 return resolved_oauth.project_id or ""
             return ""
 
@@ -817,16 +867,50 @@ class GeminiClient:
                 resolved_oauth._save_tokens()
                 project = resolved_oauth.project_id
         if not project:
-            raise RuntimeError(
-                "Google Cloud project ID not configured. "
+            logger.warning(
+                "_get_project: Google Cloud project ID not configured. "
                 "Set GOOGLE_PROJECT_ID in your config or run 'pdagent configure'."
             )
+            return ""
         return project
 
     def get_or_create_session(self, user_id: int) -> list:
         if user_id not in self.sessions:
             self.sessions[user_id] = []
         return self.sessions[user_id]
+
+    def _auto_logout_oauth(
+        self,
+        user_id: int,
+        resolved_oauth: Optional[OAuthProvider],
+        reason: str = "auth failure",
+    ) -> None:
+        """Clear stored OAuth tokens for a user and log the event.
+
+        This is called whenever the Gemini API returns a credential error so
+        that a stale / revoked session is cleaned up automatically.  The
+        caller is responsible for returning a user-facing message that tells
+        the user they have been signed out.
+        """
+        try:
+            from pocket_desk_agent.handlers._shared import auth_client
+            auth_client.logout_user(user_id)
+            logger.info(
+                "Auto-logged out user %d (%s) — stored tokens cleared.",
+                user_id,
+                reason,
+            )
+        except Exception as exc:
+            if resolved_oauth:
+                try:
+                    resolved_oauth.logout()
+                except Exception:
+                    pass
+            logger.warning(
+                "Auto-logout for user %d failed unexpectedly: %s",
+                user_id,
+                exc,
+            )
 
     def _get_request_model_candidates(self) -> list[str]:
         """Return the configured model plus safe fallbacks, preferring known-good cache."""
@@ -896,6 +980,19 @@ class GeminiClient:
             resolved_auth_mode, resolved_oauth = self._resolve_auth_context(auth_mode, oauth)
             token = self._get_request_token(resolved_auth_mode, resolved_oauth)
             project = self._get_project(resolved_auth_mode, resolved_oauth)
+
+            # If we're in an OAuth mode but couldn't obtain a token, the
+            # session has expired or the credentials were revoked.  Auto-logout
+            # so the stale tokens don't persist, and tell the user to re-login.
+            if resolved_auth_mode != AUTH_MODE_APIKEY and not token:
+                logger.warning(
+                    "send_message: no valid access token for user %d — "
+                    "auto-logging out.",
+                    user_id,
+                )
+                self._auto_logout_oauth(user_id, resolved_oauth, reason="no token")
+                return _SESSION_EXPIRED_MESSAGE
+
             loop = asyncio.get_running_loop()
 
             # Snapshot the original history so we can roll back on failure
@@ -923,6 +1020,18 @@ class GeminiClient:
                     # Roll back the pending turn so the session stays clean.
                     del history[base_history_len:]
                     self.sessions[user_id] = _trim_history(history)
+                    # If the API returned an auth error (401/403/revoked),
+                    # auto-logout so stale tokens are cleared immediately.
+                    if _is_auth_error(err):
+                        logger.warning(
+                            "send_message: auth error detected for user %d — "
+                            "auto-logging out.",
+                            user_id,
+                        )
+                        self._auto_logout_oauth(
+                            user_id, resolved_oauth, reason=f"API error: {err[:80]}"
+                        )
+                        return _SESSION_EXPIRED_MESSAGE
                     return f"Error contacting Gemini: {err}"
 
                 candidates = response_data.get('candidates', [])
@@ -1178,6 +1287,18 @@ class GeminiClient:
             token = self._get_request_token(resolved_auth_mode, resolved_oauth)
             project = self._get_project(resolved_auth_mode, resolved_oauth)
 
+            # If we're in an OAuth mode but couldn't obtain a token, the
+            # session has expired or the credentials were revoked.  Auto-logout
+            # so the stale tokens don't persist, and tell the user to re-login.
+            if resolved_auth_mode != AUTH_MODE_APIKEY and not token:
+                logger.warning(
+                    "send_message_with_image: no valid access token for user %d — "
+                    "auto-logging out.",
+                    user_id,
+                )
+                self._auto_logout_oauth(user_id, resolved_oauth, reason="no token")
+                return _SESSION_EXPIRED_MESSAGE
+
             # Build contents with inline image data
             image_b64 = base64.b64encode(image_bytes).decode("utf-8")
             contents = list(history) + [{
@@ -1236,7 +1357,20 @@ class GeminiClient:
                 _build_vision_request,
             )
             if isinstance(response_data, dict) and response_data.get("error"):
-                return f"Error contacting Gemini: {response_data['error']}"
+                err = response_data["error"]
+                # If the API returned an auth error (401/403/revoked),
+                # auto-logout so stale tokens are cleared immediately.
+                if _is_auth_error(err):
+                    logger.warning(
+                        "send_message_with_image: auth error detected for user %d — "
+                        "auto-logging out.",
+                        user_id,
+                    )
+                    self._auto_logout_oauth(
+                        user_id, resolved_oauth, reason=f"API error: {err[:80]}"
+                    )
+                    return _SESSION_EXPIRED_MESSAGE
+                return f"Error contacting Gemini: {err}"
 
             response_text = _parse_full_response(response_data)
             if response_text:
