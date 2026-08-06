@@ -11,13 +11,26 @@ AUTH_MODE_GEMINI_CLI = "gemini-cli"
 AUTH_MODE_APIKEY = "apikey"
 
 # ── Default OAuth Credentials (Antigravity) ─────────────────────────────────
-# Antigravity plugin OAuth client (installed app — not treated as secret).
-# This client has http://localhost:51121/oauth-callback registered as a
-# redirect URI.  The client secret is not treated as a secret for
-# desktop/CLI apps (RFC 8252).  PKCE is the real security boundary.
+# These are **public installed-app (native) OAuth credentials** — not secrets.
 #
-# Users can override these by setting GOOGLE_OAUTH_CLIENT_ID and
-# GOOGLE_OAUTH_CLIENT_SECRET environment variables (or in ~/.pdagent/credentials).
+# RFC 8252 §8.4 explicitly states that client secrets for native/desktop apps
+# "are not treated as secret" because they cannot be kept confidential when
+# shipped in distributed software.  PKCE (RFC 7636) is the actual security
+# boundary that prevents authorization-code interception.
+#
+# ┌─ What this means ─────────────────────────────────────────────────────────┐
+# │  • Committing these values to a public repo is SAFE and CORRECT.          │
+# │  • Including them in a PyPI wheel is SAFE and CORRECT.                    │
+# │  • There is NO need to inject them from CI secrets at build time.         │
+# └───────────────────────────────────────────────────────────────────────────┘
+#
+# To use a *different* OAuth app (e.g., your own registered client), set the
+# following env vars in ~/.pdagent/config or as shell environment variables:
+#
+#   GOOGLE_OAUTH_CLIENT_ID      – overrides DEFAULT_OAUTH_CLIENT_ID
+#   GOOGLE_OAUTH_CLIENT_SECRET  – overrides DEFAULT_OAUTH_CLIENT_SECRET
+#
+# The runtime lookup in antigravity_auth.py always checks env vars first.
 DEFAULT_OAUTH_CLIENT_ID = (
     "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
 )
@@ -25,9 +38,17 @@ DEFAULT_OAUTH_CLIENT_SECRET = "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"
 
 # ── Gemini CLI OAuth Credentials ────────────────────────────────────────────
 # Public OAuth client from the official Gemini CLI (google-gemini/gemini-cli).
-# Source: packages/core/src/code_assist/oauth2.ts
-# These are installed-app credentials — the secret is NOT treated as secret
-# per RFC 8252 and Google's own documentation.
+# Source: packages/core/src/code_assist/oauth2.ts (open-source, Apache-2.0).
+#
+# Google themselves commit these values to their public GitHub repository —
+# they are public installed-app credentials (RFC 8252) and are NOT secrets.
+# PKCE is the security boundary; the client secret has no confidentiality
+# requirement for installed applications per RFC 8252 §8.4.
+#
+# To use a different Gemini CLI OAuth app, override at runtime via:
+#
+#   GEMINI_CLI_OAUTH_CLIENT_ID      – overrides GEMINI_CLI_OAUTH_CLIENT_ID
+#   GEMINI_CLI_OAUTH_CLIENT_SECRET  – overrides GEMINI_CLI_OAUTH_CLIENT_SECRET
 GEMINI_CLI_OAUTH_CLIENT_ID = (
     "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"
 )
