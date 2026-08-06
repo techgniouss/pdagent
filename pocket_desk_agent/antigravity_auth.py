@@ -31,8 +31,14 @@ from pocket_desk_agent.constants import (
 logger = logging.getLogger(__name__)
 
 # OAuth Configuration — env vars override the built-in Gemini CLI defaults.
-OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID") or DEFAULT_OAUTH_CLIENT_ID
-OAUTH_CLIENT_SECRET = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET") or DEFAULT_OAUTH_CLIENT_SECRET
+def get_oauth_client_id() -> str:
+    return os.getenv("GOOGLE_OAUTH_CLIENT_ID") or DEFAULT_OAUTH_CLIENT_ID
+
+def get_oauth_client_secret() -> str:
+    return os.getenv("GOOGLE_OAUTH_CLIENT_SECRET") or DEFAULT_OAUTH_CLIENT_SECRET
+
+OAUTH_CLIENT_ID = get_oauth_client_id()
+OAUTH_CLIENT_SECRET = get_oauth_client_secret()
 
 
 class TokenStorage:
@@ -222,13 +228,21 @@ class AntigravityOAuth:
             json.dumps(payload).encode('utf-8')
         ).decode('utf-8').rstrip('=')
     
+    @property
+    def client_id(self) -> str:
+        return get_oauth_client_id()
+
+    @property
+    def client_secret(self) -> str:
+        return get_oauth_client_secret()
+
     def build_authorization_url(self) -> Tuple[str, str]:
         """Build the OAuth authorization URL with PKCE"""
         verifier, challenge = PKCEGenerator.generate()
         state = self._encode_state(verifier)
         
         params = {
-            'client_id': OAUTH_CLIENT_ID,
+            'client_id': self.client_id,
             'response_type': 'code',
             'redirect_uri': OAUTH_REDIRECT_URI,
             'scope': ' '.join(ANTIGRAVITY_SCOPES),
@@ -274,8 +288,8 @@ class AntigravityOAuth:
                     **GEMINI_CLI_HEADERS,
                 },
                 data={
-                    'client_id': OAUTH_CLIENT_ID,
-                    'client_secret': OAUTH_CLIENT_SECRET,
+                    'client_id': self.client_id,
+                    'client_secret': self.client_secret,
                     'code': code,
                     'grant_type': 'authorization_code',
                     'redirect_uri': OAUTH_REDIRECT_URI,
@@ -402,6 +416,7 @@ class AntigravityOAuth:
     def refresh_access_token(self) -> bool:
         """Refresh the access token using refresh token"""
         if not self.refresh_token:
+            self.logout()
             return False
         
         self._update_status("Refreshing access token...")
@@ -414,8 +429,8 @@ class AntigravityOAuth:
                     **GEMINI_CLI_HEADERS,
                 },
                 data={
-                    'client_id': OAUTH_CLIENT_ID,
-                    'client_secret': OAUTH_CLIENT_SECRET,
+                    'client_id': self.client_id,
+                    'client_secret': self.client_secret,
                     'refresh_token': self.refresh_token,
                     'grant_type': 'refresh_token',
                 },
@@ -433,6 +448,12 @@ class AntigravityOAuth:
                 return True
             else:
                 self._update_status(f"Token refresh failed: {response.text}")
+                if response.status_code in (400, 401, 403) or "invalid_grant" in response.text:
+                    logger.warning(
+                        "Antigravity token refresh rejected by Google (HTTP %d). Auto-logging out.",
+                        response.status_code,
+                    )
+                    self.logout()
                 return False
                 
         except Exception as e:
@@ -440,9 +461,19 @@ class AntigravityOAuth:
             return False
     
     def ensure_valid_token(self) -> bool:
-        """Ensure we have a valid access token, refreshing if needed"""
+        """Ensure we have a valid access token, refreshing if needed.
+
+        Returns True when a valid token is available, False when the
+        refresh failed (e.g. network down or token revoked).
+        """
         if time.time() >= self.expires_at - 60:
-            return self.refresh_access_token()
+            ok = self.refresh_access_token()
+            if not ok:
+                logger.warning(
+                    "ensure_valid_token: token refresh failed — "
+                    "Gemini AI will be unavailable until re-authenticated."
+                )
+            return ok
         return bool(self.access_token)
     
     def logout(self) -> None:
