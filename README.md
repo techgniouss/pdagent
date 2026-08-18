@@ -73,6 +73,7 @@ Everything below works with no AI configuration required:
 - **Task Scheduler**: Schedule one-shot or repeating automation flows, Claude prompts, temporary Claude/Antigravity permission watchers, and recurring screen watchers that react to visible text. Tasks survive restarts.
 - **Build Automation**: Trigger React Native Android builds and retrieve APKs through Telegram or large-file upload links when needed.
 - **Live Remote Desktop**: Stream your desktop live to any browser over a secure HTTPS tunnel — no port forwarding, no account, no idle cost. Full mouse and keyboard control from your phone, including tap-to-click, swipe-to-move, an explicit drag mode, long-press right-click, stronger two-finger scroll, on-screen keyboard, trackpad panel, pinch-zoom levels (1×–3×), view panning, and JPEG quality control. The bot auto-installs `cloudflared` via winget if missing. See [docs/REMOTE.md](docs/REMOTE.md).
+- **Smart Plug & Auto Battery Management**: Automatically protect your laptop battery health via a Qubo Smart Plug 10A — the bot turns charging off when the battery is full and back on when it runs low, with Telegram notifications on every state change. See [docs/SMART_PLUG.md](docs/SMART_PLUG.md).
 - **Auto-Update**: The bot can check for and apply updates on demand.
 - **Lightweight**: ~55-70 MB idle RAM, <0.5% idle CPU. Heavy dependencies (OpenCV, NumPy, Dropbox) load on-demand only when their commands are used.
 
@@ -138,6 +139,7 @@ All command handlers are registered centrally in `command_map.py`. At registrati
 | Keyboard shortcuts (`/hotkey`) | ✅ | ⚠️ partial |
 | Clipboard read/write | ✅ | ⚠️ partial |
 | Battery status | ✅ | ✅ |
+| Smart plug control (`/smartplug`, `/autobattery`) | ✅ | ✅ |
 | UI automation (OCR click, find text) | ✅ | ❌ |
 | Element detection (OpenCV) | ✅ | ❌ |
 | Window management (`/windows`, `/focuswindow`) | ✅ | ❌ |
@@ -314,6 +316,12 @@ GOOGLE_OAUTH_CLIENT_SECRET="your_client_secret"
 | `REMOTE_JPEG_QUALITY` | `60` | Default JPEG compression quality for the stream (30–85) |
 | `REMOTE_MAX_WIDTH` | `1280` | Max pixel width to which the desktop frame is downscaled (640–1920) |
 | `CLOUDFLARED_PATH` | `(auto)` | Override the path to the `cloudflared` binary used by `/remote` |
+| `QUBO_USERNAME` | — | Qubo account email for smart plug control (`/smartplug`, `/autobattery`) |
+| `QUBO_PASSWORD` | — | Qubo account password |
+| `QUBO_DEVICE_NAME` | `Smart Plug 10A` | Exact device name as shown in the Qubo app |
+| `BATTERY_HIGH_THRESHOLD` | `85` | Plug turns OFF above this % while charging |
+| `BATTERY_LOW_THRESHOLD` | `15` | Plug turns ON below this % while not charging |
+| `BATTERY_POLL_INTERVAL` | `300` | Seconds between battery checks (minimum 30) |
 
 ### Legacy Config Aliases
 
@@ -408,6 +416,8 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 | `/pasteimages` | Reply to a Telegram album to paste all images one-by-one |
 | `/viewclipboard` | Read the clipboard |
 | `/battery` | Battery status |
+| `/autobattery <on\|off\|status>` | Auto-manage charging via smart plug (Qubo Smart Plug 10A) |
+| `/smartplug <on\|off\|status\|toggle>` | Control the smart plug manually |
 | `/privacy <on|off|status>` | Blank or wake the display without locking Windows |
 | `/sleep` | Put PC to sleep |
 | `/shutdown` | Shut down the PC |
@@ -513,6 +523,20 @@ Build reusable multi-step workflows with optional template variables (`{repo}`, 
 | `/remote` | Start a live browser-based remote desktop session — returns an HTTPS URL and QR code |
 | `/remoteinfo` | Show active session URL and runtime stats (FPS, quality, idle time) |
 | `/stopremote` | Stop the active remote desktop session |
+
+### Smart Plug & Auto Battery
+
+> Requires Qubo credentials in `~/.pdagent/config`. See [docs/SMART_PLUG.md](docs/SMART_PLUG.md).
+
+| Command | Description |
+| :--- | :--- |
+| `/autobattery on` | Enable auto battery management (charges within 15%–85% by default) |
+| `/autobattery off` | Disable it |
+| `/autobattery status` | Check state, battery %, and thresholds |
+| `/autobattery high <n>` | Set the upper charge threshold |
+| `/autobattery low <n>` | Set the lower charge threshold |
+| `/autobattery interval <n>` | Set poll interval in seconds |
+| `/smartplug on\|off\|status\|toggle` | Manual smart plug control |
 
 </details>
 

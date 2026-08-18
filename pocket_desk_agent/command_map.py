@@ -51,6 +51,8 @@ COMMAND_REGISTRY = [
     ("privacy", handlers.privacy_command, "Blank or wake the display without locking"),
     ("wakeup", handlers.wakeup_command, "PC wakeup information"),
     ("battery", handlers.battery_command, "Check battery levels"),
+    ("autobattery", handlers.autobattery_command, "Auto-manage charging via smart plug"),
+    ("smartplug", handlers.smartplug_command, "Control smart plug manually"),
     ("screenshot", handlers.screenshot_command, "Take a screenshot"),
     ("hotkey", handlers.hotkey_command, "Send keyboard hotkeys"),
     ("windows", handlers.windows_command, "List open application windows"),

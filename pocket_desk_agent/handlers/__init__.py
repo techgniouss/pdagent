@@ -173,6 +173,13 @@ from pocket_desk_agent.handlers.remote import (  # noqa: F401
     teardown_all_sessions,
 )
 
+# ── Smart Plug & Auto Battery Manager ─────────────────────────────────────
+from pocket_desk_agent.handlers.smart_plug import (  # noqa: F401
+    autobattery_command,
+    smartplug_command,
+    resume_if_enabled,
+)
+
 # Workflow Recipes
 from pocket_desk_agent.handlers.workflow_recipes import (  # noqa: F401
     recipecreate_command,

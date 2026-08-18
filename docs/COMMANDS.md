@@ -9,6 +9,7 @@ This document covers all commands organized by capability.
 - [Native AI Chat](#native-ai-chat-no-command-needed)
 - [File System Operations](#file-system-operations)
 - [System Settings & Controls](#system-settings--controls)
+- [Smart Plug & Auto Battery Management](#smart-plug--auto-battery-management)
 - [Vision & UI Automation](#vision--ui-automation)
 - [Remote Desktop](#remote-desktop)
 - [Custom Command Sequences](#custom-command-sequences)
@@ -88,10 +89,44 @@ Direct Windows system management.
 | `/pasteimages` | Reply to a Telegram album photo/image document and paste all images from that album one-by-one into the currently focused app. Clipboard image is auto-cleared after 2 minutes if unchanged. | `/pasteimages` |
 | `/viewclipboard` | Read and return whatever is currently in the clipboard. | `/viewclipboard` |
 | `/battery` | Check battery percentage and charging status. | `/battery` |
+| `/autobattery <on\|off\|status\|high <n>\|low <n>\|interval <n>>` | Enable/disable the auto battery manager (Qubo Smart Plug 10A) or adjust charge thresholds. | `/autobattery on` |
+| `/smartplug <on\|off\|status\|toggle>` | Manually control the Qubo Smart Plug 10A. | `/smartplug status` |
 | `/privacy <on\|off\|status>` | Blank the display or wake it without locking the Windows session. | `/privacy on` |
 | `/sleep` | Put the host PC to sleep immediately. | `/sleep` |
 | `/wakeup` | Show wake-up instructions and last wake time. | `/wakeup` |
 | `/shutdown` | Shut down the host PC (requires confirmation). | `/shutdown` |
+
+---
+
+## Smart Plug & Auto Battery Management
+
+Automatically control a **Qubo Smart Plug 10A** to keep your laptop battery within healthy thresholds. The MQTT client runs embedded in the bot — no external service required. Credentials must be set in `~/.pdagent/config` before use.
+
+> **Hardware:** Qubo Smart Plug 10A (confirmed). See [docs/SMART_PLUG.md](SMART_PLUG.md) for full setup, troubleshooting, and hardware compatibility.
+
+### `/autobattery` — Auto battery manager
+
+| Subcommand | Description | Example |
+| :--- | :--- | :--- |
+| `/autobattery on` | Enable auto battery management. Validates credentials and starts background polling. | `/autobattery on` |
+| `/autobattery off` | Disable auto battery management and disconnect the plug client. | `/autobattery off` |
+| `/autobattery status` | Show enabled state, current battery %, thresholds, and poll interval. | `/autobattery status` |
+| `/autobattery high <n>` | Set the high threshold (1–100). Plug turns **OFF** when battery is at or above this % while charging. | `/autobattery high 90` |
+| `/autobattery low <n>` | Set the low threshold (0–99). Plug turns **ON** when battery drops to or below this % while not charging. | `/autobattery low 20` |
+| `/autobattery interval <n>` | Set the poll interval in seconds (minimum 30). Run `/autobattery off` then `/autobattery on` to apply. | `/autobattery interval 600` |
+
+**Default thresholds:** plug OFF at ≥ 85% (charging), plug ON at ≤ 15% (discharging). Poll every 300 s.
+
+**Behaviour:** The manager seeds its initial state from the plug's actual physical state before the first poll — no redundant commands are sent. State and thresholds are persisted to disk and monitoring resumes automatically after a bot restart.
+
+### `/smartplug` — Manual plug control
+
+| Subcommand | Description | Example |
+| :--- | :--- | :--- |
+| `/smartplug on` | Turn the smart plug on immediately. | `/smartplug on` |
+| `/smartplug off` | Turn the smart plug off immediately. | `/smartplug off` |
+| `/smartplug status` | Show MQTT connection state and current power state. | `/smartplug status` |
+| `/smartplug toggle` | Toggle based on current physical state. Reports if state is unknown and asks for explicit on/off. | `/smartplug toggle` |
 
 ---
 

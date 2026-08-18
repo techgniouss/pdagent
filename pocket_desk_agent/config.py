@@ -102,6 +102,14 @@ class Config:
     REMOTE_MAX_WIDTH: int = 1280
     CLOUDFLARED_PATH: str = ""
 
+    # ── Qubo smart plug (/qubo, /autobattery) ───────────────────────
+    QUBO_USERNAME: str = ""
+    QUBO_PASSWORD: str = ""
+    QUBO_DEVICE_NAME: str = "Smart Plug 10A"
+    BATTERY_HIGH_THRESHOLD: int = 85   # plug OFF above this % while charging
+    BATTERY_LOW_THRESHOLD: int = 15    # plug ON below this % while discharging
+    BATTERY_POLL_INTERVAL: int = 300   # seconds between battery checks (5 min)
+
     @classmethod
     def load(cls) -> None:
         """(Re-)read every config value from ``os.environ``."""
@@ -222,6 +230,19 @@ class Config:
         except ValueError:
             cls.REMOTE_MAX_WIDTH = 1280
         cls.CLOUDFLARED_PATH = os.getenv("CLOUDFLARED_PATH", "").strip()
+
+        # ── Qubo smart plug (/qubo, /autobattery) ──────────────────
+        cls.QUBO_USERNAME = os.getenv("QUBO_USERNAME", "").strip()
+        cls.QUBO_PASSWORD = os.getenv("QUBO_PASSWORD", "").strip()
+        cls.QUBO_DEVICE_NAME = (
+            os.getenv("QUBO_DEVICE_NAME", "Smart Plug 10A").strip()
+            or "Smart Plug 10A"
+        )
+        cls.BATTERY_HIGH_THRESHOLD = _env_int("BATTERY_HIGH_THRESHOLD", 85)
+        cls.BATTERY_LOW_THRESHOLD = _env_int("BATTERY_LOW_THRESHOLD", 15)
+        cls.BATTERY_POLL_INTERVAL = _env_int(
+            "BATTERY_POLL_INTERVAL", 300, minimum=30
+        )
 
     @classmethod
     def validate(cls) -> list[str]:
