@@ -292,7 +292,7 @@ class QuboClient:
                 self.expires_at = time.time() + max(60.0, expires_in) - 60.0
                 logger.info("Qubo token refreshed")
                 # MQTT authenticates with the access token — reconnect.
-                await self.connect_mqtt()
+                await self.connect_mqtt(force=True)
 
             except Exception:
                 logger.warning(
@@ -300,7 +300,7 @@ class QuboClient:
                     exc_info=True,
                 )
                 await self.login()
-                await self.connect_mqtt()
+                await self.connect_mqtt(force=True)
 
     # ── Device discovery ──────────────────────────────────────────────────────
 
@@ -443,7 +443,7 @@ class QuboClient:
                 "Ignoring unparseable Qubo MQTT state message", exc_info=True
             )
 
-    async def connect_mqtt(self) -> None:
+    async def connect_mqtt(self, force: bool = False) -> None:
         """Establish the MQTT connection (or reconnect if already exists)."""
         if not self.user_uuid or not self.access_token or not self.device:
             raise RuntimeError("Authentication/device discovery is incomplete")
@@ -453,7 +453,7 @@ class QuboClient:
         import paho.mqtt.client as mqtt  # lazy import
 
         async with self._mqtt_lock:
-            if self._mqtt_ready.is_set() and self._mqtt is not None:
+            if not force and self._mqtt_ready.is_set() and self._mqtt is not None:
                 return
 
             old = self._mqtt

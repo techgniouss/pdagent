@@ -28,7 +28,7 @@ import psutil
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from pocket_desk_agent.handlers._shared import safe_command
+from pocket_desk_agent.config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +38,9 @@ _STATE_FILE = pathlib.Path.home() / ".pdagent" / "autobattery.json"
 # ── Module-level singleton state ──────────────────────────────────────────────
 # All fields are guarded by asyncio (single-threaded event loop); no lock needed.
 _enabled: bool = False
-_high_threshold: int = 85      # plug OFF above this % while charging
-_low_threshold: int = 15       # plug ON below this % while not charging
-_poll_interval: int = 300      # seconds between battery checks
+_high_threshold: int = Config.BATTERY_HIGH_THRESHOLD      # plug OFF above this % while charging
+_low_threshold: int = Config.BATTERY_LOW_THRESHOLD       # plug ON below this % while not charging
+_poll_interval: int = Config.BATTERY_POLL_INTERVAL      # seconds between battery checks
 
 _monitor_task: Optional[asyncio.Task] = None
 _plug: Optional[Any] = None        # QuboClient instance (created lazily)
@@ -55,13 +55,16 @@ _last_plug_action: Optional[str] = None  # "on" | "off" — avoid duplicate send
 def _load_state() -> None:
     """Load persisted auto-battery state from disk (called at import time)."""
     global _enabled, _high_threshold, _low_threshold, _poll_interval, _user_id
+    _high_threshold = Config.BATTERY_HIGH_THRESHOLD
+    _low_threshold = Config.BATTERY_LOW_THRESHOLD
+    _poll_interval = Config.BATTERY_POLL_INTERVAL
     try:
         if _STATE_FILE.exists():
             data = json.loads(_STATE_FILE.read_text(encoding="utf-8"))
             _enabled = bool(data.get("enabled", False))
-            _high_threshold = int(data.get("high_threshold", 85))
-            _low_threshold = int(data.get("low_threshold", 15))
-            _poll_interval = int(data.get("poll_interval", 300))
+            _high_threshold = int(data.get("high_threshold", Config.BATTERY_HIGH_THRESHOLD))
+            _low_threshold = int(data.get("low_threshold", Config.BATTERY_LOW_THRESHOLD))
+            _poll_interval = int(data.get("poll_interval", Config.BATTERY_POLL_INTERVAL))
             raw_uid = data.get("user_id")
             _user_id = int(raw_uid) if raw_uid is not None else None
     except Exception as exc:
@@ -97,7 +100,6 @@ _load_state()
 
 def _get_plug_credentials() -> tuple[str, str, str]:
     """Return (username, password, device_name) from Config, raising if missing."""
-    from pocket_desk_agent.config import Config
     username = getattr(Config, "QUBO_USERNAME", "").strip()
     password = getattr(Config, "QUBO_PASSWORD", "").strip()
     device_name = getattr(Config, "QUBO_DEVICE_NAME", "Smart Plug 10A").strip()
@@ -312,7 +314,6 @@ async def resume_if_enabled(bot: Any) -> None:
 
 # ── /autobattery command ──────────────────────────────────────────────────────
 
-@safe_command
 async def autobattery_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
@@ -391,11 +392,33 @@ async def autobattery_command(
     if sub == "off":
         _enabled = False
         _save_state()
+
+        plug_status_note = ""
+        try:
+            plug = await _get_or_create_plug()
+            result = await plug.set_power(True)
+            if result.get("confirmed"):
+                plug_status_note = "\n🔌 Smart plug turned ON (charging restored)."
+            else:
+                reported_state = result.get("state")
+                state_str = (
+                    "ON"
+                    if reported_state is True
+                    else ("OFF" if reported_state is False else str(reported_state))
+                )
+                plug_status_note = (
+                    f"\n🔌 Smart plug ON command sent (current state: {state_str})."
+                )
+        except Exception as exc:
+            logger.warning("Could not ensure smart plug is ON on disable: %s", exc)
+            plug_status_note = f"\n⚠️ Note: Could not turn smart plug ON: {exc}"
+
         await _stop_monitor()
         await _stop_plug()
         await update.message.reply_text(
             "🔴 Auto battery manager disabled.\n"
             "The smart plug will no longer be controlled automatically."
+            f"{plug_status_note}"
         )
         logger.info(
             "Auto battery manager disabled by user %s", update.effective_user.id
@@ -502,7 +525,6 @@ async def autobattery_command(
 
 # ── /smartplug command ────────────────────────────────────────────────────────
 
-@safe_command
 async def smartplug_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:

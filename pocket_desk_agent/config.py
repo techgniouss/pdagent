@@ -254,6 +254,14 @@ class Config:
             errors.append(
                 "AUTHORIZED_USER_IDS is required — run 'pdagent configure' to set up"
             )
+        if not (1 <= cls.BATTERY_HIGH_THRESHOLD <= 100):
+            errors.append("BATTERY_HIGH_THRESHOLD must be between 1 and 100")
+        if not (0 <= cls.BATTERY_LOW_THRESHOLD <= 99):
+            errors.append("BATTERY_LOW_THRESHOLD must be between 0 and 99")
+        if cls.BATTERY_LOW_THRESHOLD >= cls.BATTERY_HIGH_THRESHOLD:
+            errors.append(
+                "BATTERY_LOW_THRESHOLD must be below BATTERY_HIGH_THRESHOLD"
+            )
         return errors
 
 
