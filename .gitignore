@@ -94,6 +94,6 @@ tmp/
 graphify-out/cache/
 graphify-out/manifest.json
 graphify-out/cost.json
-
-# External / Sub-projects
-/tests
+graphify-out/.graphify_*
+*.apk
+*.aab

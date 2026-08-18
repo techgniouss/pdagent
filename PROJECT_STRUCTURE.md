@@ -25,6 +25,7 @@ pocket-desk-agent/
 │   │   │                           # /watchnotify, /watchstatus, /stopscreenwatch,
 │   │   │                           # /claudeschedule, /scheduleshutdown, /listschedules, /cancelschedule
 │   │   ├── remote.py               # /remote, /remoteinfo, /stopremote
+│   │   ├── smart_plug.py           # /autobattery, /smartplug — auto battery manager & plug control
 │   │   ├── workflow_recipes.py     # /recipecreate, /recipeaddcommand, /recipeaddclaude,
 │   │   │                           # /recipeaddwait, /recipeaddwaittext, /recipeaddnotify,
 │   │   │                           # /recipelist, /recipeshow, /recipedelete, /reciperun
@@ -59,6 +60,7 @@ pocket-desk-agent/
 │   ├── scheduling_utils.py         # Shared duration/interval parsing utilities for schedulers
 │   ├── scheduler_registry.py       # Persistent scheduled task storage
 │   ├── startup_manager.py          # Windows logon-task startup management
+│   ├── qubo_client.py              # Embedded async Qubo MQTT client (login, device sync, power control)
 │   ├── rate_limiter.py             # Token-bucket rate limiter (per-user, per-command)
 │   ├── updater.py                  # Auto-update manager (PyPI-based; checks and applies pip upgrades)
 │   ├── telegram_commands.py        # Bot command list helpers for /sync
@@ -70,6 +72,7 @@ pocket-desk-agent/
 │   ├── COMMANDS.md                 # Complete command reference
 │   ├── BUILD_WORKFLOW.md           # React Native APK build automation guide
 │   ├── REMOTE.md                   # Live remote desktop setup & troubleshooting
+│   ├── SMART_PLUG.md               # Smart plug & auto battery management setup guide
 │   ├── AUTHENTICATION_REQUIREMENTS.md  # Which commands need auth vs. not
 │   ├── MOBILE_AUTHENTICATION.md    # OAuth flow step-by-step guide
 │   ├── ANTIGRAVITY_LOGIN_IMPLEMENTATION.md  # OAuth architecture reference
@@ -147,6 +150,9 @@ Provides window-detection adapters for the Claude Desktop and Antigravity (VS Co
 
 ### 13. `scheduling_utils.py`
 Shared helpers for parsing human-friendly duration strings (`10s`, `2m`, `1h`) and repeat intervals, used by `/schedule`, `/repeatschedule`, `/watchperm`, `/watchscreen`, and `/watchnotify`.
+
+### 14. `qubo_client.py`
+Embedded async Qubo Smart Plug MQTT client. Handles login, token refresh, device discovery via HTTPS, and MQTT connection (TLS port 8883). All MQTT callbacks use `loop.call_soon_threadsafe()` for safe signalling back to the asyncio event loop. Used exclusively by `handlers/smart_plug.py`; imported lazily so it adds zero overhead at startup.
 
 ---
 

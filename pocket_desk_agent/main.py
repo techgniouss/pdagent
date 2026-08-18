@@ -23,6 +23,7 @@ from pocket_desk_agent.handlers import (
     execute_scheduled_task,
     safe_command,
     teardown_all_sessions,
+    resume_if_enabled,
 )
 from pocket_desk_agent.scheduler_registry import get_scheduler_registry
 from pocket_desk_agent.updater import (
@@ -200,6 +201,12 @@ async def post_init(application: Application):
 
         interval = Config.AUTO_UPDATE_INTERVAL_MINUTES * 60
         asyncio.create_task(update_checker_loop(interval, _notify_update))
+
+    # ── Auto battery manager (resumes if previously enabled) ────────────────
+    try:
+        await resume_if_enabled(application.bot)
+    except Exception as exc:
+        logger.warning("[autobattery] Failed to resume on startup: %s", exc)
 
 
 async def post_shutdown(application: Application):
