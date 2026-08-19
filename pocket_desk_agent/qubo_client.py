@@ -123,13 +123,13 @@ class QuboClient:
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
-    def topic(self, suffix: str) -> str:
-        """Build the MQTT topic for this device."""
-        if not self.user_uuid or not self.device:
+    def topic(self, direction: str) -> str:
+        """Build the MQTT topic for this device (direction: 'monitor' or 'control')."""
+        if not self.device:
             raise RuntimeError("Client not yet authenticated/synced")
         return (
-            f"{self.user_uuid}/{self.device.unit_uuid}/"
-            f"{self.device.device_uuid}/{suffix}"
+            f"/{direction}/{self.device.unit_uuid}/"
+            f"{self.device.device_uuid}/lcSwitchControl"
         )
 
     async def start(self) -> None:

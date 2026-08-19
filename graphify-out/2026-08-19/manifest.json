@@ -1,0 +1,554 @@
+{
+  "pocket_desk_agent/antigravity_auth.py": {
+    "mtime": 1786033598.6061485,
+    "seen": 1787079528.1162336,
+    "ast_hash": "694aa995055cc4b4127d7234041c716d",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/app_paths.py": {
+    "mtime": 1776587262.7251923,
+    "seen": 1787079528.1162336,
+    "ast_hash": "7fea98913c2bf849c543aa1005edd1da",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/auth.py": {
+    "mtime": 1776082238.3024158,
+    "seen": 1787079528.1162336,
+    "ast_hash": "f94951e8dd9bda800a40c0bcd252e1d6",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/automation_utils.py": {
+    "mtime": 1781162386.2664225,
+    "seen": 1787079528.1162336,
+    "ast_hash": "d692e0a0205274d7e92aa21fcb096c9f",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/cli.py": {
+    "mtime": 1784195015.521069,
+    "seen": 1787079528.1162336,
+    "ast_hash": "cd5d653b116cac14a7c2eb4e33783eba",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/command_map.py": {
+    "mtime": 1787078390.988019,
+    "seen": 1787079528.1162336,
+    "ast_hash": "4b634429a0aa9a0e35b257b9a97b73b8",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/command_registry.py": {
+    "mtime": 1776586727.469703,
+    "seen": 1787079528.1162336,
+    "ast_hash": "038227905a70425ff7967d739b406b77",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/config.py": {
+    "mtime": 1787079324.3295243,
+    "seen": 1787079528.1162336,
+    "ast_hash": "5dbc8ef1622e54d54de6c812b2336f09",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/configure.py": {
+    "mtime": 1781433845.0231626,
+    "seen": 1787079528.1162336,
+    "ast_hash": "bcd2ed10e80b11021fe7ee0c2a1130ed",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/constants.py": {
+    "mtime": 1786035732.5039005,
+    "seen": 1787079528.1162336,
+    "ast_hash": "d412989edcf3363f4026c6a3a93cbff0",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/file_manager.py": {
+    "mtime": 1777635820.6176505,
+    "seen": 1787079528.1162336,
+    "ast_hash": "3ce5e11a91bd91b6d090b34fe5a913f3",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/gemini_actions.py": {
+    "mtime": 1781433695.9819565,
+    "seen": 1787079528.1162336,
+    "ast_hash": "107a5a86485e1a36d2ae32e6c7c113c4",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/gemini_client.py": {
+    "mtime": 1786034866.6015527,
+    "seen": 1787079528.1162336,
+    "ast_hash": "36770252a28e3e2a4d31133dcb89523c",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/gemini_cli_auth.py": {
+    "mtime": 1786034738.6492333,
+    "seen": 1787079528.1162336,
+    "ast_hash": "97e2b2e42325a5d8b3a04b931c8e113b",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/main.py": {
+    "mtime": 1787077968.0496614,
+    "seen": 1787079528.1170793,
+    "ast_hash": "1b4f1bce0321ebc392171d5ab656e667",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/rate_limiter.py": {
+    "mtime": 1777093720.9088259,
+    "seen": 1787079528.1170793,
+    "ast_hash": "851a995eec953991113f3e3bb14594a2",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/scheduler_registry.py": {
+    "mtime": 1784194559.0327013,
+    "seen": 1787079528.1170793,
+    "ast_hash": "762afc6d2595ee4977c78ca2f48d9e34",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/scheduling_utils.py": {
+    "mtime": 1776229575.6907346,
+    "seen": 1787079528.1170793,
+    "ast_hash": "a324528531b6605bb580d697f1cdb55f",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/startup_manager.py": {
+    "mtime": 1776586822.066981,
+    "seen": 1787079528.1170793,
+    "ast_hash": "a6b06e401bc03682a4a0c56a4b2cfa69",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/updater.py": {
+    "mtime": 1784263550.1506884,
+    "seen": 1787079528.1170793,
+    "ast_hash": "52d4a7e4202d5a18d814eb0c2b38498b",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/window_utils.py": {
+    "mtime": 1776084889.2190528,
+    "seen": 1787079528.1170793,
+    "ast_hash": "8b9d08b35e133b61d5767469ec0256fb",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/__init__.py": {
+    "mtime": 1775828571.3020165,
+    "seen": 1787079528.1162336,
+    "ast_hash": "37c004dbb327e9592fff92e79b7b75fe",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/handlers/antigravity.py": {
+    "mtime": 1781432671.3552542,
+    "seen": 1787079528.1162336,
+    "ast_hash": "d39f8922f1ec7a8090006297e9819300",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/handlers/auth.py": {
+    "mtime": 1776081965.535835,
+    "seen": 1787079528.1162336,
+    "ast_hash": "d68b703c412a0a257ad032d2a42b096b",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/handlers/automation.py": {
+    "mtime": 1781439465.8074586,
+    "seen": 1787079528.1162336,
+    "ast_hash": "953a2a40d6a354b7651dcff753244f9f",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/handlers/build.py": {
+    "mtime": 1784215224.8961482,
+    "seen": 1787079528.1162336,
+    "ast_hash": "082ddc4aae18e7998e226329f9dfa037",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/handlers/callbacks.py": {
+    "mtime": 1784215927.2119467,
+    "seen": 1787079528.1162336,
+    "ast_hash": "9ee5e80667894f8e69cb0a03b36c95bc",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/handlers/claude.py": {
+    "mtime": 1781163325.1440473,
+    "seen": 1787079528.1170793,
+    "ast_hash": "362f348a03c10483a9bfb3080f55e45f",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/handlers/core.py": {
+    "mtime": 1786033559.5320756,
+    "seen": 1787079528.1170793,
+    "ast_hash": "4491b73767777eeefc174537d80c89cf",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/handlers/custom_commands.py": {
+    "mtime": 1781432572.5985126,
+    "seen": 1787079528.1170793,
+    "ast_hash": "7483593c9c9f2e17d747479829e72da0",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/handlers/filesystem.py": {
+    "mtime": 1784215921.199785,
+    "seen": 1787079528.1170793,
+    "ast_hash": "24bc35aaeb2ffc48dc1c11253c058dcd",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/handlers/remote.py": {
+    "mtime": 1781161367.6969416,
+    "seen": 1787079528.1170793,
+    "ast_hash": "2d2b3367e95f61f7351130e4e97d5899",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/handlers/scheduling.py": {
+    "mtime": 1784194638.1952214,
+    "seen": 1787079528.1170793,
+    "ast_hash": "c181ae45232a1166bc8ba97bfbe45bc3",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/handlers/system.py": {
+    "mtime": 1781432749.0765922,
+    "seen": 1787079528.1170793,
+    "ast_hash": "45411d74048e2e2d471f78f2fec3a8ed",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/handlers/_shared.py": {
+    "mtime": 1781163010.4147465,
+    "seen": 1787079528.1162336,
+    "ast_hash": "aa93aca35efcd6da63bc94ebb6bec790",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/handlers/__init__.py": {
+    "mtime": 1787078378.0196173,
+    "seen": 1787079528.1162336,
+    "ast_hash": "0f288f796f86bcd3e8656e4ed31e0201",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/remote/capture.py": {
+    "mtime": 1777047452.9957337,
+    "seen": 1787079528.1170793,
+    "ast_hash": "723c47a63853b387fa17975728125565",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/remote/input_bridge.py": {
+    "mtime": 1781193923.1733136,
+    "seen": 1787079528.1170793,
+    "ast_hash": "b4be338ac842bb93495e9b2eef6e72cf",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/remote/session.py": {
+    "mtime": 1781192935.2273507,
+    "seen": 1787079528.1170793,
+    "ast_hash": "abc073bfcab0f2f6419bda7e255fbaa2",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/remote/tunnel.py": {
+    "mtime": 1777051781.6310375,
+    "seen": 1787079528.1170793,
+    "ast_hash": "6c1ff7a28ef97eb0b29310af29122e14",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/remote/web_server.py": {
+    "mtime": 1781198509.2792447,
+    "seen": 1787079528.1170793,
+    "ast_hash": "9da4129808b635526ddbc100310ef684",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/remote/__init__.py": {
+    "mtime": 1776929059.9154353,
+    "seen": 1787079528.1170793,
+    "ast_hash": "1ba53658c326e91a32a63ef2dfea3288",
+    "semantic_hash": ""
+  },
+  "scripts/install.ps1": {
+    "mtime": 1775823924.319274,
+    "seen": 1787079528.1170793,
+    "ast_hash": "1a826b10ab039777e16b9cb89beb4e84",
+    "semantic_hash": ""
+  },
+  "scripts/manage_auth.py": {
+    "mtime": 1776079150.194146,
+    "seen": 1787079528.1170793,
+    "ast_hash": "bee7881ac515f304f7a1da6a46522313",
+    "semantic_hash": ""
+  },
+  "scripts/manage_service.py": {
+    "mtime": 1776586818.2885273,
+    "seen": 1787079528.1170793,
+    "ast_hash": "9537b194cf5c125c1bb7434af2aa6784",
+    "semantic_hash": ""
+  },
+  "scripts/__init__.py": {
+    "mtime": 1775823934.1960256,
+    "seen": 1787079528.1170793,
+    "ast_hash": "a4933df543687bc86585a5d67d183665",
+    "semantic_hash": ""
+  },
+  "AGENTS.md": {
+    "mtime": 1781198509.2566035,
+    "seen": 1787079528.1170793,
+    "ast_hash": "4affb0e9d616b0944b86b491ffd427e5",
+    "semantic_hash": ""
+  },
+  "CLAUDE.md": {
+    "mtime": 1784263550.1486852,
+    "seen": 1787079528.1170793,
+    "ast_hash": "ae04948938c7e65c20f46307469fef41",
+    "semantic_hash": ""
+  },
+  "CONTRIBUTING.md": {
+    "mtime": 1781441499.495788,
+    "seen": 1787079528.1170793,
+    "ast_hash": "c9a67cfabf1a5edd96df7fb011dcd88a",
+    "semantic_hash": ""
+  },
+  "PROJECT_STRUCTURE.md": {
+    "mtime": 1787079029.7091038,
+    "seen": 1787079528.1170793,
+    "ast_hash": "9049dd6afe2c5f20e51578c92ad0fc7e",
+    "semantic_hash": ""
+  },
+  "README.de.md": {
+    "mtime": 1781441499.4977872,
+    "seen": 1787079528.1170793,
+    "ast_hash": "2b0b938d0b66c4f8c5f083383b3243d7",
+    "semantic_hash": ""
+  },
+  "README.es.md": {
+    "mtime": 1781441499.4990335,
+    "seen": 1787079528.1170793,
+    "ast_hash": "7fb179a65b6c7c43cacc446df50f8e2d",
+    "semantic_hash": ""
+  },
+  "README.fr.md": {
+    "mtime": 1781441499.5010328,
+    "seen": 1787079528.1170793,
+    "ast_hash": "b16ccfbd213b901bd63b76e6f3b8d0eb",
+    "semantic_hash": ""
+  },
+  "README.ja.md": {
+    "mtime": 1781441499.5020387,
+    "seen": 1787079528.1170793,
+    "ast_hash": "b1a04e30ca80a70c2f218e20c9e1438d",
+    "semantic_hash": ""
+  },
+  "README.ko.md": {
+    "mtime": 1781441499.5030353,
+    "seen": 1787079528.1170793,
+    "ast_hash": "b33d1ac67e2820a0a5b3e5ad19309330",
+    "semantic_hash": ""
+  },
+  "README.md": {
+    "mtime": 1787078629.9300058,
+    "seen": 1787079528.1170793,
+    "ast_hash": "1f69c1cea97491806f8f12093a8c87e1",
+    "semantic_hash": ""
+  },
+  "README.pt-BR.md": {
+    "mtime": 1781441499.5060325,
+    "seen": 1787079528.1170793,
+    "ast_hash": "967266faebafb08c6348044eb2e7283d",
+    "semantic_hash": ""
+  },
+  "README.ru.md": {
+    "mtime": 1781441499.5070386,
+    "seen": 1787079528.1170793,
+    "ast_hash": "c864bc9f591499badc73e65967709046",
+    "semantic_hash": ""
+  },
+  "README.tr.md": {
+    "mtime": 1781441499.5080333,
+    "seen": 1787079528.1170793,
+    "ast_hash": "897fe97e754ae82a142cb7dc241ba7de",
+    "semantic_hash": ""
+  },
+  "README.uk.md": {
+    "mtime": 1781441499.5090327,
+    "seen": 1787079528.1170793,
+    "ast_hash": "f89da1d11321ae9e26a7fd215c4e2e58",
+    "semantic_hash": ""
+  },
+  "README.zh-CN.md": {
+    "mtime": 1781441499.5100331,
+    "seen": 1787079528.1170793,
+    "ast_hash": "08dba5946aa25ea0404e92296e293993",
+    "semantic_hash": ""
+  },
+  "requirements.txt": {
+    "mtime": 1787079029.7153778,
+    "seen": 1787079528.1170793,
+    "ast_hash": "0a38a2fd5fa59b90d4d90a38a6372f5f",
+    "semantic_hash": ""
+  },
+  "SECURITY.md": {
+    "mtime": 1776157142.2286215,
+    "seen": 1787079528.1170793,
+    "ast_hash": "607b6ad25534b6b9f5e36fdc9ae90038",
+    "semantic_hash": ""
+  },
+  "docs/ANTIGRAVITY_LOGIN_IMPLEMENTATION.md": {
+    "mtime": 1776152469.141939,
+    "seen": 1787079528.1170793,
+    "ast_hash": "a5be5292ac2e41de27c6b909e7d511ca",
+    "semantic_hash": ""
+  },
+  "docs/AUTHENTICATION_REQUIREMENTS.md": {
+    "mtime": 1781441499.5120387,
+    "seen": 1787079528.1170793,
+    "ast_hash": "b1c4492dfc9f2c07fd58ae4ff302f8ad",
+    "semantic_hash": ""
+  },
+  "docs/BUILD_WORKFLOW.md": {
+    "mtime": 1781163516.5578606,
+    "seen": 1787079528.1170793,
+    "ast_hash": "9c324f9078f2da32b3819a69a80e7fd7",
+    "semantic_hash": ""
+  },
+  "docs/COMMANDS.md": {
+    "mtime": 1787078597.506855,
+    "seen": 1787079528.1170793,
+    "ast_hash": "3db70f8965882d8e8d86a542eee8e2ac",
+    "semantic_hash": ""
+  },
+  "docs/dropbox-setup.md": {
+    "mtime": 1776156903.7786646,
+    "seen": 1787079528.1170793,
+    "ast_hash": "61d184369fb1c1dfe63b38c1a40a41c6",
+    "semantic_hash": ""
+  },
+  "docs/LOCAL_DEVELOPMENT.md": {
+    "mtime": 1781441499.5130324,
+    "seen": 1787079528.1170793,
+    "ast_hash": "57e09bc546d03915e345dcd506db7cf7",
+    "semantic_hash": ""
+  },
+  "docs/MOBILE_AUTHENTICATION.md": {
+    "mtime": 1776156844.7929962,
+    "seen": 1787079528.1170793,
+    "ast_hash": "9f960350f1a5d4cfdad85afb8d402788",
+    "semantic_hash": ""
+  },
+  "docs/REMOTE.md": {
+    "mtime": 1781161575.0741842,
+    "seen": 1787079528.1170793,
+    "ast_hash": "d932e0b358f132a13b1f45ecd9aadd9f",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/app_catalog.py": {
+    "mtime": 1777530539.3756018,
+    "seen": 1787079528.1162336,
+    "ast_hash": "7e2772f9a1d669c504b2214ba0513f8b",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/app_control.py": {
+    "mtime": 1777530450.0804777,
+    "seen": 1787079528.1162336,
+    "ast_hash": "c7d6588c59192da85c1f7bc59c068d0f",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/desktop_adapters.py": {
+    "mtime": 1777656607.0498037,
+    "seen": 1787079528.1162336,
+    "ast_hash": "f78b373ad9743cc4940afa497ae34f7e",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/handlers/smart_plug.py": {
+    "mtime": 1787079392.5649443,
+    "seen": 1787079528.1170793,
+    "ast_hash": "e5f47dc479ef090b0f6cf6d84b854bef",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/handlers/workflow_recipes.py": {
+    "mtime": 1777790698.3010485,
+    "seen": 1787079528.1170793,
+    "ast_hash": "1b17589783a031548a317d467c7a0828",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/qubo_client.py": {
+    "mtime": 1787079029.7124937,
+    "seen": 1787079528.1170793,
+    "ast_hash": "505e752dbbb8dc912e8ee71800d2076e",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/recipe_registry.py": {
+    "mtime": 1777736909.123806,
+    "seen": 1787079528.1170793,
+    "ast_hash": "ad9fe9fd909735c042052196c5ab7c5b",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/remote/install.py": {
+    "mtime": 1777039927.2974045,
+    "seen": 1787079528.1170793,
+    "ast_hash": "42eaf31ab0dfcdac33e14d92925ff16f",
+    "semantic_hash": ""
+  },
+  "pocket_desk_agent/telegram_commands.py": {
+    "mtime": 1777787376.511993,
+    "seen": 1787079528.1170793,
+    "ast_hash": "acd2adb2d297e497031cea8a8fb35543",
+    "semantic_hash": ""
+  },
+  "pyproject.toml": {
+    "mtime": 1787079029.714125,
+    "seen": 1787079528.1170793,
+    "ast_hash": "8f6e14f4b2c541968973ac125f51404b",
+    "semantic_hash": ""
+  },
+  "setup.sh": {
+    "mtime": 1776079215.1515908,
+    "seen": 1787079528.1170793,
+    "ast_hash": "192abcbf6c507ab59b41c43c960ac1df",
+    "semantic_hash": ""
+  },
+  ".github/FUNDING.yml": {
+    "mtime": 1781438929.0329292,
+    "seen": 1787079528.1170793,
+    "ast_hash": "c498e9a5411cb5c530b88a154b3dae49",
+    "semantic_hash": ""
+  },
+  ".github/ISSUE_TEMPLATE/bug_report.md": {
+    "mtime": 1781435493.3116727,
+    "seen": 1787079528.1170793,
+    "ast_hash": "5a45b65b91a017a8cbf28a0c5fa96e54",
+    "semantic_hash": ""
+  },
+  ".github/ISSUE_TEMPLATE/feature_request.md": {
+    "mtime": 1781435495.395154,
+    "seen": 1787079528.1170793,
+    "ast_hash": "4afa71d92208732358af08400d528ee2",
+    "semantic_hash": ""
+  },
+  ".github/PULL_REQUEST_TEMPLATE.md": {
+    "mtime": 1781435499.9271657,
+    "seen": 1787079528.1170793,
+    "ast_hash": "41335b7f72cbee83fab56b856b6a1679",
+    "semantic_hash": ""
+  },
+  ".github/workflows/publish-release.yml": {
+    "mtime": 1786035473.152628,
+    "seen": 1787079528.1170793,
+    "ast_hash": "542c9b6a4c540d299bd62c90d353ad89",
+    "semantic_hash": ""
+  },
+  ".github/workflows/publish.yml": {
+    "mtime": 1786035487.0764623,
+    "seen": 1787079528.1170793,
+    "ast_hash": "f3906c01fa50fdb2f0e723a70be34e41",
+    "semantic_hash": ""
+  },
+  "CODE_OF_CONDUCT.md": {
+    "mtime": 1781435503.9562728,
+    "seen": 1787079528.1170793,
+    "ast_hash": "6c3bfefe5bce978663e8f6f29034dfe2",
+    "semantic_hash": ""
+  },
+  "docs/SMART_PLUG.md": {
+    "mtime": 1787078567.7780533,
+    "seen": 1787079528.1170793,
+    "ast_hash": "caeb70586524635521fe771481d35209",
+    "semantic_hash": ""
+  },
+  "assets/demo.gif": {
+    "mtime": 1781446387.312541,
+    "seen": 1787079528.1170793,
+    "ast_hash": "088bed257d9cdd48bb247a3701d0afcc",
+    "semantic_hash": ""
+  },
+  "assets/demo_old.gif": {
+    "mtime": 1781446387.3388758,
+    "seen": 1787079528.1170793,
+    "ast_hash": "35804351959246570fd6a10ec89e5a8d",
+    "semantic_hash": ""
+  }
+}
