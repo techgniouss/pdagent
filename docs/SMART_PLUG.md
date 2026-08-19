@@ -68,7 +68,7 @@ QUBO_PASSWORD=your-qubo-password
 QUBO_DEVICE_NAME=Smart Plug 10A
 ```
 
-`QUBO_DEVICE_NAME` must exactly match the device name shown in the Qubo app. Default is `Smart Plug 10A`.
+`QUBO_DEVICE_NAME` must exactly match the device name shown in the Qubo app. Default is `Smart Plug 10A`. The device UUID itself is never hard-coded — it's looked up live from your Qubo account's device list on every login. If your account has only one Qubo device, it's used automatically even if `QUBO_DEVICE_NAME` doesn't match.
 
 ### 3. (Optional) Override thresholds via environment
 
@@ -173,7 +173,7 @@ When the bot starts, it checks `~/.pdagent/autobattery.json`. If auto-battery wa
 - Add credentials to `~/.pdagent/config` as shown in Setup above.
 
 **"Qubo device 'Smart Plug 10A' was not found"**
-- The device name doesn't match. Open the Qubo app, note the exact device name, and update `QUBO_DEVICE_NAME` in your config to match (case-insensitive).
+- Only raised when your account has 2+ devices and none match. Open the Qubo app, note the exact device name, and update `QUBO_DEVICE_NAME` in your config to match (case-insensitive). Accounts with a single device skip this check entirely.
 
 **"Timed out connecting to Qubo MQTT (TCP 8883)"**
 - Port 8883 may be blocked by your firewall or router. Ensure outbound TCP 8883 is allowed.

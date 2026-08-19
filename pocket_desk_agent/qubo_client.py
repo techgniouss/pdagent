@@ -345,11 +345,24 @@ class QuboClient:
 
         wanted = self.device_name.strip().casefold()
         target = None
-        for device in devices:
-            name = str(_pick(device, "deviceName", "name") or "")
-            if name.strip().casefold() == wanted:
-                target = device
-                break
+        if wanted:
+            for device in devices:
+                name = str(_pick(device, "deviceName", "name") or "")
+                if name.strip().casefold() == wanted:
+                    target = device
+                    break
+
+        if target is None and len(devices) == 1:
+            # Only one device on this Qubo account — use it even if the
+            # configured/default device name doesn't match. This lets the
+            # device be discovered straight from the account credentials
+            # instead of requiring an exact QUBO_DEVICE_NAME match.
+            target = devices[0]
+            logger.info(
+                "QUBO_DEVICE_NAME '%s' did not match; using the only device "
+                "found on this account instead",
+                self.device_name,
+            )
 
         if target is None:
             names = [
