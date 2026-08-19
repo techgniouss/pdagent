@@ -82,15 +82,22 @@ GEMINI_CLI_HEADERS = {
     "X-Goog-Api-Client": "gl-node/22.18.0",
 }
 
+# Since Google's 2026-06-18 shutdown of Code Assist for individuals, the
+# tier-eligibility check keys off the *client identity* in the User-Agent /
+# Client-Metadata. ideType MUST be "ANTIGRAVITY" (not "IDE_UNSPECIFIED") and
+# the User-Agent must be the Antigravity Electron string below — anything
+# else (e.g. the plain gemini-cli UA) gets free-tier refused with
+# reasonCode UNSUPPORTED_CLIENT and no project can be resolved.
+# Verified live 2026-08-04 against all three Code Assist endpoints.
 ANTIGRAVITY_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Antigravity/1.15.8 Chrome/138.0.7204.235 "
+        "(KHTML, like Gecko) Antigravity/1.19.4 Chrome/138.0.7204.235 "
         "Electron/37.3.1 Safari/537.36"
     ),
     "X-Goog-Api-Client": "google-cloud-sdk vscode_cloudshelleditor/0.1",
     "Client-Metadata": (
-        '{"ideType":"IDE_UNSPECIFIED","platform":"PLATFORM_UNSPECIFIED",'
+        '{"ideType":"ANTIGRAVITY","platform":"PLATFORM_UNSPECIFIED",'
         '"pluginType":"GEMINI"}'
     ),
 }

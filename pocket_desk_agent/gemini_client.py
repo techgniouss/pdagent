@@ -17,11 +17,15 @@ from pocket_desk_agent.gemini_actions import (
     get_gemini_action_tools,
 )
 from pocket_desk_agent.constants import (
+    ANTIGRAVITY_ENDPOINT_DAILY,
+    ANTIGRAVITY_ENDPOINT_AUTOPUSH,
     ANTIGRAVITY_ENDPOINT_PROD,
+    ANTIGRAVITY_HEADERS,
     GEMINI_API_BASE_URL,
     THINKING_TIER_BUDGETS,
     GEMINI_CLI_HEADERS,
     MAX_HISTORY_TURNS,
+    AUTH_MODE_ANTIGRAVITY,
     AUTH_MODE_GEMINI_CLI,
     AUTH_MODE_APIKEY,
 )
@@ -442,10 +446,21 @@ def _normalize_tool_call(func_name: Any, args: Any) -> tuple[str, dict[str, Any]
     normalized_args = _normalize_tool_args(canonical_name, raw_args)
     return canonical_name, normalized_args
 
-def _get_code_assist_headers(_auth_mode: str, access_token: str) -> dict:
-    """Build headers for the shared internal Code Assist backend."""
-    base = dict(GEMINI_CLI_HEADERS)
-    base["User-Agent"] = "GeminiCLI/1.0.0 google-api-nodejs-client/10.3.0"
+def _get_code_assist_headers(auth_mode: str, access_token: str) -> dict:
+    """Build headers for the shared internal Code Assist backend.
+
+    Antigravity mode MUST impersonate the Antigravity Electron client (see
+    ANTIGRAVITY_HEADERS docstring in constants.py) — since Google's
+    2026-06-18 shutdown of Code Assist for individuals, the tier-eligibility
+    check keys off this identity and the old gemini-cli UA now gets
+    free-tier refused with UNSUPPORTED_CLIENT. Gemini-CLI auth mode keeps
+    its own working identity unchanged.
+    """
+    if auth_mode == AUTH_MODE_ANTIGRAVITY:
+        base = dict(ANTIGRAVITY_HEADERS)
+    else:
+        base = dict(GEMINI_CLI_HEADERS)
+        base["User-Agent"] = "GeminiCLI/1.0.0 google-api-nodejs-client/10.3.0"
 
     return {
         "Authorization": f"Bearer {access_token}",
@@ -453,8 +468,16 @@ def _get_code_assist_headers(_auth_mode: str, access_token: str) -> dict:
         **base,
     }
 
-def _get_code_assist_endpoints(_auth_mode: str) -> list[str]:
-    """Return the stable endpoint order for the Code Assist backend."""
+def _get_code_assist_endpoints(auth_mode: str) -> list[str]:
+    """Return the endpoint fallback order for the Code Assist backend.
+
+    Antigravity OAuth creds have quota on the sandbox endpoints (daily/
+    autopush), NOT on prod — prod returns 429 RESOURCE_EXHAUSTED for every
+    Antigravity-issued token — so try sandboxes first, prod as last resort.
+    Gemini-CLI creds only have quota on prod.
+    """
+    if auth_mode == AUTH_MODE_ANTIGRAVITY:
+        return [ANTIGRAVITY_ENDPOINT_DAILY, ANTIGRAVITY_ENDPOINT_AUTOPUSH, ANTIGRAVITY_ENDPOINT_PROD]
     return [ANTIGRAVITY_ENDPOINT_PROD]
 
 def _build_wrapped_body(project_id: str, model: str, history: list, message: Optional[str] = None) -> Tuple[dict, ResolvedModel]:
@@ -769,16 +792,35 @@ class GeminiClient:
         elif self._auth_mode == AUTH_MODE_GEMINI_CLI:
             logger.info("Using Gemini CLI OAuth mode (Code Assist backend)")
             self._oauth = GeminiCLIOAuth()
-            if not self._oauth.load_saved_tokens():
-                logger.warning("No saved Gemini CLI tokens.")
+            try:
+                if not self._oauth.load_saved_tokens():
+                    logger.warning("No saved Gemini CLI tokens.")
+            except Exception as exc:
+                # Never let a bad tokens.json (corrupt, unreadable, network
+                # hiccup during project-id fetch) crash startup — this runs
+                # at import time, before safe_command's handler exists to
+                # catch it and report to Telegram. Fall through unauthenticated;
+                # /login and every send_message() call already handle that.
+                logger.warning(
+                    "Could not load saved Gemini CLI tokens at startup (%s: %s) — "
+                    "starting unauthenticated. Use /login to reconnect.",
+                    type(exc).__name__, exc,
+                )
         else:
             logger.info("Using Antigravity OAuth mode (internal API)")
             self._oauth = AntigravityOAuth()
-            if self._oauth.load_saved_tokens():
-                self._oauth._fetch_project_id()
-                self._oauth._save_tokens()
-            else:
-                logger.warning("No saved tokens.")
+            try:
+                if self._oauth.load_saved_tokens():
+                    self._oauth._fetch_project_id()
+                    self._oauth._save_tokens()
+                else:
+                    logger.warning("No saved tokens.")
+            except Exception as exc:
+                logger.warning(
+                    "Could not load saved Antigravity tokens at startup (%s: %s) — "
+                    "starting unauthenticated. Use /login to reconnect.",
+                    type(exc).__name__, exc,
+                )
 
     def _resolve_auth_context(
         self,
@@ -983,9 +1025,19 @@ class GeminiClient:
             current_dir = file_manager.get_current_dir(user_id)
             full_message = f"[Current Directory: {current_dir}]\n\n{message}"
 
+            loop = asyncio.get_running_loop()
             resolved_auth_mode, resolved_oauth = self._resolve_auth_context(auth_mode, oauth)
-            token = self._get_request_token(resolved_auth_mode, resolved_oauth)
-            project = self._get_project(resolved_auth_mode, resolved_oauth)
+            # Token/project resolution can hit the network (token refresh,
+            # loadCodeAssist, and — for a not-yet-onboarded Antigravity
+            # free-tier account — up to 8 polled onboardUser calls, worst
+            # case ~2 minutes). Run off the event loop thread so one user's
+            # first-time auth doesn't freeze the whole bot for everyone else.
+            token = await loop.run_in_executor(
+                None, self._get_request_token, resolved_auth_mode, resolved_oauth
+            )
+            project = await loop.run_in_executor(
+                None, self._get_project, resolved_auth_mode, resolved_oauth
+            )
 
             # If we're in an OAuth mode but couldn't obtain a token, the
             # session has expired or the credentials were revoked.  Auto-logout
@@ -998,8 +1050,6 @@ class GeminiClient:
                 )
                 self._auto_logout_oauth(user_id, resolved_oauth, reason="no token")
                 return _SESSION_EXPIRED_MESSAGE
-
-            loop = asyncio.get_running_loop()
 
             # Snapshot the original history so we can roll back on failure
             # without leaking a half-built tool-call sequence into future turns.
@@ -1179,20 +1229,33 @@ class GeminiClient:
         if auth_mode == AUTH_MODE_APIKEY:
             return self._call_api_key_raw(wrapped, resolved)
 
-        if auth_mode == AUTH_MODE_GEMINI_CLI:
-            return self._call_code_assist_raw(auth_mode, token, wrapped)
+        # Both OAuth modes (Gemini-CLI and Antigravity) use the same Code
+        # Assist transport — they differ only in headers/endpoint order,
+        # which _get_code_assist_headers/_get_code_assist_endpoints resolve.
+        return self._call_code_assist_raw(auth_mode, token, wrapped)
 
-        # Antigravity mode uses the same Code Assist transport.
+    def _call_code_assist_raw(self, auth_mode: str, token: str, wrapped: dict) -> dict:
+        """Call Google's internal Code Assist backend for OAuth auth modes.
+
+        Tries endpoints in the mode's fallback order (see
+        _get_code_assist_endpoints). For Antigravity mode this is
+        [daily, autopush, prod]: a sandbox endpoint's error is endpoint-
+        specific and falls through to the next one; only the LAST endpoint's
+        error is terminal. Gemini-CLI mode has a single endpoint (prod), so
+        behavior there is unchanged — its first/only endpoint is also its
+        last, so errors are terminal exactly as before.
+        """
         headers = _get_code_assist_headers(auth_mode, token)
         headers["Accept"] = "application/json"
-
         endpoints = _get_code_assist_endpoints(auth_mode)
         last_error = "Unknown error"
 
         # The correct URL format is /v1internal:generateContent
         # The model is passed in the wrapped body (not the URL path).
-        for endpoint in endpoints:
+        for i, endpoint in enumerate(endpoints):
+            is_last_endpoint = i == len(endpoints) - 1
             url = f"{endpoint}/v1internal:generateContent"
+            endpoint_failed = False
             for attempt in range(_MAX_RETRIES + 1):
                 try:
                     resp = requests.post(url, headers=headers, json=wrapped, timeout=60)
@@ -1206,44 +1269,21 @@ class GeminiClient:
                         logger.info("Rate limited (429); retrying in %.0fs (attempt %d/%d)", wait, attempt + 1, _MAX_RETRIES)
                         time.sleep(wait)
                         continue
+                    if not is_last_endpoint:
+                        logger.info(f"{url} failed ({resp.status_code}) — trying next endpoint")
+                        endpoint_failed = True
+                        break
                     if resp.status_code in (400, 401, 403, 429):
                         return {"error": last_error}
                     break
                 except Exception as e:
                     last_error = str(e)
                     logger.warning(f"Endpoint {url} error: {e}")
+                    if not is_last_endpoint:
+                        endpoint_failed = True
                     break
-
-        return {"error": f"Failed to connect: {last_error}"}
-
-    def _call_code_assist_raw(self, auth_mode: str, token: str, wrapped: dict) -> dict:
-        """Call Google's internal Code Assist backend for OAuth auth modes."""
-        headers = _get_code_assist_headers(auth_mode, token)
-        headers["Accept"] = "application/json"
-        last_error = "Unknown error"
-
-        for endpoint in _get_code_assist_endpoints(auth_mode):
-            url = f"{endpoint}/v1internal:generateContent"
-            for attempt in range(_MAX_RETRIES + 1):
-                try:
-                    resp = requests.post(url, headers=headers, json=wrapped, timeout=60)
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        return data.get('response', data)
-                    last_error = f"HTTP {resp.status_code}: {resp.text[:300]}"
-                    logger.warning(f"Endpoint {url} returned {resp.status_code}: {resp.text[:300]}")
-                    if resp.status_code == 429 and attempt < _MAX_RETRIES:
-                        wait = _retry_wait(resp, attempt)
-                        logger.info("Rate limited (429); retrying in %.0fs (attempt %d/%d)", wait, attempt + 1, _MAX_RETRIES)
-                        time.sleep(wait)
-                        continue
-                    if resp.status_code in (400, 401, 403, 429):
-                        return {"error": last_error}
-                    break
-                except Exception as e:
-                    last_error = str(e)
-                    logger.warning(f"Endpoint {url} error: {e}")
-                    break
+            if endpoint_failed:
+                continue
 
         return {"error": f"Failed to connect: {last_error}"}
 
@@ -1289,9 +1329,17 @@ class GeminiClient:
             import base64
             history = self.get_or_create_session(user_id)
 
+            loop = asyncio.get_running_loop()
             resolved_auth_mode, resolved_oauth = self._resolve_auth_context(auth_mode, oauth)
-            token = self._get_request_token(resolved_auth_mode, resolved_oauth)
-            project = self._get_project(resolved_auth_mode, resolved_oauth)
+            # See send_message for why this runs off the event loop thread —
+            # token/project resolution can block on network calls for up to
+            # ~2 minutes (Antigravity free-tier onboarding).
+            token = await loop.run_in_executor(
+                None, self._get_request_token, resolved_auth_mode, resolved_oauth
+            )
+            project = await loop.run_in_executor(
+                None, self._get_project, resolved_auth_mode, resolved_oauth
+            )
 
             # If we're in an OAuth mode but couldn't obtain a token, the
             # session has expired or the credentials were revoked.  Auto-logout
@@ -1315,7 +1363,6 @@ class GeminiClient:
                 ],
             }]
 
-            loop = asyncio.get_running_loop()
             def _build_vision_request(requested_model: str) -> Tuple[dict, ResolvedModel]:
                 resolved = resolve_model(requested_model)
                 gen_config = {
