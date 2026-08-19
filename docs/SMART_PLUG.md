@@ -37,7 +37,30 @@ _battery_manager_loop() (every 5 min)
 
 You need the email address and password you use to log into the **Qubo app** (same account that controls your Smart Plug 10A).
 
-### 2. Add credentials to `~/.pdagent/config`
+### 2. Add credentials
+
+**Option A — configuration wizard (recommended):**
+
+```bash
+pdagent configure
+```
+
+On a fresh setup, the `[3/3] Optional Settings` step offers to configure the smart plug. On an existing setup, pick **"Smart Plug & Auto Battery"** from the selective-update menu — it prompts for the Qubo username/password, device name, and battery thresholds, and writes them to `~/.pdagent/credentials` (username/password) and `~/.pdagent/config` (device name, thresholds).
+
+**Option B — edit the config files directly:**
+
+```ini
+# ~/.pdagent/credentials
+[default]
+qubo_username = your-qubo-email@example.com
+qubo_password = your-qubo-password
+
+# ~/.pdagent/config
+[smartplug]
+qubo_device_name = Smart Plug 10A
+```
+
+**Option C — environment variables** (highest precedence — overrides the files above):
 
 ```ini
 QUBO_USERNAME=your-qubo-email@example.com

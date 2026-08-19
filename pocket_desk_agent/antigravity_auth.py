@@ -20,6 +20,7 @@ from pocket_desk_agent.constants import (
     OAUTH_REDIRECT_URI,
     ANTIGRAVITY_SCOPES,
     ANTIGRAVITY_ENDPOINT_DAILY,
+    ANTIGRAVITY_ENDPOINT_AUTOPUSH,
     ANTIGRAVITY_ENDPOINT_PROD,
     GEMINI_CLI_HEADERS,
     ANTIGRAVITY_HEADERS,
@@ -52,9 +53,16 @@ class TokenStorage:
         self.legacy_tokens_file = Path.home() / ".config" / app_name / "tokens.json"
     
     def save_tokens(self, tokens: dict) -> None:
-        """Save tokens to file with restricted permissions."""
-        with open(self.tokens_file, 'w') as f:
+        """Save tokens to file with restricted permissions.
+
+        Writes to a temp file then atomically replaces the real file so a
+        crash/power-loss mid-write can never leave tokens.json truncated
+        or half-written (which would otherwise poison every later load).
+        """
+        tmp_file = self.tokens_file.with_suffix(".json.tmp")
+        with open(tmp_file, 'w') as f:
             json.dump(tokens, f, indent=2)
+        os.replace(tmp_file, self.tokens_file)
         # Restrict file permissions so other users cannot read tokens
         try:
             if os.name != "nt":
@@ -84,13 +92,37 @@ class TokenStorage:
             logger.warning(f"Could not restrict token file permissions: {exc}")
     
     def load_tokens(self) -> Optional[dict]:
-        """Load tokens from file"""
-        if self.tokens_file.exists():
-            with open(self.tokens_file, 'r') as f:
-                return json.load(f)
-        if self.legacy_tokens_file.exists():
-            with open(self.legacy_tokens_file, 'r') as f:
-                return json.load(f)
+        """Load tokens from file.
+
+        Never raises: a corrupt/truncated/unreadable tokens.json (bad JSON,
+        permission error, disk issue, or valid JSON that isn't an object —
+        e.g. `[]`/`"x"`/`42` from a botched write) is treated as "no saved
+        tokens" rather than crashing the caller — this runs at bot startup
+        (module import, before safe_command's error handler exists), so an
+        unguarded exception here would kill the whole application before it
+        could ever report anything to Telegram.
+        """
+        for candidate in (self.tokens_file, self.legacy_tokens_file):
+            try:
+                if candidate.exists():
+                    with open(candidate, 'r') as f:
+                        data = json.load(f)
+                    if not isinstance(data, dict):
+                        logger.warning(
+                            "Token file %s did not contain a JSON object "
+                            "(got %s) — treating as logged out. "
+                            "Re-authenticate with /login.",
+                            candidate, type(data).__name__,
+                        )
+                        continue
+                    return data
+            except (json.JSONDecodeError, OSError, ValueError) as exc:
+                logger.warning(
+                    "Could not read token file %s (%s: %s) — treating as "
+                    "logged out. Re-authenticate with /login.",
+                    candidate, type(exc).__name__, exc,
+                )
+                continue
         return None
     
     def clear_tokens(self) -> None:
@@ -336,53 +368,72 @@ class AntigravityOAuth:
             pass
     
     def _fetch_project_id(self) -> None:
-        """Fetch project ID from Antigravity API - matching working implementation"""
+        """Fetch project ID from Antigravity API - matching working implementation.
+
+        Must send the Antigravity client identity (Electron User-Agent +
+        ideType=ANTIGRAVITY), not the gemini-cli identity — since Google's
+        2026-06-18 shutdown of Code Assist for individuals, the gemini-cli
+        identity gets free-tier refused with UNSUPPORTED_CLIENT and no
+        project can be resolved. See ANTIGRAVITY_HEADERS in constants.py.
+
+        For free-tier-eligible accounts that don't already have a
+        provisioned project, this also auto-provisions one via onboardUser
+        (mirrors the working Antigravity OAuth-proxy reference) — without
+        this, loadCodeAssist alone leaves project_id empty and every
+        subsequent generateContent call 400s.
+        """
         manual_project = os.getenv("GOOGLE_PROJECT_ID") or os.getenv("ANTIGRAVITY_PROJECT_ID")
         if manual_project:
             self.project_id = manual_project
             return
 
-        endpoints = [ANTIGRAVITY_ENDPOINT_PROD, ANTIGRAVITY_ENDPOINT_DAILY]
-        
+        endpoints = [ANTIGRAVITY_ENDPOINT_PROD, ANTIGRAVITY_ENDPOINT_DAILY, ANTIGRAVITY_ENDPOINT_AUTOPUSH]
+        metadata = {
+            "ideType": "ANTIGRAVITY",
+            "platform": "PLATFORM_UNSPECIFIED",
+            "pluginType": "GEMINI",
+        }
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json",
+            **ANTIGRAVITY_HEADERS,
+        }
+
+        load_data: Optional[dict] = None
+        resolved_endpoint = endpoints[0]
         for endpoint in endpoints:
             try:
                 response = requests.post(
                     f"{endpoint}/v1internal:loadCodeAssist",
-                    headers={
-                        "Authorization": f"Bearer {self.access_token}",
-                        "Content-Type": "application/json",
-                        **GEMINI_CLI_HEADERS,
-                        "Client-Metadata": ANTIGRAVITY_HEADERS["Client-Metadata"],
-                    },
-                    json={
-                        "metadata": {
-                            "ideType": "IDE_UNSPECIFIED",
-                            "platform": "PLATFORM_UNSPECIFIED",
-                            "pluginType": "GEMINI",
-                        }
-                    },
-                    timeout=10
+                    headers=headers,
+                    json={"metadata": metadata},
+                    timeout=10,
                 )
-                
                 if response.ok:
-                    data = response.json()
-                    project = data.get('cloudaicompanionProject', {})
-                    if isinstance(project, str):
-                        self.project_id = project
-                    elif isinstance(project, dict):
-                        self.project_id = project.get('id', '')
-                    
-                    if self.project_id:
-                        self._update_status(f"Fetched project ID: {self.project_id}")
-                        return
+                    load_data = response.json()
+                    resolved_endpoint = endpoint
+                    break
+                self._update_status(
+                    f"loadCodeAssist {endpoint} -> HTTP {response.status_code}"
+                )
             except Exception as e:
                 self._update_status(f"Error fetching project from {endpoint}: {e}")
                 continue
-        
-        # No fallback — require explicit configuration
-        if not self.project_id:
+
+        if load_data is None:
             self._update_status(
                 "Could not determine Google Cloud project ID. "
+                "Set GOOGLE_PROJECT_ID in your config or .env file."
+            )
+            return
+
+        pid, err = _resolve_project_from_load(load_data, metadata, resolved_endpoint, headers)
+        if pid:
+            self.project_id = pid
+            self._update_status(f"Fetched project ID: {self.project_id}")
+        else:
+            self._update_status(
+                err or "Could not determine Google Cloud project ID. "
                 "Set GOOGLE_PROJECT_ID in your config or .env file."
             )
     
@@ -500,7 +551,7 @@ class AntigravityOAuth:
             webbrowser.open(auth_url)
             
             OAuthCallbackHandler.callback_received.wait(timeout=300)
-            
+
             if OAuthCallbackHandler.auth_code:
                 return self.exchange_code(OAuthCallbackHandler.auth_code, verifier)
             else:
@@ -508,3 +559,101 @@ class AntigravityOAuth:
                 return False
         finally:
             self.stop_callback_server()
+
+
+def _resolve_project_from_load(load_response: dict, metadata: dict,
+                                endpoint_base: str, headers: dict) -> Tuple[str, str]:
+    """Given a parsed loadCodeAssist 200 body, return (project_id, error).
+
+    Ported from the working Antigravity OAuth-proxy reference implementation.
+    """
+    pid = load_response.get("cloudaicompanionProject") or ""
+    if isinstance(pid, dict):
+        pid = pid.get("id") or ""
+    if pid:
+        return pid, ""
+
+    current_tier = load_response.get("currentTier") or {}
+    allowed_tiers = load_response.get("allowedTiers") or []
+    ineligible = load_response.get("ineligibleTiers") or []
+
+    if current_tier.get("userDefinedCloudaicompanionProject"):
+        return "", (
+            f"account is on '{current_tier.get('id')}' tier which requires a "
+            f"user-defined GCP project. Set GOOGLE_PROJECT_ID in your config "
+            f"with a GCP project where Gemini for Google Cloud API is enabled."
+        )
+
+    free_tier = next(
+        (t for t in allowed_tiers if not t.get("userDefinedCloudaicompanionProject")),
+        None,
+    )
+    if free_tier:
+        tier_id = free_tier.get("id") or ""
+        if not tier_id:
+            return "", "free tier found but no id field"
+        onboarded = _onboard_user(endpoint_base, headers, metadata, tier_id)
+        return onboarded, ("" if onboarded else "onboardUser did not return a project")
+
+    # No auto-provisionable tier. If every ALLOWED tier needs a user-defined
+    # project, that — not the ineligibility of the tiers we were refused — is
+    # the actionable state. `currentTier` is absent in this response shape, so
+    # the check above does not catch it.
+    reasons = [t.get("reasonMessage") for t in ineligible if t.get("reasonMessage")]
+    if allowed_tiers:
+        tier_ids = ", ".join(t.get("id") or "?" for t in allowed_tiers)
+        msg = (
+            f"no auto-provisionable tier — allowed tier(s) [{tier_ids}] require a "
+            f"user-defined GCP project. Set GOOGLE_PROJECT_ID in your config with "
+            f"a GCP project where Gemini for Google Cloud API is enabled."
+        )
+        if reasons:
+            msg += f" Google refused the auto-provisioned tier: {reasons[0]}"
+        return "", msg
+
+    if reasons:
+        return "", f"account not eligible: {reasons[0]}"
+    return "", "no eligible tier and no project — account state unclear"
+
+
+def _onboard_user(endpoint_base: str, headers: dict, metadata: dict, tier_id: str,
+                   max_attempts: int = 8) -> str:
+    """POST /v1internal:onboardUser with the tier_id from loadCodeAssist's
+    allowedTiers, polling until Google finishes auto-provisioning the free-tier
+    project. For free-tier (auto-provisioned), OMIT cloudaicompanionProject
+    from the body — sending it as "" returns 400/403.
+
+    Ported from the working Antigravity OAuth-proxy reference implementation.
+    """
+    onboard_url = f"{endpoint_base}/v1internal:onboardUser"
+    body: dict = {"tierId": tier_id, "metadata": metadata}
+    for attempt in range(max_attempts):
+        try:
+            resp = requests.post(onboard_url, json=body, headers=headers, timeout=15)
+            if resp.status_code != 200:
+                msg = (resp.text or "")[:240]
+                if "not eligible" in msg.lower() or "Verify your account" in msg:
+                    logger.warning(
+                        "onboardUser ineligible on tier=%r: %s. Sign in to "
+                        "https://aistudio.google.com (same Google account as "
+                        "this OAuth cred) and accept Code Assist terms, then retry.",
+                        tier_id, msg[:160],
+                    )
+                else:
+                    logger.debug("onboardUser -> %d: %s", resp.status_code, msg)
+                return ""
+            data = resp.json()
+            if data.get("done"):
+                proj = (data.get("response") or {}).get("cloudaicompanionProject") or {}
+                pid = proj.get("id") if isinstance(proj, dict) else proj
+                if pid:
+                    logger.info("onboardUser provisioned project_id=%s", pid)
+                    return pid
+                logger.debug("onboardUser done but no project: %s", data)
+                return ""
+            time.sleep(2)
+        except Exception as e:
+            logger.debug("onboardUser attempt %d failed: %s", attempt, e)
+            return ""
+    logger.warning("onboardUser still not done after %d polls (16s)", max_attempts)
+    return ""

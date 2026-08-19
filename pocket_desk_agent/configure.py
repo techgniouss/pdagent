@@ -80,6 +80,8 @@ _INI_ENV_MAP: dict[tuple[str, str, str], str] = {
     ("credentials", "default", "dropbox_access_token"):  "DROPBOX_ACCESS_TOKEN",
     ("credentials", "default", "google_oauth_client_id"):     "GOOGLE_OAUTH_CLIENT_ID",
     ("credentials", "default", "google_oauth_client_secret"):  "GOOGLE_OAUTH_CLIENT_SECRET",
+    ("credentials", "default", "qubo_username"):        "QUBO_USERNAME",
+    ("credentials", "default", "qubo_password"):        "QUBO_PASSWORD",
     # config [bot] section
     ("config", "bot", "authorized_user_ids"):   "AUTHORIZED_USER_IDS",
     ("config", "bot", "telegram_bot_username"): "TELEGRAM_BOT_USERNAME",
@@ -96,6 +98,11 @@ _INI_ENV_MAP: dict[tuple[str, str, str], str] = {
     ("config", "features", "auto_update_enabled"):        "AUTO_UPDATE_ENABLED",
     ("config", "features", "auto_update_interval_minutes"): "AUTO_UPDATE_INTERVAL_MINUTES",
     ("config", "features", "log_level"):                  "LOG_LEVEL",
+    # config [smartplug] section
+    ("config", "smartplug", "qubo_device_name"):          "QUBO_DEVICE_NAME",
+    ("config", "smartplug", "battery_high_threshold"):    "BATTERY_HIGH_THRESHOLD",
+    ("config", "smartplug", "battery_low_threshold"):     "BATTERY_LOW_THRESHOLD",
+    ("config", "smartplug", "battery_poll_interval"):     "BATTERY_POLL_INTERVAL",
 }
 
 
@@ -213,6 +220,82 @@ def _validate_directories(raw: str) -> tuple[list[Path], list[str]]:
     return paths, warnings
 
 
+def _prompt_smart_plug_fields(
+    default_username: str = "",
+    default_password: str = "",
+    default_device: str = "Smart Plug 10A",
+    default_high: str = "85",
+    default_low: str = "15",
+    default_interval: str = "300",
+) -> dict[str, str]:
+    """Prompt for Qubo smart plug credentials and auto-battery thresholds.
+
+    Shared by the full wizard and the selective-update menu so both stay
+    in sync. Returns string values ready to write into the INI parsers.
+    """
+    username = _prompt_optional(
+        "Qubo Username",
+        hint="Email you use to log into the Qubo app",
+        default=default_username,
+    )
+    password = _prompt_optional(
+        "Qubo Password",
+        hint="Password for the same Qubo app account",
+        default=default_password,
+        secret=True,
+    )
+    device_name = _prompt_optional(
+        "Qubo Device Name",
+        hint="Must exactly match the device name shown in the Qubo app",
+        default=default_device or "Smart Plug 10A",
+    ) or "Smart Plug 10A"
+
+    while True:
+        high_raw = _prompt_optional(
+            "Battery High Threshold (%)",
+            hint="Plug turns OFF above this % while charging",
+            default=default_high or "85",
+        )
+        low_raw = _prompt_optional(
+            "Battery Low Threshold (%)",
+            hint="Plug turns ON below this % while not charging",
+            default=default_low or "15",
+        )
+        interval_raw = _prompt_optional(
+            "Battery Poll Interval (seconds, min 30)",
+            default=default_interval or "300",
+        )
+        try:
+            high_val = int(high_raw)
+            low_val = int(low_raw)
+            interval_val = int(interval_raw)
+        except ValueError:
+            print("  Error: thresholds and interval must be whole numbers.")
+            continue
+        if not (1 <= high_val <= 100):
+            print("  Error: high threshold must be between 1 and 100.")
+            continue
+        if not (0 <= low_val <= 99):
+            print("  Error: low threshold must be between 0 and 99.")
+            continue
+        if low_val >= high_val:
+            print("  Error: low threshold must be less than the high threshold.")
+            continue
+        if interval_val < 30:
+            print("  Error: poll interval must be at least 30 seconds.")
+            continue
+        break
+
+    return {
+        "qubo_username": username,
+        "qubo_password": password,
+        "qubo_device_name": device_name,
+        "battery_high_threshold": str(high_val),
+        "battery_low_threshold": str(low_val),
+        "battery_poll_interval": str(interval_val),
+    }
+
+
 def _note_implicit_repo_path(cfg_parser: configparser.ConfigParser) -> None:
     """
     Print a note when CLAUDE_DEFAULT_REPO_PATH implicitly expands the sandbox.
@@ -246,8 +329,8 @@ def _show_current_config() -> None:
         v = parser_cred.get("default", key, fallback="")
         return _mask(v) if v else "(not set)"
 
-    def cfg(section: str, key: str) -> str:
-        return parser_cfg.get(section, key, fallback="(not set)")
+    def cfg(section: str, key: str, default: str = "(not set)") -> str:
+        return parser_cfg.get(section, key, fallback=default)
 
     print("\nCurrent configuration:")
     print(f"  Telegram Bot Token   : {cred('telegram_bot_token')}")
@@ -258,6 +341,19 @@ def _show_current_config() -> None:
     print(f"  Gemini Model         : {cfg('bot', 'gemini_model')}")
     print(f"  Approved Directories : {cfg('bot', 'approved_directories')}")
     print(f"  Dropbox Token        : {cred('dropbox_access_token')}")
+    qubo_user = parser_cred.get("default", "qubo_username", fallback="")
+    print(f"  Qubo Username        : {qubo_user or '(not set)'}")
+    print(f"  Qubo Password        : {cred('qubo_password')}")
+    if qubo_user:
+        # Only configured once credentials exist — show the effective
+        # runtime defaults (matching Config.py) rather than "(not set)".
+        print(f"  Qubo Device Name     : {cfg('smartplug', 'qubo_device_name', 'Smart Plug 10A')}")
+        print(
+            f"  Battery High/Low/Poll: "
+            f"{cfg('smartplug', 'battery_high_threshold', '85')}% / "
+            f"{cfg('smartplug', 'battery_low_threshold', '15')}% / "
+            f"{cfg('smartplug', 'battery_poll_interval', '300')}s"
+        )
     print()
 
 
@@ -488,6 +584,26 @@ def _run_full_wizard() -> None:
         secret=True,
     )
 
+    print("\n  Optional: Smart Plug / Auto Battery Management")
+    print("  Auto-manages a Qubo Smart Plug 10A based on your laptop's battery %.")
+    print("  Requires your Qubo app login (email + password).")
+    smart_plug_fields = {
+        "qubo_username": "",
+        "qubo_password": "",
+        "qubo_device_name": "Smart Plug 10A",
+        "battery_high_threshold": "85",
+        "battery_low_threshold": "15",
+        "battery_poll_interval": "300",
+    }
+    configure_smart_plug = input("  Configure now? [y/N]: ").strip().lower()
+    if configure_smart_plug in ("y", "yes"):
+        smart_plug_fields = _prompt_smart_plug_fields()
+    else:
+        print(
+            "  Skipped. Configure later with 'pdagent configure', or set "
+            "QUBO_USERNAME / QUBO_PASSWORD / QUBO_DEVICE_NAME env vars."
+        )
+
     # ------------------------------------------------------------------
     # Write credentials file
     # ------------------------------------------------------------------
@@ -498,6 +614,8 @@ def _run_full_wizard() -> None:
         "google_oauth_client_id": google_oauth_client_id,
         "google_oauth_client_secret": google_oauth_client_secret,
         "dropbox_access_token": dropbox_access_token,
+        "qubo_username": smart_plug_fields["qubo_username"],
+        "qubo_password": smart_plug_fields["qubo_password"],
     }
     with open(credentials_path(), "w", encoding="utf-8") as f:
         f.write("# Pocket Desk Agent — credentials\n")
@@ -529,6 +647,12 @@ def _run_full_wizard() -> None:
         "auto_update_enabled": "true",
         "auto_update_interval_minutes": "60",
         "log_level": "INFO",
+    }
+    cfg_parser["smartplug"] = {
+        "qubo_device_name": smart_plug_fields["qubo_device_name"],
+        "battery_high_threshold": smart_plug_fields["battery_high_threshold"],
+        "battery_low_threshold": smart_plug_fields["battery_low_threshold"],
+        "battery_poll_interval": smart_plug_fields["battery_poll_interval"],
     }
     with open(config_path(), "w", encoding="utf-8") as f:
         f.write("# Pocket Desk Agent — configuration\n")
@@ -572,7 +696,7 @@ def _read_existing_parsers() -> tuple[configparser.ConfigParser, configparser.Co
     # Ensure expected sections exist so setters never KeyError
     if not cred_parser.has_section("default"):
         cred_parser["default"] = {}
-    for section in ("bot", "features"):
+    for section in ("bot", "features", "smartplug"):
         if not cfg_parser.has_section(section):
             cfg_parser[section] = {}
 
@@ -883,6 +1007,51 @@ def _update_dropbox_token(
     _write_parsers(cred_parser, cfg_parser)
 
 
+def _update_smart_plug(
+    cred_parser: configparser.ConfigParser,
+    cfg_parser: configparser.ConfigParser,
+) -> None:
+    """Prompt for and update Qubo smart plug credentials and battery thresholds."""
+    current_username = cred_parser.get("default", "qubo_username", fallback="")
+    current_password = cred_parser.get("default", "qubo_password", fallback="")
+    current_device = cfg_parser.get("smartplug", "qubo_device_name", fallback="Smart Plug 10A")
+    current_high = cfg_parser.get("smartplug", "battery_high_threshold", fallback="85")
+    current_low = cfg_parser.get("smartplug", "battery_low_threshold", fallback="15")
+    current_interval = cfg_parser.get("smartplug", "battery_poll_interval", fallback="300")
+
+    print(f"\n  Current Qubo Username  : {current_username or '(not set)'}")
+    print(f"  Current Qubo Password  : {_mask(current_password) if current_password else '(not set)'}")
+    print(f"  Current Device Name    : {current_device}")
+    print(f"  Current High Threshold : {current_high}%")
+    print(f"  Current Low Threshold  : {current_low}%")
+    print(f"  Current Poll Interval  : {current_interval}s")
+
+    fields = _prompt_smart_plug_fields(
+        default_username=current_username,
+        default_password=current_password,
+        default_device=current_device,
+        default_high=current_high,
+        default_low=current_low,
+        default_interval=current_interval,
+    )
+
+    cred_parser["default"]["qubo_username"] = fields["qubo_username"]
+    cred_parser["default"]["qubo_password"] = fields["qubo_password"]
+    if not cfg_parser.has_section("smartplug"):
+        cfg_parser.add_section("smartplug")
+    cfg_parser["smartplug"]["qubo_device_name"] = fields["qubo_device_name"]
+    cfg_parser["smartplug"]["battery_high_threshold"] = fields["battery_high_threshold"]
+    cfg_parser["smartplug"]["battery_low_threshold"] = fields["battery_low_threshold"]
+    cfg_parser["smartplug"]["battery_poll_interval"] = fields["battery_poll_interval"]
+    _write_parsers(cred_parser, cfg_parser)
+    print(
+        "\n  ℹ  These can also be set via environment variables instead:\n"
+        "     QUBO_USERNAME, QUBO_PASSWORD, QUBO_DEVICE_NAME,\n"
+        "     BATTERY_HIGH_THRESHOLD, BATTERY_LOW_THRESHOLD, BATTERY_POLL_INTERVAL\n"
+        "  Run /autobattery off then /autobattery on in Telegram to apply changes."
+    )
+
+
 # Menu items: (label shown to user, handler function)
 _SELECTIVE_MENU: list[tuple[str, object]] = [
     ("Authorized User IDs        — who can control this bot", _update_authorized_user_ids),
@@ -892,6 +1061,7 @@ _SELECTIVE_MENU: list[tuple[str, object]] = [
     ("Telegram Bot Username      — your bot's @username", _update_bot_username),
     ("Default Projects Directory — used by /build, /getapk, /claudecli and similar", _update_projects_directory),
     ("Dropbox Access Token       — for large file uploads", _update_dropbox_token),
+    ("Smart Plug & Auto Battery  — Qubo plug credentials + thresholds", _update_smart_plug),
 ]
 
 
