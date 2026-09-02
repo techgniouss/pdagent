@@ -12,10 +12,10 @@ import requests
 from pocket_desk_agent.config import Config
 from pocket_desk_agent.antigravity_auth import AntigravityOAuth
 from pocket_desk_agent.gemini_cli_auth import GeminiCLIOAuth
-from pocket_desk_agent.gemini_actions import (
-    dispatch_gemini_tool,
-    get_gemini_action_tools,
-)
+from pocket_desk_agent.gemini_actions import get_gemini_action_tools
+from pocket_desk_agent.ai_tool_loop import ALLOWED_TOOLS as _ALLOWED_TOOLS
+from pocket_desk_agent.ai_tool_loop import run_tool_turn
+from pocket_desk_agent.ai_types import ProviderResult
 from pocket_desk_agent.constants import (
     ANTIGRAVITY_ENDPOINT_DAILY,
     ANTIGRAVITY_ENDPOINT_AUTOPUSH,
@@ -33,81 +33,6 @@ from pocket_desk_agent.constants import (
 logger = logging.getLogger(__name__)
 
 OAuthProvider = AntigravityOAuth | GeminiCLIOAuth
-
-_TOOL_NAME_ALIASES: dict[str, str] = {
-    "remote": "request_remote_session",
-    "open_remote": "request_remote_session",
-    "start_remote": "request_remote_session",
-    "start_remote_session": "request_remote_session",
-    "remote_desktop_start": "request_remote_session",
-    "open_remote_session": "request_remote_session",
-    "stop_remote": "request_stop_remote_session",
-    "end_remote": "request_stop_remote_session",
-    "close_remote": "request_stop_remote_session",
-    "stop_remote_session": "request_stop_remote_session",
-    "end_remote_session": "request_stop_remote_session",
-    "remote_status": "get_remote_session_status",
-    "get_remote_status": "get_remote_session_status",
-    "remote_session_status": "get_remote_session_status",
-    "check_remote_status": "get_remote_session_status",
-    "build": "start_build_workflow",
-    "start_build": "start_build_workflow",
-    "build_workflow": "start_build_workflow",
-    "build_project": "start_build_workflow",
-    "run_build": "start_build_workflow",
-    "get_apk": "start_apk_retrieval_workflow",
-    "retrieve_apk": "start_apk_retrieval_workflow",
-    "apk_retrieval": "start_apk_retrieval_workflow",
-    "apk_workflow": "start_apk_retrieval_workflow",
-    "watch_screen": "start_screen_watch",
-    "screen_watch": "start_screen_watch",
-    "start_watch_screen": "start_screen_watch",
-    "stop_watch_screen": "stop_screen_watch",
-    "end_screen_watch": "stop_screen_watch",
-    "stop_screen_watcher": "stop_screen_watch",
-    "schedule_claude": "schedule_claude_prompt",
-    "claude_schedule": "schedule_claude_prompt",
-    "schedule_macro": "schedule_desktop_sequence",
-    "schedule_command": "schedule_desktop_sequence",
-    "schedule_custom_command": "schedule_desktop_sequence",
-    "schedule_actions": "schedule_desktop_sequence",
-    "open_app": "open_desktop_app",
-    "launch_app": "open_desktop_app",
-    "start_app": "open_desktop_app",
-    "close_app": "close_desktop_app",
-    "stop_app": "close_desktop_app",
-    "end_app": "close_desktop_app",
-    "launch_browser": "open_browser",
-    "open_folder_vscode": "open_vscode_folder",
-    "vscode_open_folder": "open_vscode_folder",
-    "launch_claude_cli": "open_claude_cli",
-    "send_claude_cli_message": "claude_cli_send_message",
-    "run_command": "execute_command",
-    "shell_command": "execute_command",
-    "run_shell": "execute_command",
-    "exec_command": "execute_command",
-    "run_in_folder": "execute_command",
-    "click": "click_on_screen",
-    "click_screen": "click_on_screen",
-    "screen_click": "click_on_screen",
-    "click_element": "click_on_screen",
-    "click_button": "click_on_screen",
-    "click_text": "click_on_screen",
-    "click_at": "click_on_screen",
-    "double_click": "double_click_on_screen",
-    "dbl_click": "double_click_on_screen",
-    "doubleclick": "double_click_on_screen",
-    "double_click_screen": "double_click_on_screen",
-    "right_click": "right_click_on_screen",
-    "rightclick": "right_click_on_screen",
-    "right_click_screen": "right_click_on_screen",
-    "context_click": "right_click_on_screen",
-    "scroll": "scroll_screen",
-    "scroll_up": "scroll_screen",
-    "scroll_down": "scroll_screen",
-    "page_scroll": "scroll_screen",
-    "screen_scroll": "scroll_screen",
-}
 
 # ============================================================================
 # SYSTEM INSTRUCTION
@@ -277,174 +202,6 @@ def _is_model_not_found_error(response_data: dict) -> bool:
         return False
     return "HTTP 404" in error_text and "Requested entity was not found" in error_text
 
-
-def _normalize_tool_name(func_name: Any) -> str:
-    """Normalize a tool name for alias resolution."""
-    if not isinstance(func_name, str):
-        return ""
-    normalized = func_name.strip().lstrip("/").lower()
-    normalized = re.sub(r"[\s\-]+", "_", normalized)
-    return normalized
-
-
-def _first_string(args: dict[str, Any], *keys: str, default: str = "") -> str:
-    """Return the first non-empty string value from ``keys``."""
-    for key in keys:
-        value = args.get(key)
-        if value is None:
-            continue
-        text = str(value).strip()
-        if text:
-            return text
-    return default
-
-
-def _first_value(args: dict[str, Any], *keys: str) -> Any:
-    """Return the first present value for ``keys``."""
-    for key in keys:
-        if key in args:
-            return args[key]
-    return None
-
-
-def _as_int(value: Any, default: int = 0) -> int:
-    """Best-effort integer parsing used for tool arguments."""
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return default
-
-
-def _as_bool(value: Any, default: bool = False) -> bool:
-    """Best-effort boolean parsing for tool arguments."""
-    if isinstance(value, bool):
-        return value
-    if value is None:
-        return default
-    text = str(value).strip().lower()
-    if text in {"1", "true", "yes", "y", "on", "force"}:
-        return True
-    if text in {"0", "false", "no", "n", "off"}:
-        return False
-    return default
-
-
-def _normalize_tool_args(func_name: str, args: dict[str, Any]) -> dict[str, Any]:
-    """Normalize aliased argument keys to each tool's canonical schema."""
-    if func_name in {
-        "get_current_directory",
-        "get_battery_status",
-        "capture_screenshot",
-        "list_open_windows",
-        "view_clipboard",
-        "shutdown_computer",
-        "sleep_computer",
-        "list_custom_commands",
-        "list_schedules",
-        "open_claude",
-        "open_antigravity",
-        "request_remote_session",
-        "request_stop_remote_session",
-        "get_remote_session_status",
-    }:
-        return {}
-    if func_name == "change_directory":
-        return {"path": _first_string(args, "path", "directory", "dir", "folder")}
-    if func_name == "focus_window":
-        selection = _first_value(args, "selection", "index", "window", "number")
-        return {"selection": _as_int(selection, default=0)}
-    if func_name == "set_privacy_mode":
-        mode = _first_string(args, "mode", "action", "state", default="status").lower()
-        return {"mode": mode}
-    if func_name in {"start_build_workflow", "start_apk_retrieval_workflow"}:
-        return {"project": _first_string(args, "project", "repo", "folder", "name", "target")}
-    if func_name == "run_saved_command":
-        return {"name": _first_string(args, "name", "command", "custom", "macro").lstrip("/")}
-    if func_name in {"find_text_on_screen", "smart_click_text"}:
-        return {"text": _first_string(args, "text", "query", "target", "search", "phrase")}
-    if func_name == "set_clipboard":
-        return {"text": _first_string(args, "text", "content", "value", "message")}
-    if func_name == "press_hotkey":
-        keys = _first_string(args, "keys", "hotkey", "shortcut", "key", "press")
-        text = _first_string(args, "text", "content", "value", "message")
-        return {"keys": keys, "text": text or None}
-    if func_name == "click_coordinates":
-        x = _as_int(_first_value(args, "x", "left", "column"), default=0)
-        y = _as_int(_first_value(args, "y", "top", "row"), default=0)
-        return {"x": x, "y": y}
-    if func_name == "start_screen_watch":
-        text = _first_string(args, "text", "query", "target", "search", "phrase")
-        interval = _first_string(args, "interval", "every", "frequency")
-        hotkey = _first_string(args, "hotkey", "shortcut", "key", "keys", "press")
-        scope = _first_string(args, "scope", "app", "window", "context", "target", default="screen").lower()
-        cooldown = _first_string(args, "cooldown", "throttle", "debounce")
-        scope_aliases = {
-            "desktop": "screen",
-            "display": "screen",
-            "fullscreen": "screen",
-            "full": "screen",
-            "claude_app": "claude",
-            "claude desktop": "claude",
-            "antigravity_app": "antigravity",
-            "antigravity desktop": "antigravity",
-        }
-        scope = scope_aliases.get(scope, scope)
-        return {
-            "text": text,
-            "interval": interval,
-            "hotkey": hotkey,
-            "scope": scope,
-            "cooldown": cooldown,
-        }
-    if func_name == "stop_screen_watch":
-        task_id = _first_string(args, "task_id", "id", "watch_id", "schedule_id", "target")
-        if task_id.lower() in {"all", "*"}:
-            task_id = ""
-        return {"task_id": task_id}
-    if func_name == "open_desktop_app":
-        return {"name": _first_string(args, "name", "app", "application", "query", "target")}
-    if func_name == "close_desktop_app":
-        return {
-            "name": _first_string(args, "name", "app", "application", "query", "target"),
-            "force": _as_bool(_first_value(args, "force", "kill", "terminate"), default=False),
-        }
-    if func_name == "open_browser":
-        browser = _first_string(args, "browser", "name", "app", "target", default="edge").lower()
-        return {"browser": browser}
-    if func_name == "execute_command":
-        return {"command": _first_string(args, "command", "cmd", "shell", "run", "exec", "script")}
-    if func_name in {"open_vscode_folder", "open_claude_cli"}:
-        folder = _first_string(args, "folder", "path", "repo", "project", "name", "directory")
-        normalized = {"folder": folder}
-        if func_name == "open_claude_cli":
-            normalized["prompt"] = _first_string(args, "prompt", "message", "text", "query")
-        return normalized
-    if func_name == "claude_cli_send_message":
-        message = _first_string(args, "message", "prompt", "text", "query", "content")
-        return {"message": message}
-    if func_name == "schedule_claude_prompt":
-        execute_at = _first_string(args, "execute_at", "time", "when", "at", "run_at")
-        prompt = _first_string(args, "prompt", "message", "text", "query", "content")
-        return {"execute_at": execute_at, "prompt": prompt}
-    if func_name == "schedule_desktop_sequence":
-        execute_at = _first_string(args, "execute_at", "time", "when", "at", "run_at")
-        name = _first_string(args, "name", "title", "label", "command")
-        actions = _first_value(args, "actions", "steps", "sequence", "commands")
-        if isinstance(actions, dict):
-            actions = [actions]
-        if not isinstance(actions, list):
-            actions = []
-        return {"execute_at": execute_at, "name": name, "actions": actions}
-    return args
-
-
-def _normalize_tool_call(func_name: Any, args: Any) -> tuple[str, dict[str, Any]]:
-    """Normalize tool names and argument aliases before allowlist enforcement."""
-    normalized_name = _normalize_tool_name(func_name)
-    canonical_name = _TOOL_NAME_ALIASES.get(normalized_name, normalized_name)
-    raw_args = args if isinstance(args, dict) else {}
-    normalized_args = _normalize_tool_args(canonical_name, raw_args)
-    return canonical_name, normalized_args
 
 def _get_code_assist_headers(auth_mode: str, access_token: str) -> dict:
     """Build headers for the shared internal Code Assist backend.
@@ -655,61 +412,6 @@ def _get_api_tools() -> list:
         ]
     declarations.extend(get_gemini_action_tools())
     return [{"functionDeclarations": declarations}]
-
-# Strict allowlist of tool names the AI is permitted to invoke.
-# Any function call whose name is not in this set is silently ignored.
-_ALLOWED_TOOLS = frozenset({
-    "list_directory",
-    "get_tree_structure",
-    "read_file",
-    "search_files",
-    "write_file",
-    "append_file",
-    "delete_file",
-    "create_directory",
-    "get_file_info",
-    "execute_command",
-    "get_current_directory",
-    "change_directory",
-    "get_battery_status",
-    "capture_screenshot",
-    "list_open_windows",
-    "focus_window",
-    "view_clipboard",
-    "shutdown_computer",
-    "sleep_computer",
-    "set_privacy_mode",
-    "list_custom_commands",
-    "list_schedules",
-    "start_screen_watch",
-    "stop_screen_watch",
-    "start_build_workflow",
-    "start_apk_retrieval_workflow",
-    "run_saved_command",
-    "find_text_on_screen",
-    "click_on_screen",
-    "double_click_on_screen",
-    "right_click_on_screen",
-    "scroll_screen",
-    "set_clipboard",
-    "press_hotkey",
-    "click_coordinates",
-    "smart_click_text",
-    "open_claude",
-    "open_antigravity",
-    "open_browser",
-    "open_vscode_folder",
-    "open_claude_cli",
-    "claude_cli_send_message",
-    "open_desktop_app",
-    "close_desktop_app",
-    "schedule_claude_prompt",
-    "schedule_desktop_sequence",
-    "request_remote_session",
-    "request_stop_remote_session",
-    "get_remote_session_status",
-    "update_bot",
-})
 
 def _build_wrapped_body_with_tools(project_id: str, model: str, history: list, message: Optional[str] = None) -> Tuple[dict, ResolvedModel]:
     wrapped, resolved = _build_wrapped_body(project_id, model, history, message)
@@ -1019,9 +721,14 @@ class GeminiClient:
         tool_runtime: Optional[dict[str, Any]] = None,
         auth_mode: Optional[str] = None,
         oauth: Optional[OAuthProvider] = None,
-    ) -> str:
+    ) -> ProviderResult:
         try:
             history = self.get_or_create_session(user_id)
+            # Snapshot the original history length as the very first thing
+            # inside the try block so it is guaranteed to be defined no
+            # matter where below an exception is raised — the outer except
+            # uses it to roll back any half-built tool-call sequence.
+            base_history_len = len(history)
             current_dir = file_manager.get_current_dir(user_id)
             full_message = f"[Current Directory: {current_dir}]\n\n{message}"
 
@@ -1049,11 +756,8 @@ class GeminiClient:
                     user_id,
                 )
                 self._auto_logout_oauth(user_id, resolved_oauth, reason="no token")
-                return _SESSION_EXPIRED_MESSAGE
+                return ProviderResult(text=_SESSION_EXPIRED_MESSAGE, is_retryable_error=True)
 
-            # Snapshot the original history so we can roll back on failure
-            # without leaking a half-built tool-call sequence into future turns.
-            base_history_len = len(history)
             history.append({"role": "user", "parts": [{"text": full_message}]})
 
             max_turns = 10
@@ -1087,8 +791,8 @@ class GeminiClient:
                         self._auto_logout_oauth(
                             user_id, resolved_oauth, reason=f"API error: {err[:80]}"
                         )
-                        return _SESSION_EXPIRED_MESSAGE
-                    return f"Error contacting Gemini: {err}"
+                        return ProviderResult(text=_SESSION_EXPIRED_MESSAGE, is_retryable_error=True)
+                    return ProviderResult(text=f"Error contacting Gemini: {err}", is_retryable_error=True)
 
                 candidates = response_data.get('candidates', [])
                 if not candidates:
@@ -1098,8 +802,14 @@ class GeminiClient:
                     prompt_feedback = response_data.get('promptFeedback') or {}
                     block_reason = prompt_feedback.get('blockReason')
                     if block_reason:
-                        return f"The model blocked this request (reason: {block_reason})."
-                    return "The model returned an empty response. Please try rephrasing."
+                        return ProviderResult(
+                            text=f"The model blocked this request (reason: {block_reason}).",
+                            is_retryable_error=True,
+                        )
+                    return ProviderResult(
+                        text="The model returned an empty response. Please try rephrasing.",
+                        is_retryable_error=True,
+                    )
 
                 parts = candidates[0].get('content', {}).get('parts', [])
                 tool_call = next((p.get('functionCall') for p in parts if p.get('functionCall')), None)
@@ -1108,115 +818,53 @@ class GeminiClient:
                     response_text = _parse_full_response(response_data)
                     history.append({"role": "model", "parts": [{"text": response_text}]})
                     self.sessions[user_id] = _trim_history(history)
-                    return response_text or "(The model returned an empty message.)"
+                    return ProviderResult(text=response_text or "(The model returned an empty message.)")
 
                 raw_func_name = tool_call.get('name')
                 raw_args = tool_call.get('args', {}) or {}
-                func_name, args = _normalize_tool_call(raw_func_name, raw_args)
-                normalized_tool_call = {"name": func_name, "args": args}
-                if func_name != raw_func_name or args != raw_args:
-                    logger.info(
-                        "Normalized tool call '%s' -> '%s' with args %s",
-                        raw_func_name,
-                        func_name,
-                        args,
-                    )
+                turn_result = await run_tool_turn(
+                    user_id=user_id,
+                    raw_func_name=raw_func_name,
+                    raw_args=raw_args,
+                    file_manager=file_manager,
+                    tool_runtime=tool_runtime,
+                    loop=loop,
+                    turn=turn,
+                )
 
-                if func_name not in _ALLOWED_TOOLS:
-                    logger.warning(
-                        f"AI requested disallowed tool '{func_name}' — "
-                        f"ignoring (possible prompt injection)"
-                    )
-                    history.append({"role": "model", "parts": [{"functionCall": normalized_tool_call}]})
-                    history.append({
-                        "role": "user",
-                        "parts": [{
-                            "functionResponse": {
-                                "name": func_name,
-                                "response": {
-                                    "result": f"Error: tool '{func_name}' is not available.",
-                                    "success": False,
-                                }
-                            }
-                        }]
-                    })
-                    continue
+                history.append({"role": "model", "parts": [{"functionCall": turn_result.normalized_call}]})
 
-                logger.info(f"AI Turn {turn}: requested tool {func_name} with {args}")
-
-                dispatched = None
-                if func_name == "list_directory":
-                    success, result_text = await loop.run_in_executor(None, file_manager.list_directory, user_id, args.get('path'))
-                    tool_result = {"result": result_text, "success": success}
-                elif func_name == "get_tree_structure":
-                    success, result_text = await loop.run_in_executor(
-                        None, file_manager.get_tree_structure,
-                        user_id,
-                        args.get('path'),
-                        args.get('max_depth', 3),
-                        args.get('max_files', 100)
-                    )
-                    tool_result = {"result": result_text, "success": success}
-                elif func_name == "read_file":
-                    success, result_text = await loop.run_in_executor(None, file_manager.read_file, user_id, args.get('path'))
-                    tool_result = {"result": result_text, "success": success}
-                elif func_name == "search_files":
-                    success, result_text = await loop.run_in_executor(None, file_manager.search_files, user_id, args.get('pattern'))
-                    tool_result = {"result": result_text, "success": success}
-                elif func_name == "get_file_info":
-                    success, result_text = await loop.run_in_executor(None, file_manager.get_file_info, user_id, args.get('path'))
-                    tool_result = {"result": result_text, "success": success}
-                elif func_name == "execute_command":
-                    success, result_text = await loop.run_in_executor(
-                        None, file_manager.execute_command, user_id, args.get('command', '')
-                    )
-                    tool_result = {"result": result_text, "success": success}
-                else:
-                    dispatched = await dispatch_gemini_tool(
-                        user_id=user_id,
-                        func_name=func_name,
-                        args=args,
-                        file_manager=file_manager,
-                        tool_runtime=tool_runtime,
-                    )
-                    tool_result = dispatched.to_response()
-                    result_text = dispatched.result
-
-                logger.info(f"Tool {func_name} result: {str(result_text)[:100]}")
-
-                history.append({"role": "model", "parts": [{"functionCall": normalized_tool_call}]})
-
-                # Build function-response parts.
-                # When the tool returns image bytes (e.g. capture_screenshot), include the
-                # image as an inlineData part alongside the functionResponse so Gemini can
-                # see the screen and identify click targets without needing a second request.
-                _func_response_parts: list[dict] = [{
+                func_response_parts: list[dict] = [{
                     "functionResponse": {
-                        "name": func_name,
-                        "response": tool_result,
+                        "name": turn_result.normalized_call["name"],
+                        "response": turn_result.tool_result,
                     }
                 }]
-                if dispatched is not None and dispatched.image_bytes:
+                if turn_result.image_bytes:
                     import base64 as _b64
-                    _func_response_parts.append({
+                    func_response_parts.append({
                         "inlineData": {
                             "mimeType": "image/jpeg",
-                            "data": _b64.b64encode(dispatched.image_bytes).decode("ascii"),
+                            "data": _b64.b64encode(turn_result.image_bytes).decode("ascii"),
                         }
                     })
-                history.append({"role": "user", "parts": _func_response_parts})
+                history.append({"role": "user", "parts": func_response_parts})
 
             logger.warning(f"send_message hit max_turns={max_turns} without final answer")
             del history[base_history_len:]
             self.sessions[user_id] = _trim_history(history)
-            return (
-                f"I couldn't complete the request after {max_turns} tool-call turns. "
-                "Try asking in smaller steps."
+            return ProviderResult(
+                text=(
+                    f"I couldn't complete the request after {max_turns} tool-call turns. "
+                    "Try asking in smaller steps."
+                ),
+                is_retryable_error=True,
             )
 
         except Exception as e:
             logger.exception(f"Error in send_message: {e}")
-            return f"Error: {str(e)}"
+            del history[base_history_len:]
+            return ProviderResult(text=f"Error: {str(e)}", is_retryable_error=True)
 
     def _call_api_raw(
         self,
@@ -1323,11 +971,12 @@ class GeminiClient:
         image_bytes: bytes,
         auth_mode: Optional[str] = None,
         oauth: Optional[OAuthProvider] = None,
-    ) -> str:
+    ) -> ProviderResult:
         """Send a message with an image to Gemini for vision analysis."""
         try:
-            import base64
             history = self.get_or_create_session(user_id)
+            base_history_len = len(history)
+            import base64
 
             loop = asyncio.get_running_loop()
             resolved_auth_mode, resolved_oauth = self._resolve_auth_context(auth_mode, oauth)
@@ -1351,7 +1000,7 @@ class GeminiClient:
                     user_id,
                 )
                 self._auto_logout_oauth(user_id, resolved_oauth, reason="no token")
-                return _SESSION_EXPIRED_MESSAGE
+                return ProviderResult(text=_SESSION_EXPIRED_MESSAGE, is_retryable_error=True)
 
             # Build contents with inline image data
             image_b64 = base64.b64encode(image_bytes).decode("utf-8")
@@ -1422,21 +1071,32 @@ class GeminiClient:
                     self._auto_logout_oauth(
                         user_id, resolved_oauth, reason=f"API error: {err[:80]}"
                     )
-                    return _SESSION_EXPIRED_MESSAGE
-                return f"Error contacting Gemini: {err}"
+                    return ProviderResult(text=_SESSION_EXPIRED_MESSAGE, is_retryable_error=True)
+                return ProviderResult(text=f"Error contacting Gemini: {err}", is_retryable_error=True)
 
             response_text = _parse_full_response(response_data)
             if response_text:
                 history.append({"role": "user", "parts": [{"text": message}]})
                 history.append({"role": "model", "parts": [{"text": response_text}]})
-                # Trim history to prevent unbounded growth
                 self.sessions[user_id] = _trim_history(history)
-            return response_text or "No response from Gemini Vision."
+                return ProviderResult(text=response_text)
+            return ProviderResult(text="No response from Gemini Vision.", is_retryable_error=True)
 
         except Exception as e:
             logger.error(f"Error in send_message_with_image: {e}", exc_info=True)
-            return f"Error processing image: {e}"
+            del history[base_history_len:]
+            return ProviderResult(text=f"Error processing image: {e}", is_retryable_error=True)
 
     def clear_session(self, user_id: int):
         if user_id in self.sessions:
             self.sessions[user_id] = []
+
+    def commit_session(self, user_id: int, history: list) -> None:
+        """Store an externally-mutated history list, trimmed to the turn limit.
+
+        Used by AIRouter after NvidiaClient runs a turn against the shared
+        history it borrowed via ``get_or_create_session`` — GeminiClient
+        remains the single owner of ``sessions`` and its trimming policy
+        regardless of which provider answered.
+        """
+        self.sessions[user_id] = _trim_history(history)

@@ -9,7 +9,9 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from pocket_desk_agent.auth import is_user_allowed, AntigravityAuth
+from pocket_desk_agent.ai_router import AIRouter
 from pocket_desk_agent.gemini_client import GeminiClient
+from pocket_desk_agent.nvidia_client import NvidiaClient
 from pocket_desk_agent.file_manager import FileManager
 
 # Check pywinauto availability without loading the heavy modules.
@@ -27,6 +29,8 @@ logger = logging.getLogger(__name__)
 # ── Shared client instances ─────────────────────────────────────────────────
 auth_client = AntigravityAuth()
 gemini_client = GeminiClient()
+nvidia_client = NvidiaClient()
+ai_router = AIRouter(gemini_client, nvidia_client, auth_client)
 file_manager = FileManager()
 
 # ── Recording state for custom command saver AND scheduler ──────────────────

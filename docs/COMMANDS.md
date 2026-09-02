@@ -32,10 +32,12 @@ Manage the fundamental runtime state, session lifecycle, and system capabilities
 | `/start` | Initialize the bot and check authentication status. | `/start` |
 | `/help` | Show the interactive help menu. | `/help` |
 | `/status` | Verify Gemini API and session status. | `/status` |
+| `/aiprovider [order]` | View or set the AI provider fallback order (`gemini`, `nvidia`). | `/aiprovider nvidia,gemini` |
 | `/login` | Choose an authentication method and generate an OAuth link for Gemini access. | `/login` |
 | `/authcode <code>` | Complete OAuth login with the authorization code from your browser. | `/authcode 4/1ABCDEF...` |
 | `/checkauth` | Verify current authentication status and token health. | `/checkauth` |
 | `/logout` | Sign out, revoke credentials, and clear the session. | `/logout` |
+| `/setnvidiakey <key>` | Configure the NVIDIA NIM fallback API key (used automatically when Gemini's quota is exhausted). | `/setnvidiakey nvapi-...` |
 | `/new` | Purge current Gemini chat history and start a fresh session. | `/new` |
 | `/enhance <text>` | Ask Gemini to rewrite or improve a prompt. | `/enhance write an email to my boss` |
 | `/sync` | Force-sync the command list with Telegram's bot menu. Use this after saving a new macro or if the `/help` menu looks stale. | `/sync` |

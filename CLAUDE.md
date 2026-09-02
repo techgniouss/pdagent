@@ -63,6 +63,11 @@ pocket-desk-agent/
 │   ├── file_manager.py         # Sandboxed file I/O (path traversal prevention)
 │   ├── gemini_client.py        # Gemini API client with tool-calling
 │   ├── gemini_actions.py       # Gemini tool definitions, rate-limiting, and confirmation flows
+│   ├── nvidia_client.py        # NVIDIA NIM (OpenAI-compatible) fallback AI client
+│   ├── ai_router.py            # Cross-provider fallback — tries providers in AI_PROVIDER_ORDER
+│   ├── ai_history.py           # Gemini <-> OpenAI history/tool-call format converters
+│   ├── ai_tool_loop.py         # Shared tool allowlist + dispatch loop used by both providers
+│   ├── ai_types.py             # ProviderResult — the common return type for both AI clients
 │   ├── scheduling_utils.py     # Shared date/time parsing helpers for scheduling commands
 │   ├── antigravity_auth.py     # OAuth 2.0 PKCE implementation
 │   ├── auth.py                 # User allowlist + multi-mode auth wrapper
@@ -187,6 +192,10 @@ All values live in `pocket_desk_agent/config.py` → `Config` class.
 | `GOOGLE_OAUTH_CLIENT_SECRET` | No | built-in | Override the built-in Antigravity plugin OAuth client secret |
 | `GOOGLE_API_KEY` | API key mode | — | Gemini API key (used when `GOOGLE_OAUTH_ENABLED=false`) |
 | `GEMINI_MODEL` | No | `gemini-2.0-flash` | Gemini model selection |
+| `NVIDIA_API_KEY` | No | — | NVIDIA NIM (build.nvidia.com) API key, enables the NVIDIA fallback provider |
+| `NVIDIA_BASE_URL` | No | `https://integrate.api.nvidia.com/v1` | NVIDIA NIM OpenAI-compatible API base URL |
+| `NVIDIA_MODEL` | No | `meta/llama-3.3-70b-instruct` | NVIDIA NIM model selection |
+| `AI_PROVIDER_ORDER` | No | `gemini,nvidia` | Comma-separated AI provider fallback order |
 | `APPROVED_DIRECTORIES` | No | `Path.home()` | Comma-separated allowed paths for file ops |
 | `CLAUDE_DEFAULT_REPO_PATH` | No | `~/Documents` | Default repo root for Claude integration |
 | `UPLOAD_EXPIRY_TIME` | No | `1h` | Dropbox link expiry (`1h`/`12h`/`24h`/`72h`) |
@@ -248,7 +257,7 @@ file_manager  # FileManager — sandboxed file I/O
 
 ### 6. Gemini AI safety
 
-- `_ALLOWED_TOOLS` frozenset in `gemini_client.py` restricts which tool names the AI can invoke
+- The tool allowlist lives in `ai_tool_loop.py` as `ALLOWED_TOOLS` — it is re-exported (not duplicated) from `gemini_client.py` as `_ALLOWED_TOOLS` for backward compat. Both `GeminiClient` and `NvidiaClient` dispatch every tool call through `ai_tool_loop.run_tool_turn`, which checks this allowlist before calling `gemini_actions.dispatch_gemini_tool`. That is the whole point of the extraction: **one allowlist, one dispatch path, both AI providers.**
 - History is trimmed to 40 turns (`_trim_history`) to bound memory usage
 - Never expose `execute_command` or raw shell access to the AI — this is a prompt-injection-to-RCE vector
 
@@ -297,9 +306,11 @@ async def mycommand_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 ## Adding a New Gemini AI Tool
 
 1. Implement the function in `file_manager.py` or a new module.
-2. Add the JSON tool definition to `gemini_client.py` → `_get_api_tools()`.
-3. Handle the tool call in `gemini_client.py` → `send_message()`.
-4. Add the tool name to `_ALLOWED_TOOLS` frozenset.
+2. Add the JSON tool definition to `gemini_client.py` → `_get_api_tools()` (unchanged — both providers share this declaration).
+3. Add the tool name to `ai_tool_loop.py`'s `ALLOWED_TOOLS` frozenset (NOT `gemini_client.py` — the allowlist now lives in `ai_tool_loop.py` and is only re-exported from `gemini_client.py`).
+4. Handle the tool call in `gemini_actions.dispatch_gemini_tool` (invoked via `ai_tool_loop.run_tool_turn`).
+
+Once a tool is allowlisted and dispatched this way, **both** `GeminiClient` and `NvidiaClient` pick it up automatically — no per-provider wiring needed.
 
 ---
 
@@ -373,7 +384,10 @@ To bump the version, update `version` in `pyproject.toml`, commit, tag, and crea
 | Need to... | Go to |
 |---|---|
 | Add/change a bot command | `handlers/<domain>.py` + `command_map.py` |
-| Change Gemini AI tools | `gemini_client.py` |
+| Change Gemini AI tools | `gemini_client.py` (declarations) + `ai_tool_loop.py` (allowlist + dispatch) |
+| Change cross-provider fallback order/logic | `ai_router.py` |
+| Change Gemini↔OpenAI history/tool-call conversion | `ai_history.py` |
+| Change the NVIDIA fallback client | `nvidia_client.py` |
 | Change sandboxed file ops | `file_manager.py` |
 | Change config variables | `config.py` |
 | Change rate limiting | `rate_limiter.py` |

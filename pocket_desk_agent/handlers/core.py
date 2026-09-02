@@ -9,7 +9,7 @@ from telegram.ext import ContextTypes
 
 from pocket_desk_agent.handlers._shared import (
     auth_client,
-    gemini_client,
+    ai_router,
     file_manager,
     record_action_if_active,
     register_media_group_item,
@@ -53,7 +53,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Welcome! I'm your personal automation assistant.\n\n"
             f"✅ Gemini AI: Authenticated as {user_info.get('email', 'Unknown')}\n\n"
             f"You have access to:\n"
-            f"• 🤖 Gemini AI chat (text & image analysis)\n"
+            f"• 🤖 AI chat, text & image analysis (Gemini, with automatic NVIDIA fallback if configured)\n"
             f"• 🖥️ System control (screenshot, privacy mode, battery, sleep, etc.)\n"
             f"• 📁 File system access\n"
             f"• ⌨️ Automation (hotkeys, clipboard, OCR, etc.)\n"
@@ -75,11 +75,12 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"• 🎯 Custom command sequences\n"
             f"• 💻 Claude desktop control\n"
             f"• 🔨 Build & APK management\n\n"
-            f"To enable Gemini AI chat:\n"
-            f"Use /login to authenticate with Google\n\n"
+            f"To enable AI chat:\n"
+            f"Use /login to authenticate with Gemini, or /setnvidiakey <key> for the NVIDIA fallback\n\n"
             f"Commands:\n"
             f"/help - Show all commands\n"
-            f"/login - Authenticate for Gemini AI"
+            f"/login - Authenticate for Gemini AI\n"
+            f"/setnvidiakey - Set an NVIDIA NIM key instead"
         )
 
 
@@ -96,13 +97,13 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     auth_note = (
         ""
         if is_authenticated
-        else "\n\n⚠️ Gemini AI commands require /login to enable."
+        else "\n\n⚠️ AI chat requires /login (Gemini) or /setnvidiakey (NVIDIA fallback) to enable."
     )
 
     # Split into multiple messages to stay under Telegram's 4096-char limit.
     part1 = (
         "Available commands (1/3):\n\n"
-        "🤖 Gemini AI (requires /login):\n"
+        "🤖 AI Chat (Gemini + NVIDIA fallback — /login or /setnvidiakey):\n"
         "• Chat naturally with text or images\n"
         "/new - Start a new conversation\n"
         "/enhance <text> - Enhance your text prompt\n\n"
@@ -112,6 +113,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/authcode <code> - Submit authorization code\n"
         "/checkauth - Verify authentication status\n"
         "/logout - Sign out and clear tokens\n"
+        "/setnvidiakey <key> - Set NVIDIA NIM API key (AI fallback)\n"
+        "/aiprovider [order] - View or set AI provider fallback order\n"
         "/status - Check your session status\n\n"
         "🧪 Diagnostics:\n"
         "/selftest - Run non-GUI functional self-checks\n\n"
@@ -200,8 +203,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/claudeschedule <time> <msg> - Schedule a Claude prompt\n"
         "/listschedules - View all pending scheduled tasks\n"
         "/cancelschedule <id> - Cancel a pending task\n\n"
-        "💬 Gemini AI Chat:\n"
-        "Just send a message or image to chat with Gemini!"
+        "💬 AI Chat:\n"
+        "Just send a message or image to chat — Gemini by default, with automatic NVIDIA fallback if configured (see /aiprovider)."
     )
 
     await update.message.reply_text(part1)
@@ -215,7 +218,7 @@ async def new_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     user_id = update.effective_user.id
-    gemini_client.clear_session(user_id)
+    ai_router.clear_session(user_id)
 
     await update.message.reply_text(
         "Started a new conversation. Previous chat history has been cleared."
@@ -229,7 +232,7 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = update.effective_user.id
     is_auth = auth_client.is_authenticated(user_id)
-    has_session = user_id in gemini_client.sessions
+    has_session = user_id in ai_router.sessions
 
     user_info = auth_client.get_user_info(user_id)
 
@@ -251,6 +254,68 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(status_text.replace("*", "").replace("`", ""))
 
 
+_VALID_AI_PROVIDER_TOKENS = ("gemini", "nvidia")
+
+
+async def aiprovider_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /aiprovider — view or set the AI fallback provider order."""
+    if not update.effective_user or not update.message:
+        return
+
+    user_id = update.effective_user.id
+
+    if not context.args:
+        order = Config.AI_PROVIDER_ORDER
+        usable = ai_router.configured_providers(user_id)
+        lines = [
+            f"{i}. {p}{' ✅' if p in usable else ' ❌ not configured'}"
+            for i, p in enumerate(order, start=1)
+        ]
+        await update.message.reply_text(
+            "🤖 *Current AI provider order:*\n\n"
+            + "\n".join(lines)
+            + "\n\nTo change it: `/aiprovider nvidia,gemini`",
+            parse_mode="Markdown",
+        )
+        return
+
+    raw_tokens = [t.strip().lower() for chunk in context.args for t in chunk.split(",") if t.strip()]
+    invalid = [t for t in raw_tokens if t not in _VALID_AI_PROVIDER_TOKENS]
+    if invalid or not raw_tokens:
+        await update.message.reply_text(
+            f"❌ Invalid provider(s): {', '.join(invalid) or '(none given)'}.\n\n"
+            f"Valid providers: {', '.join(_VALID_AI_PROVIDER_TOKENS)}.\n"
+            "Example: `/aiprovider nvidia,gemini`",
+            parse_mode="Markdown",
+        )
+        return
+
+    new_order = list(dict.fromkeys(raw_tokens))  # de-dupe, keep order
+
+    import configparser
+    from pocket_desk_agent import configure as configure_module
+
+    configure_module.ensure_app_dir()
+    cfg_parser = configparser.ConfigParser()
+    cfg_path = configure_module.config_path()
+    if cfg_path.exists():
+        cfg_parser.read(cfg_path, encoding="utf-8")
+    if not cfg_parser.has_section("bot"):
+        cfg_parser["bot"] = {}
+    cfg_parser["bot"]["ai_provider_order"] = ",".join(new_order)
+
+    with open(cfg_path, "w", encoding="utf-8") as f:
+        f.write("# Pocket Desk Agent — configuration\n")
+        f.write("# Edit values here and restart the bot to apply changes.\n\n")
+        cfg_parser.write(f)
+
+    import os
+    os.environ["AI_PROVIDER_ORDER"] = ",".join(new_order)
+    Config.load()
+
+    await update.message.reply_text(f"✅ AI provider order updated — now: {', '.join(new_order)}")
+
+
 async def enhance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /enhance command - enhance text prompts using Gemini."""
     if not update.message or not update.effective_user:
@@ -258,9 +323,12 @@ async def enhance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = update.effective_user.id
 
-    # Check authentication
-    if not auth_client.is_authenticated(user_id):
-        await update.message.reply_text("Please authenticate first using /start")
+    # Check that at least one AI provider is usable
+    if not ai_router.configured_providers(user_id):
+        await update.message.reply_text(
+            "No AI provider is configured. Use /login to sign in to Gemini, "
+            "or /setnvidiakey <key> to configure the NVIDIA fallback."
+        )
         return
 
     # Get text to enhance
@@ -297,8 +365,8 @@ Provide ONLY the enhanced prompt, without any explanations or meta-commentary.""
 
     try:
         auth_mode, oauth = _get_gemini_auth_context(user_id)
-        # Get response from Gemini
-        response = await gemini_client.send_message(
+        # Get response from the configured AI provider
+        response = await ai_router.send_message(
             user_id,
             enhancement_prompt,
             file_manager,
@@ -391,16 +459,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         known_commands = [cmd for cmd, _, _ in COMMAND_REGISTRY]
         known_commands.extend(registry.list_commands().keys())
         typo = command_name.lower()
+        # Match case-insensitively (custom commands may contain uppercase
+        # letters) while still displaying suggestions in their saved case.
+        lower_to_original: dict = {}
+        for cmd in known_commands:
+            lower_to_original.setdefault(cmd.lower(), cmd)
         # Anagram pass catches swapped compound words that difflib misses,
         # e.g. /scheduleclaude -> /claudeschedule.
         suggestions = [
-            cmd for cmd in known_commands if sorted(cmd) == sorted(typo)
+            lower_to_original[lc]
+            for lc in lower_to_original
+            if sorted(lc) == sorted(typo)
         ]
         for match in difflib.get_close_matches(
-            typo, known_commands, n=3, cutoff=0.6
+            typo, list(lower_to_original.keys()), n=3, cutoff=0.6
         ):
-            if match not in suggestions:
-                suggestions.append(match)
+            original = lower_to_original[match]
+            if original not in suggestions:
+                suggestions.append(original)
         suggestions = suggestions[:3]
         reply = f"Unknown command /{command_name}."
         if suggestions:
@@ -411,11 +487,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(reply)
         return
 
-    # Check authentication only after non-Gemini reply workflows are handled.
-    if not auth_client.is_authenticated(user_id):
+    # Check that at least one AI provider is usable — Gemini OAuth login
+    # OR a configured NVIDIA key, not specifically "Gemini is logged in".
+    if not ai_router.configured_providers(user_id):
         await update.message.reply_text(
-            "🔓 Gemini AI requires authentication (session expired or signed out).\n\n"
-            "Use /login to sign in again."
+            "🔓 No AI provider is available (Gemini session expired/signed out, "
+            "and no NVIDIA fallback configured).\n\n"
+            "Use /login to sign in to Gemini, or /setnvidiakey <key> for the NVIDIA fallback."
         )
         return
 
@@ -426,8 +504,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     auth_mode, oauth = _get_gemini_auth_context(user_id)
 
-    # Get response from Gemini with full file manager access
-    response = await gemini_client.send_message(
+    response = await ai_router.send_message(
         user_id,
         user_message,
         file_manager,
@@ -455,10 +532,11 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             file_id=update.message.photo[-1].file_id,
         )
 
-    if not auth_client.is_authenticated(user_id):
+    if not ai_router.configured_providers(user_id):
         await update.message.reply_text(
-            "🔓 Gemini AI requires authentication (session expired or signed out).\n\n"
-            "Use /login to sign in again."
+            "🔓 No AI provider is available (Gemini session expired/signed out, "
+            "and no NVIDIA fallback configured).\n\n"
+            "Use /login to sign in to Gemini, or /setnvidiakey <key> for the NVIDIA fallback."
         )
         return
 
@@ -494,10 +572,11 @@ async def handle_image_document(update: Update, context: ContextTypes.DEFAULT_TY
             file_id=document.file_id,
         )
 
-    if not auth_client.is_authenticated(user_id):
+    if not ai_router.configured_providers(user_id):
         await update.message.reply_text(
-            "🔓 Gemini AI requires authentication (session expired or signed out).\n\n"
-            "Use /login to sign in again."
+            "🔓 No AI provider is available (Gemini session expired/signed out, "
+            "and no NVIDIA fallback configured).\n\n"
+            "Use /login to sign in to Gemini, or /setnvidiakey <key> for the NVIDIA fallback."
         )
         return
 
@@ -529,7 +608,7 @@ async def _reply_with_gemini_image_analysis(
     )
 
     auth_mode, oauth = _get_gemini_auth_context(user_id)
-    response = await gemini_client.send_message_with_image(
+    response = await ai_router.send_message_with_image(
         user_id,
         caption,
         image_bytes,

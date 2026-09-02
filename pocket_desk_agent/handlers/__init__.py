@@ -11,6 +11,8 @@ from pocket_desk_agent.handlers._shared import (  # noqa: F401
     record_action_if_active,
     auth_client,
     gemini_client,
+    nvidia_client,
+    ai_router,
     file_manager,
     recording_sessions,
     build_monitor_state,
@@ -24,6 +26,7 @@ from pocket_desk_agent.handlers.auth import (  # noqa: F401
     authcode_command,
     checkauth_command,
     logout_command,
+    setnvidiakey_command,
 )
 
 # ── Core ────────────────────────────────────────────────────────────────────
@@ -32,6 +35,7 @@ from pocket_desk_agent.handlers.core import (  # noqa: F401
     help_command,
     new_command,
     status_command,
+    aiprovider_command,
     enhance_command,
     update_command,
     handle_message,
