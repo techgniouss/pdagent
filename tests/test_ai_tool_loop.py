@@ -20,9 +20,16 @@ def test_normalize_tool_call_resolves_alias_and_args() -> None:
     assert name == "request_remote_session"
     assert args == {}
 
-    name, args = normalize_tool_call("run_shell", {"cmd": "git status"})
-    assert name == "execute_command"
-    assert args == {"command": "git status"}
+
+def test_execute_command_is_not_ai_reachable() -> None:
+    # SECURITY: execute_command must never be callable by the AI — no direct
+    # name, no alias, and it must not appear in the allowlist. See CLAUDE.md:
+    # "Never expose execute_command or raw shell access to the AI."
+    assert "execute_command" not in ALLOWED_TOOLS
+
+    for alias in ("run_command", "shell_command", "run_shell", "exec_command", "run_in_folder"):
+        name, _ = normalize_tool_call(alias, {"cmd": "git status"})
+        assert name != "execute_command"
 
 
 class _FakeFileManager:
@@ -66,6 +73,29 @@ def test_run_tool_turn_blocks_disallowed_tool() -> None:
             user_id=1,
             raw_func_name="execute_python_eval",  # not in ALLOWED_TOOLS, no alias
             raw_args={},
+            file_manager=fm,
+            tool_runtime=None,
+            loop=loop,
+        )
+
+    result = asyncio.run(_run())
+
+    assert result.tool_result["success"] is False
+    assert "not available" in result.tool_result["result"]
+    assert fm.calls == []
+
+
+def test_run_tool_turn_blocks_execute_command() -> None:
+    """SECURITY: a direct AI call to execute_command must be rejected, not
+    dispatched to file_manager.execute_command (shell access)."""
+    fm = _FakeFileManager()
+
+    async def _run():
+        loop = asyncio.get_running_loop()
+        return await run_tool_turn(
+            user_id=1,
+            raw_func_name="execute_command",
+            raw_args={"command": "git status"},
             file_manager=fm,
             tool_runtime=None,
             loop=loop,

@@ -20,6 +20,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import socket
 import time
 from typing import Any, Optional
 
@@ -64,6 +65,23 @@ def _is_link_preview_request(request: Any) -> bool:
     """Return True for known crawler/link-preview requests."""
     ua = request.headers.get("User-Agent", "").lower()
     return any(marker in ua for marker in _PREVIEW_UA_MARKERS)
+
+
+def _disable_nagle(request: Any) -> None:
+    """Set TCP_NODELAY on the connection's socket.
+
+    Nagle's algorithm batches small writes waiting for an ACK, which adds
+    up to ~40ms of extra latency per hop for exactly the traffic this
+    server sends most: small, frequent WS frames (input events, cursor
+    echoes, JPEG frame headers). Best-effort — never let this fail a
+    connection.
+    """
+    try:
+        sock = request.transport.get_extra_info("socket") if request.transport else None
+        if sock is not None:
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+    except Exception:
+        pass
 
 
 def _cookie_token(request: Any) -> Optional[str]:
@@ -150,6 +168,7 @@ async def _handle_ws_video(request: Any) -> Any:
 
     ws = web.WebSocketResponse(heartbeat=20.0, max_msg_size=0)
     await ws.prepare(request)
+    _disable_nagle(request)
     session.active_ws.add(ws)
     session.touch()
 
@@ -211,6 +230,7 @@ async def _handle_ws_input(request: Any) -> Any:
 
     ws = web.WebSocketResponse(heartbeat=20.0)
     await ws.prepare(request)
+    _disable_nagle(request)
     session.active_ws.add(ws)
     dispatcher = InputDispatcher(session)
     last_failsafe_reported = 0.0
@@ -307,6 +327,7 @@ _VIEWER_HTML = r"""<!doctype html>
   #ime { position:fixed; bottom:-40px; left:0; width:100%; opacity:0.01; font-size:16px; padding:4px; border:none; }
   #status { position:fixed; left:0; right:0; bottom:56px; z-index:9; text-align:center; color:#fbbf24; font:13px system-ui; pointer-events:none; text-shadow:0 1px 3px #000; }
   #slider { width:120px; }
+  #fpsSel { background:rgba(0,0,0,.65); color:#fff; border:1px solid #555; border-radius:6px; padding:6px 8px; font:13px system-ui; }
   #padSurface { position:fixed; inset:0; z-index:5; display:none; background:transparent; touch-action:none; }
   #padSurface.show { display:block; }
   #cursor { position:fixed; left:0; top:0; width:15px; height:15px; margin-left:-1px; margin-top:-1px; display:none; pointer-events:none; z-index:8; will-change:transform; filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.9)); }
@@ -328,7 +349,14 @@ _VIEWER_HTML = r"""<!doctype html>
     <button id="mouseBtn" title="Toggle mouse pad mode">mouse pad off</button>
     <button id="zoomBtn">zoom 1.0x</button>
     <button id="modeBtn" title="When zoomed, drag to move viewport">view pan off</button>
-    <input id="slider" type="range" min="30" max="85" value="60" />
+    <input id="slider" type="range" min="30" max="85" value="60" title="JPEG quality" />
+    <select id="fpsSel" title="Frame rate — lower it on a slow connection to cut lag">
+      <option value="4">4 fps</option>
+      <option value="6">6 fps</option>
+      <option value="10" selected>10 fps</option>
+      <option value="15">15 fps</option>
+      <option value="20">20 fps</option>
+    </select>
     <button id="stopBtn">end</button>
   </div>
   <svg id="cursor" viewBox="0 0 24 24" aria-hidden="true">
@@ -344,6 +372,7 @@ _VIEWER_HTML = r"""<!doctype html>
   var fpsEl = document.getElementById('fps');
   var statusEl = document.getElementById('status');
   var slider = document.getElementById('slider');
+  var fpsSel = document.getElementById('fpsSel');
   var kbBtn = document.getElementById('kbBtn');
   var rcBtn = document.getElementById('rcBtn');
   var dragBtn = document.getElementById('dragBtn');
@@ -748,6 +777,10 @@ _VIEWER_HTML = r"""<!doctype html>
     send({type:'config', quality: parseInt(slider.value, 10)});
   }
 
+  function sendFpsConfig() {
+    send({type:'config', fps: parseInt(fpsSel.value, 10)});
+  }
+
   // ── Touch → mouse translation ─────────────────────────────────────
   function normalized(evt) {
     var rect = canvas.getBoundingClientRect();
@@ -1096,6 +1129,7 @@ _VIEWER_HTML = r"""<!doctype html>
     clearTimeout(qTimer);
     qTimer = setTimeout(sendConfig, 250);
   });
+  fpsSel.addEventListener('change', sendFpsConfig);
 
   // ── Disconnect ─────────────────────────────────────────────────
   stopBtn.addEventListener('click', function(){

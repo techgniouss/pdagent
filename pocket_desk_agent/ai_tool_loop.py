@@ -68,11 +68,6 @@ _TOOL_NAME_ALIASES: dict[str, str] = {
     "vscode_open_folder": "open_vscode_folder",
     "launch_claude_cli": "open_claude_cli",
     "send_claude_cli_message": "claude_cli_send_message",
-    "run_command": "execute_command",
-    "shell_command": "execute_command",
-    "run_shell": "execute_command",
-    "exec_command": "execute_command",
-    "run_in_folder": "execute_command",
     "click": "click_on_screen",
     "click_screen": "click_on_screen",
     "screen_click": "click_on_screen",
@@ -229,8 +224,6 @@ def _normalize_tool_args(func_name: str, args: dict[str, Any]) -> dict[str, Any]
     if func_name == "open_browser":
         browser = _first_string(args, "browser", "name", "app", "target", default="edge").lower()
         return {"browser": browser}
-    if func_name == "execute_command":
-        return {"command": _first_string(args, "command", "cmd", "shell", "run", "exec", "script")}
     if func_name in {"open_vscode_folder", "open_claude_cli"}:
         folder = _first_string(args, "folder", "path", "repo", "project", "name", "directory")
         normalized = {"folder": folder}
@@ -277,7 +270,6 @@ ALLOWED_TOOLS = frozenset({
     "delete_file",
     "create_directory",
     "get_file_info",
-    "execute_command",
     "get_current_directory",
     "change_directory",
     "get_battery_status",
@@ -397,11 +389,6 @@ async def run_tool_turn(
     elif func_name == "get_file_info":
         success, result_text = await loop.run_in_executor(
             None, file_manager.get_file_info, user_id, args.get("path")
-        )
-        tool_result = {"result": result_text, "success": success}
-    elif func_name == "execute_command":
-        success, result_text = await loop.run_in_executor(
-            None, file_manager.execute_command, user_id, args.get("command", "")
         )
         tool_result = {"result": result_text, "success": success}
     else:

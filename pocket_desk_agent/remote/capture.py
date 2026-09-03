@@ -37,24 +37,30 @@ def _try_import_mss():
 def _pil_from_screen(mss_module):
     """Grab the primary monitor and return a PIL Image.
 
-    Prefer pyautogui first because it matches the proven /screenshot path.
-    Fall back to mss only when pyautogui capture fails.
+    Prefer mss: it grabs via a raw BitBlt call and is measurably faster
+    per-frame than pyautogui.screenshot() (which goes through PIL's
+    ImageGrab) — for a live stream that latency is paid on every single
+    frame, so it dominates perceived lag far more than it does for a
+    one-off /screenshot. Fall back to pyautogui when mss is unavailable
+    or a grab fails.
     """
-    try:
-        import pyautogui  # type: ignore
+    if mss_module is not None:
+        try:
+            from PIL import Image  # type: ignore
 
-        return pyautogui.screenshot()
-    except Exception:
-        if mss_module is None:
-            raise
+            # A fresh mss() per grab avoids sharing capture state across
+            # worker threads — asyncio.to_thread may run this on a
+            # different thread each call.
+            with mss_module.mss() as sct:
+                monitor = sct.monitors[1] if len(sct.monitors) > 1 else sct.monitors[0]
+                raw = sct.grab(monitor)
+                return Image.frombytes("RGB", raw.size, raw.bgra, "raw", "BGRX")
+        except Exception:
+            pass
 
-    from PIL import Image  # type: ignore
+    import pyautogui  # type: ignore
 
-    # Avoid sharing mss state across worker threads.
-    with mss_module.mss() as sct:
-        monitor = sct.monitors[1] if len(sct.monitors) > 1 else sct.monitors[0]
-        raw = sct.grab(monitor)
-        return Image.frombytes("RGB", raw.size, raw.bgra, "raw", "BGRX")
+    return pyautogui.screenshot()
 
 
 def _thumb_hash(image, xxhash_module) -> int:

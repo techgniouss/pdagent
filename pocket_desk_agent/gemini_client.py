@@ -46,7 +46,6 @@ You have access to comprehensive tools for files, desktop context, and automatio
 - get_current_directory / change_directory: Handle requests like /pwd and /cd
 - list_directory / search_files / read_file / get_file_info: Handle requests like /ls, /find, /cat, and /info
 - get_tree_structure: Get complete project structure (use this first to understand the project!)
-- execute_command: Run allowlisted shell commands (git, npm, npx, python, pip, ls, dir, etc.) in the current directory
 
 **Desktop Tools**:
 - capture_screenshot: Capture the current screen, send it to chat, AND see the image yourself so you can identify UI elements and coordinates
@@ -83,8 +82,8 @@ You have access to comprehensive tools for files, desktop context, and automatio
 3. Explain what you're doing and why
 4. For risky actions, tell the user an approval prompt has been sent
 5. All file paths are relative to the current working directory unless the tool says otherwise
-6. When the user asks to do something **in a specific folder**, ALWAYS call change_directory first to navigate there, then use the relevant tool. Example: "run npm test in my emploi project" → change_directory("emploi") → execute_command("npm test")
-7. For running shell commands use execute_command. Allowed: git, npm, npx, node, yarn, python, pip, ls/dir, find, grep, echo, etc. Shell chains (&&, |, ;) are blocked — run one command at a time.
+6. When the user asks to do something **in a specific folder**, ALWAYS call change_directory first to navigate there, then use the relevant tool. Example: "read config in my emploi project" → change_directory("emploi") → read_file("config.json")
+7. You cannot run arbitrary shell commands. There is no execute_command tool — if a user asks to run a build/test/git command, use start_build_workflow or point them at the relevant slash command instead of inventing a tool call.
 8. Prefer existing workflows for slash-command-style requests. Examples:
    - "build emploi project" -> start_build_workflow
    - "get apk from emploi" -> start_apk_retrieval_workflow
@@ -99,7 +98,6 @@ You have access to comprehensive tools for files, desktop context, and automatio
    - "stop remote" / "end remote session" -> request_stop_remote_session
    - "show current folder" -> get_current_directory or list_directory
    - "open/read/find file" -> use the filesystem tools above
-   - "run git status" / "run npm install" / "run python script.py" -> execute_command
 9. Users may phrase commands naturally (aliases like "start remote", "get apk", "watch screen", "at 22:30", "every 1m"). Map those to the canonical tool names and expected arguments.
 10. **Clicking and scrolling on screen**: Use the direct mouse tools for any UI interaction request.
     - Left-click text: click_on_screen(text="Submit")
@@ -390,23 +388,6 @@ def _get_api_tools() -> list:
                         "path": {"type": "string", "description": "Relative path to the file or directory."}
                     },
                     "required": ["path"]
-                }
-            },
-            {
-                "name": "execute_command",
-                "description": (
-                    "Run an allowlisted shell command in the current working directory. "
-                    "Permitted first tokens: git, npm, npx, node, yarn, pnpm, python, python3, pip, pip3, "
-                    "ls, dir, cat, type, head, tail, tree, pwd, find, grep, findstr, echo, whoami, hostname, tasklist. "
-                    "Shell chain operators (&&, ||, ;, |) are blocked — run one command at a time. "
-                    "Use change_directory first when you need to run in a specific folder."
-                ),
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "command": {"type": "string", "description": "The shell command to run, e.g. 'git status' or 'npm test'."}
-                    },
-                    "required": ["command"]
                 }
             },
         ]
