@@ -478,7 +478,10 @@ class FileManager:
 
     # Shell metacharacters that can chain or redirect commands.
     # Blocking these prevents `git status && rm -rf /` style attacks.
-    _DANGEROUS_SHELL_CHARS = ("&&", "||", ";", "|", "`", "$(", ">", "<", "\n", "\r")
+    # NOTE: a lone "&" (cmd.exe's unconditional sequencer, e.g.
+    # `dir & format c:`) must be blocked too, not just "&&" — "&" is a
+    # substring of "&&", so listing "&" alone covers both.
+    _DANGEROUS_SHELL_CHARS = ("&", "||", ";", "|", "`", "$(", ">", "<", "\n", "\r")
 
     def execute_command(self, user_id: int, command: str, timeout: int = 30) -> Tuple[bool, str]:
         """Execute a shell command in the current directory.

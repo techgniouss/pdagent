@@ -63,6 +63,18 @@ def _parse_user_ids(raw_value: str) -> list[int]:
     return user_ids
 
 
+_VALID_AI_PROVIDERS = ("gemini", "nvidia")
+
+
+def _parse_provider_order(raw_value: str) -> list[str]:
+    """Parse a comma-separated AI provider order, dropping unknown tokens
+    and de-duplicating while preserving first-occurrence order."""
+    order = [p.strip().lower() for p in raw_value.split(",") if p.strip()]
+    order = [p for p in order if p in _VALID_AI_PROVIDERS]
+    order = list(dict.fromkeys(order))
+    return order or list(_VALID_AI_PROVIDERS)
+
+
 _load_config_files()
 
 
@@ -91,6 +103,12 @@ class Config:
     AUTO_UPDATE_ENABLED: bool = True
     AUTO_UPDATE_INTERVAL_MINUTES: int = 60
     LOG_LEVEL: str = "INFO"
+
+    # ── NVIDIA AI + provider order ──────────────────────────────────
+    NVIDIA_API_KEY: str = ""
+    NVIDIA_BASE_URL: str = "https://integrate.api.nvidia.com/v1"
+    NVIDIA_MODEL: str = "meta/llama-3.3-70b-instruct"
+    AI_PROVIDER_ORDER: list[str] = ["gemini", "nvidia"]
 
     # ── Remote desktop (/remote) ────────────────────────────────────
     REMOTE_ENABLED: bool = True
@@ -127,6 +145,16 @@ class Config:
             os.getenv("ANTIGRAVITY_MODEL")
             or os.getenv("GEMINI_MODEL")
             or "gemini-2.0-flash"
+        )
+
+        cls.NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY", "")
+        cls.NVIDIA_BASE_URL = (
+            os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1").strip()
+            or "https://integrate.api.nvidia.com/v1"
+        )
+        cls.NVIDIA_MODEL = os.getenv("NVIDIA_MODEL", "meta/llama-3.3-70b-instruct").strip() or "meta/llama-3.3-70b-instruct"
+        cls.AI_PROVIDER_ORDER = _parse_provider_order(
+            os.getenv("AI_PROVIDER_ORDER", ",".join(_VALID_AI_PROVIDERS))
         )
 
         cls.GOOGLE_OAUTH_ENABLED = (

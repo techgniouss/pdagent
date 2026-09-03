@@ -97,3 +97,6 @@ graphify-out/cost.json
 graphify-out/.graphify_*
 *.apk
 *.aab
+
+# Git worktrees (local scratch, never commit)
+.worktrees/

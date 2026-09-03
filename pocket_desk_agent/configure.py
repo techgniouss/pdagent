@@ -82,6 +82,7 @@ _INI_ENV_MAP: dict[tuple[str, str, str], str] = {
     ("credentials", "default", "google_oauth_client_secret"):  "GOOGLE_OAUTH_CLIENT_SECRET",
     ("credentials", "default", "qubo_username"):        "QUBO_USERNAME",
     ("credentials", "default", "qubo_password"):        "QUBO_PASSWORD",
+    ("credentials", "default", "nvidia_api_key"):       "NVIDIA_API_KEY",
     # config [bot] section
     ("config", "bot", "authorized_user_ids"):   "AUTHORIZED_USER_IDS",
     ("config", "bot", "telegram_bot_username"): "TELEGRAM_BOT_USERNAME",
@@ -89,6 +90,8 @@ _INI_ENV_MAP: dict[tuple[str, str, str], str] = {
     ("config", "bot", "google_oauth_enabled"):  "GOOGLE_OAUTH_ENABLED",
     ("config", "bot", "gemini_auth_mode"):       "GEMINI_AUTH_MODE",
     ("config", "bot", "gemini_model"):          "GEMINI_MODEL",
+    ("config", "bot", "nvidia_model"):          "NVIDIA_MODEL",
+    ("config", "bot", "ai_provider_order"):     "AI_PROVIDER_ORDER",
     ("config", "bot", "max_tokens_per_request"): "MAX_TOKENS_PER_REQUEST",
     ("config", "bot", "system_prompt"):         "SYSTEM_PROMPT",
     ("config", "bot", "google_project_id"):     "GOOGLE_PROJECT_ID",
@@ -160,7 +163,10 @@ def _prompt_optional(
     """Prompt for an optional value; returns default if user presses Enter."""
     display = f"  {label}"
     if default:
-        display += f" [{default}]"
+        # A secret default (e.g. an existing token/password) must never be
+        # echoed to the terminal in plaintext — mask it, but still return
+        # the real `default` unchanged below if the user presses Enter.
+        display += f" [{_mask(default)}]" if secret else f" [{default}]"
     display += " (optional, Enter to skip): "
     if hint:
         print(f"  Hint: {hint}")
@@ -178,6 +184,20 @@ def _validate_allowed_users(raw: str) -> str | None:
             int(part)
         except ValueError:
             return f"'{part}' is not a valid integer. User IDs must be numeric."
+    return None
+
+
+_VALID_AI_PROVIDER_TOKENS = ("gemini", "nvidia")
+
+
+def _validate_provider_order(raw: str) -> str | None:
+    """Return an error message if raw is not a valid comma-separated provider list."""
+    parts = [p.strip().lower() for p in raw.split(",") if p.strip()]
+    if not parts:
+        return "At least one provider is required."
+    for part in parts:
+        if part not in _VALID_AI_PROVIDER_TOKENS:
+            return f"'{part}' is not a valid provider. Choose from: {', '.join(_VALID_AI_PROVIDER_TOKENS)}."
     return None
 
 
@@ -534,6 +554,28 @@ def _run_full_wizard() -> None:
         else:
             print("  Please enter 1, 2, 3, or 4.")
 
+    print("\n  Optional: NVIDIA NIM AI Fallback")
+    print("  Falls back to an NVIDIA-hosted model when Gemini's quota is exhausted.")
+    nvidia_api_key = ""
+    ai_provider_order = "gemini,nvidia"
+    configure_nvidia = input("  Configure now? [y/N]: ").strip().lower()
+    if configure_nvidia in ("y", "yes"):
+        nvidia_api_key = _prompt_required(
+            "NVIDIA API Key",
+            hint="Get from build.nvidia.com (NIM). Keys start with nvapi-",
+            secret=True,
+        )
+        if nvidia_api_key and not nvidia_api_key.startswith("nvapi-"):
+            print(
+                "  ⚠  This doesn't look like a typical NVIDIA key "
+                "(expected to start with 'nvapi-') — saving it anyway."
+            )
+    else:
+        print(
+            "  Skipped. Configure later with 'pdagent configure', /setnvidiakey in "
+            "Telegram, or the NVIDIA_API_KEY env var."
+        )
+
     # ------------------------------------------------------------------
     # [3/3] Optional Settings
     # ------------------------------------------------------------------
@@ -616,6 +658,7 @@ def _run_full_wizard() -> None:
         "dropbox_access_token": dropbox_access_token,
         "qubo_username": smart_plug_fields["qubo_username"],
         "qubo_password": smart_plug_fields["qubo_password"],
+        "nvidia_api_key": nvidia_api_key,
     }
     with open(credentials_path(), "w", encoding="utf-8") as f:
         f.write("# Pocket Desk Agent — credentials\n")
@@ -637,6 +680,8 @@ def _run_full_wizard() -> None:
         "gemini_auth_mode": gemini_auth_mode,
         "google_oauth_enabled": google_oauth_enabled,
         "gemini_model": "gemini-2.0-flash",
+        "nvidia_model": "meta/llama-3.3-70b-instruct",
+        "ai_provider_order": ai_provider_order,
         "max_tokens_per_request": "8000",
         "system_prompt": "",
         "google_project_id": "",
@@ -1052,12 +1097,61 @@ def _update_smart_plug(
     )
 
 
+def _update_nvidia_fallback(
+    cred_parser: configparser.ConfigParser,
+    cfg_parser: configparser.ConfigParser,
+) -> None:
+    """Prompt for and update the NVIDIA fallback key, model, and provider order."""
+    current_key = cred_parser.get("default", "nvidia_api_key", fallback="")
+    current_model = cfg_parser.get("bot", "nvidia_model", fallback="meta/llama-3.3-70b-instruct")
+    current_order = cfg_parser.get("bot", "ai_provider_order", fallback="gemini,nvidia")
+
+    print(f"\n  Current NVIDIA API Key : {_mask(current_key) if current_key else '(not set)'}")
+    print(f"  Current NVIDIA Model   : {current_model}")
+    print(f"  Current Provider Order : {current_order}")
+
+    new_key = _prompt_optional(
+        "New NVIDIA API Key",
+        hint="Get from build.nvidia.com (NIM). Keys start with nvapi-. Enter to keep current.",
+        default=current_key,
+        secret=True,
+    )
+    if new_key and not new_key.startswith("nvapi-"):
+        print(
+            "  ⚠  This doesn't look like a typical NVIDIA key "
+            "(expected to start with 'nvapi-') — saving it anyway."
+        )
+    new_model = _prompt_optional(
+        "New NVIDIA Model",
+        hint="e.g. meta/llama-3.3-70b-instruct",
+        default=current_model,
+    )
+    while True:
+        new_order_raw = _prompt_optional(
+            "New Provider Order",
+            hint="Comma-separated: gemini,nvidia or nvidia,gemini",
+            default=current_order,
+        )
+        error = _validate_provider_order(new_order_raw)
+        if error:
+            print(f"  Error: {error}")
+            continue
+        break
+    new_order = ",".join(p.strip().lower() for p in new_order_raw.split(",") if p.strip())
+
+    cred_parser["default"]["nvidia_api_key"] = new_key
+    cfg_parser["bot"]["nvidia_model"] = new_model
+    cfg_parser["bot"]["ai_provider_order"] = new_order
+    _write_parsers(cred_parser, cfg_parser)
+
+
 # Menu items: (label shown to user, handler function)
 _SELECTIVE_MENU: list[tuple[str, object]] = [
     ("Authorized User IDs        — who can control this bot", _update_authorized_user_ids),
     ("Approved Directories       — file-system security sandbox", _update_approved_directories),
     ("Telegram Bot Token         — bot credential from @BotFather", _update_bot_token),
     ("Gemini Auth Mode           — OAuth vs API key", _update_gemini_auth),
+    ("NVIDIA AI Fallback         — API key, model, and provider order", _update_nvidia_fallback),
     ("Telegram Bot Username      — your bot's @username", _update_bot_username),
     ("Default Projects Directory — used by /build, /getapk, /claudecli and similar", _update_projects_directory),
     ("Dropbox Access Token       — for large file uploads", _update_dropbox_token),

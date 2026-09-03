@@ -377,10 +377,12 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 | `/start` | Initialize the bot |
 | `/help` | Show the help menu |
 | `/status` | Check Gemini API and session status |
+| `/aiprovider [order]` | View or set the AI provider fallback order (`gemini`, `nvidia`) |
 | `/login` | Choose an authentication method and start the OAuth login flow |
 | `/authcode <code>` | Enter an OAuth verification code |
 | `/checkauth` | Check current authentication status |
 | `/logout` | Sign out of Google |
+| `/setnvidiakey <key>` | Configure the NVIDIA NIM fallback API key (used automatically when Gemini's quota is exhausted) |
 | `/new` | Clear chat history and start fresh |
 | `/enhance <prompt>` | Let Gemini improve a prompt |
 | `/update` | Upgrade the installed package and restart |

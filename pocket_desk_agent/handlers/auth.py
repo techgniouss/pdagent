@@ -1,9 +1,10 @@
-"""Authentication command handlers (login, authcode, checkauth, logout).
+"""Authentication command handlers (login, authcode, checkauth, logout, setnvidiakey).
 
-/login     — shows an inline keyboard with 2 OAuth options (Antigravity / Gemini CLI)
-/authcode  — accepts either a raw auth code or a full callback URL
-/checkauth — checks current auth status
-/logout    — signs out with confirmation
+/login         — shows an inline keyboard with 2 OAuth options (Antigravity / Gemini CLI)
+/authcode      — accepts either a raw auth code or a full callback URL
+/checkauth     — checks current auth status
+/logout        — signs out with confirmation
+/setnvidiakey  — saves the NVIDIA NIM API key to the credentials file
 """
 
 import base64
@@ -377,3 +378,71 @@ async def _do_logout(query, user_id: int):
         "✅ Logged out successfully.\n\nUse /login to authenticate again."
     )
     logger.info(f"User {user_id} logged out")
+
+
+# ── /setnvidiakey ───────────────────────────────────────────────────────────
+
+async def setnvidiakey_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /setnvidiakey — save the NVIDIA NIM API key from chat.
+
+    Writes to the same ~/.pdagent/credentials file `pdagent configure` uses,
+    reloads Config immediately, and deletes the user's message afterward
+    (best-effort) so the raw key doesn't sit in chat history.
+    """
+    if not update.effective_user or not update.message:
+        return
+
+    if not context.args:
+        await update.message.reply_text(
+            "ℹ️ *Usage:* `/setnvidiakey <key>`\n\n"
+            "Get a key from build.nvidia.com (NVIDIA NIM). Keys start with `nvapi-`.\n\n"
+            "This lets the bot fall back to NVIDIA when Gemini's quota runs out. "
+            "See /aiprovider to control which provider is tried first.",
+            parse_mode="Markdown",
+        )
+        return
+
+    key = context.args[0].strip()
+    if not key.startswith("nvapi-"):
+        await update.message.reply_text(
+            "❌ That doesn't look like an NVIDIA API key — keys start with `nvapi-`.\n\n"
+            "Get one from build.nvidia.com and try again.",
+            parse_mode="Markdown",
+        )
+        return
+
+    import configparser
+    import os
+
+    from pocket_desk_agent import configure as configure_module
+    from pocket_desk_agent.config import Config
+
+    configure_module.ensure_app_dir()
+    cred_parser = configparser.ConfigParser()
+    cred_path = configure_module.credentials_path()
+    if cred_path.exists():
+        cred_parser.read(cred_path, encoding="utf-8")
+    if not cred_parser.has_section("default"):
+        cred_parser["default"] = {}
+    cred_parser["default"]["nvidia_api_key"] = key
+
+    with open(cred_path, "w", encoding="utf-8") as f:
+        f.write("# Pocket Desk Agent — credentials\n")
+        f.write("# Keep this file private. Do not share or commit it.\n\n")
+        cred_parser.write(f)
+    if os.name != "nt":
+        os.chmod(cred_path, 0o600)
+
+    os.environ["NVIDIA_API_KEY"] = key
+    Config.load()
+
+    await update.message.reply_text(
+        "✅ NVIDIA API key saved. It's now available as a fallback provider — see /aiprovider."
+    )
+
+    try:
+        await context.bot.delete_message(
+            chat_id=update.effective_chat.id, message_id=update.message.message_id
+        )
+    except Exception as exc:
+        logger.info("Could not delete /setnvidiakey message (non-fatal): %s", exc)
