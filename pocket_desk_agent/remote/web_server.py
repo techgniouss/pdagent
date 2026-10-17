@@ -17,6 +17,7 @@ and the (UA, hashed-IP) to match the first-hit fingerprint.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import json
@@ -176,10 +177,33 @@ async def _handle_root(request: Any) -> Any:
     return response
 
 
+async def _handle_favicon(request: Any) -> Any:
+    """Browsers always ask for /favicon.ico; answer quietly instead of a 404."""
+    from aiohttp import web  # type: ignore
+
+    return web.Response(status=204)
+
+
 async def _handle_healthz(request: Any) -> Any:
     from aiohttp import web  # type: ignore
 
     return web.Response(text="ok")
+
+
+async def _discard_incoming(ws: Any) -> None:
+    """Read and drop everything the viewer sends on the video socket.
+
+    The video handler only writes. Without a concurrent reader it never sees
+    the client's close frame, so after a viewer disconnects the capture loop
+    keeps grabbing and encoding frames until the heartbeat times out (~30s).
+    The viewer reconnects every 2s on a flaky network, so those zombie loops
+    would pile up. Reading lets ``ws.closed`` flip the moment the peer leaves.
+    """
+    try:
+        async for _ in ws:
+            pass
+    except Exception:
+        pass
 
 
 async def _handle_ws_video(request: Any) -> Any:
@@ -200,9 +224,10 @@ async def _handle_ws_video(request: Any) -> Any:
     from pocket_desk_agent.remote.capture import frame_iter
 
     sent_frames = 0
+    reader = asyncio.create_task(_discard_incoming(ws))
     try:
         async for jpeg in frame_iter(session):
-            if ws.closed or session.torn_down:
+            if ws.closed or session.torn_down or reader.done():
                 break
             if not jpeg:
                 # Explicit skip sentinel from frame_iter — keep loop cadence.
@@ -228,6 +253,7 @@ async def _handle_ws_video(request: Any) -> Any:
                 logger.debug("[remote] ws/video send failed: %s", exc)
                 break
     finally:
+        reader.cancel()
         session.active_ws.discard(ws)
         if not ws.closed:
             try:
@@ -314,6 +340,7 @@ def build_app(session: RemoteSession):
     app["session"] = session
     app.router.add_get("/", _handle_root)
     app.router.add_get("/healthz", _handle_healthz)
+    app.router.add_get("/favicon.ico", _handle_favicon)
     app.router.add_get("/ws/video", _handle_ws_video)
     app.router.add_get("/ws/input", _handle_ws_input)
     return app

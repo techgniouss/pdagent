@@ -183,6 +183,7 @@ All values live in `pocket_desk_agent/config.py` → `Config` class.
 | `TELEGRAM_BOT_TOKEN` | Yes | — | Bot auth token from BotFather |
 | `TELEGRAM_BOT_USERNAME` | Yes | — | Bot `@username` |
 | `AUTHORIZED_USER_IDS` | Yes | — | Comma-separated Telegram user IDs |
+| `ALLOW_GROUP_CHATS` | No | `false` | Serve commands from group chats too. Off by default: screenshots, clipboard text and remote-viewer links are sent to the chat the command came from, so a group would expose them to every member |
 | `GOOGLE_OAUTH_ENABLED` | No | `true` | Use OAuth instead of direct API key |
 | `GOOGLE_OAUTH_CLIENT_ID` | No | built-in | Override the built-in Antigravity plugin OAuth client ID |
 | `GOOGLE_OAUTH_CLIENT_SECRET` | No | built-in | Override the built-in Antigravity plugin OAuth client secret |

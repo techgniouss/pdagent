@@ -301,6 +301,7 @@ GOOGLE_OAUTH_CLIENT_SECRET="your_client_secret"
 | :--- | :--- | :--- |
 | `GEMINI_MODEL` | `gemini-2.5-flash` | Gemini model to use |
 | `GEMINI_AUTH_MODE` | `antigravity` | Auth provider: `antigravity`, `gemini-cli`, or `apikey` |
+| `ALLOW_GROUP_CHATS` | `false` | Serve commands from group chats. Off by default so screenshots, clipboard text and remote-viewer links are never posted where other people can read them |
 | `GOOGLE_PROJECT_ID` | `(unset)` | Optional Antigravity project override if auto-detection fails |
 | `UPLOAD_EXPIRY_TIME` | `1h` | TempFile upload expiry for large-file links (`1h`/`12h`/`24h`/`72h`) |
 | `LOG_LEVEL` | `INFO` | Logging verbosity |

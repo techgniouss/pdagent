@@ -115,6 +115,7 @@ class Config:
     TELEGRAM_BOT_TOKEN: str = ""
     TELEGRAM_BOT_USERNAME: str = ""
     AUTHORIZED_USER_IDS: list[int] = []
+    ALLOW_GROUP_CHATS: bool = False
     GOOGLE_API_KEY: str = ""
     GEMINI_MODEL: str = DEFAULT_GEMINI_MODEL
     GOOGLE_OAUTH_ENABLED: bool = True
@@ -163,6 +164,12 @@ class Config:
 
         cls.AUTHORIZED_USER_IDS = _parse_user_ids(
             os.getenv("AUTHORIZED_USER_IDS") or os.getenv("ALLOWED_USERS", "")
+        )
+
+        # Screenshots, clipboard text and remote-viewer links are sent to the
+        # chat the command came from, so by default only private chats are served.
+        cls.ALLOW_GROUP_CHATS = (
+            os.getenv("ALLOW_GROUP_CHATS", "false").strip().lower() == "true"
         )
 
         cls.GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")

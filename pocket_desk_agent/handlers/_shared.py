@@ -170,6 +170,25 @@ def safe_command(func):
             logger.debug(f"Unauthorized access attempt by user {sender}")
             return
 
+        # ── Private chats only ──────────────────────────────────────
+        # Output (screenshots, clipboard, remote links) goes to the chat the
+        # command came from; in a group every member could read it.
+        chat = getattr(update, "effective_chat", None)
+        if chat is not None and getattr(chat, "type", "private") != "private" and not Config.ALLOW_GROUP_CHATS:
+            logger.warning(
+                "Ignoring command from non-private chat %s (type=%s); set ALLOW_GROUP_CHATS=true to allow.",
+                getattr(chat, "id", "?"), chat.type,
+            )
+            try:
+                await context.bot.send_message(
+                    chat_id=chat.id,
+                    text="🔒 For safety this bot only works in a private chat with you. "
+                         "(Set ALLOW_GROUP_CHATS=true in the config to override.)",
+                )
+            except Exception:
+                pass
+            return
+
         # ── Rate limiting ───────────────────────────────────────────
         # The command name is derived from the handler function name
         # (e.g. "screenshot_command" → "screenshot").  For message
