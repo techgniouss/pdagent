@@ -9,6 +9,7 @@ from pathlib import Path
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
+from pocket_desk_agent.async_utils import reply_long_text
 from pocket_desk_agent.handlers._shared import (
     file_manager,
     getfile_retrieval_state,
@@ -157,7 +158,8 @@ async def ls_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     success, message = file_manager.list_directory(user_id, path)
 
     if success:
-        await update.message.reply_text(message)
+        # 50 entries with long names can exceed Telegram's 4096-character limit.
+        await reply_long_text(update.message, message)
     else:
         await update.message.reply_text(f"❌ {message}")
 
@@ -231,7 +233,7 @@ async def find_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     success, message = await asyncio.to_thread(file_manager.search_files, user_id, pattern)
 
     if success:
-        await update.message.reply_text(message)
+        await reply_long_text(update.message, message)
     else:
         await update.message.reply_text(f"❌ {message}")
 

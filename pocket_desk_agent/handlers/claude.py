@@ -132,9 +132,13 @@ async def openclaude_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
             logger.info("Claude desktop app opened on macOS")
         
         elif system == "Linux":
-            subprocess.Popen(["claude"])
-            await update.message.reply_text("✅ Claude desktop app opened!")
-            logger.info("Claude desktop app opened on Linux")
+            # There is no Claude desktop app for Linux. Running `claude` here would
+            # spawn the CLI with no terminal, exit at once, and still report success.
+            await update.message.reply_text(
+                "ℹ️ The Claude desktop app isn't available on Linux.\n\n"
+                "Use /claudecli to work with Claude CLI instead."
+            )
+            logger.info("/openclaude ignored: no Claude desktop app on Linux")
         
     except Exception as e:
         await update.message.reply_text(f"❌ Error opening Claude app: {str(e)}")

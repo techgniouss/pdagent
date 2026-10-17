@@ -102,3 +102,24 @@ def test_send_prompt_refuses_when_claude_is_not_foreground(monkeypatch) -> None:
     with pytest.raises(RuntimeError, match="foreground"):
         claude.send_prompt_to_claude(window, "rm -rf /")
     assert keys == []  # nothing was pasted or submitted anywhere
+
+
+def test_openclaude_on_linux_does_not_spawn_the_cli(monkeypatch) -> None:
+    import asyncio
+    from types import SimpleNamespace
+
+    from pocket_desk_agent.handlers import claude
+
+    spawned: list = []
+    monkeypatch.setattr(claude.subprocess, "Popen", lambda *a, **k: spawned.append(a))
+    monkeypatch.setattr(claude.platform, "system", lambda: "Linux")
+    replies: list[str] = []
+
+    class Msg:
+        async def reply_text(self, text, **kwargs):
+            replies.append(text)
+
+    asyncio.run(claude.openclaude_command(SimpleNamespace(message=Msg()), SimpleNamespace()))
+
+    assert spawned == []
+    assert any("isn't available on Linux" in r for r in replies)
