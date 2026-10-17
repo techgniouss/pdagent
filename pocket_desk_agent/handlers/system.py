@@ -737,7 +737,7 @@ async def hotkey_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             await asyncio.to_thread(write_text, pyautogui, text_to_type, interval=0.05)
             await update.message.reply_text(f"✅ Typed: {text_to_type[:100]}{'...' if len(text_to_type) > 100 else ''}")
-            logger.info(f"Typed text: {text_to_type[:50]}")
+            logger.info("Typed %d characters", len(text_to_type))
         except Exception as e:
             await update.message.reply_text(f"❌ Error typing text: {str(e)}")
             logger.error(f"Error typing text: {e}")
@@ -766,7 +766,7 @@ async def hotkey_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # If text provided, copy to clipboard first
         if clipboard_text:
             pyperclip.copy(clipboard_text)
-            logger.info(f"Copied to clipboard: {clipboard_text[:50]}")
+            logger.info("Copied %d characters to the clipboard", len(clipboard_text))
             await update.message.reply_text(f"\U0001f4cb Copied to clipboard: {clipboard_text[:100]}{'...' if len(clipboard_text) > 100 else ''}")
             await asyncio.sleep(0.2)
         

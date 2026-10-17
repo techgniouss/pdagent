@@ -51,9 +51,13 @@ class MarkdownFallbackBot(ExtBot):
         try:
             return await method(*args, **kwargs)
         except BadRequest as exc:
-            if kwargs.get("parse_mode") not in _MARKDOWN_MODES or not is_entity_parse_error(exc):
+            if kwargs.get(
+                "parse_mode"
+            ) not in _MARKDOWN_MODES or not is_entity_parse_error(exc):
                 raise
-            logger.info("Markdown rejected by Telegram (%s); resending as plain text", exc)
+            logger.info(
+                "Markdown rejected by Telegram (%s); resending as plain text", exc
+            )
             return await method(*args, **_plain_kwargs(kwargs))
 
     async def send_message(self, *args: Any, **kwargs: Any) -> Any:

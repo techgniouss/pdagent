@@ -106,3 +106,15 @@ def test_run_tool_turn_blocks_execute_command() -> None:
     assert result.tool_result["success"] is False
     assert "not available" in result.tool_result["result"]
     assert fm.calls == []
+
+
+def test_tool_logging_never_includes_typed_text_or_file_contents() -> None:
+    from pocket_desk_agent.ai_tool_loop import _loggable_args, _loggable_result
+
+    args = {"keys": "type", "text": "hunter2-my-password", "x": 5}
+    logged = str(_loggable_args(args))
+    assert "hunter2" not in logged and "<19 chars>" in logged and "5" in logged
+
+    assert "SECRET" not in _loggable_result("read_file", "SECRET=abc123")
+    assert "SECRET" not in _loggable_result("view_clipboard", "SECRET=abc123")
+    assert _loggable_result("list_directory", "a" * 500) == "a" * 100

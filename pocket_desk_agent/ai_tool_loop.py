@@ -94,6 +94,29 @@ _TOOL_NAME_ALIASES: dict[str, str] = {
 # "scroll_up"/"scroll_down" alias to scroll_screen; keep the direction they imply.
 _SCROLL_DIRECTION_ALIASES = {"scroll_up": "up", "scroll_down": "down"}
 
+# Tool arguments/results that can carry secrets (typed passwords, clipboard,
+# file contents). They are logged by size only — bot.log is plaintext.
+_SENSITIVE_ARG_KEYS = frozenset({"text", "content", "message", "prompt", "keys", "actions"})
+_SENSITIVE_RESULT_TOOLS = frozenset({"read_file", "view_clipboard", "find_text_on_screen"})
+
+
+def _loggable_args(args: Any) -> Any:
+    """Copy of ``args`` with secret-prone values replaced by their length."""
+    if not isinstance(args, dict):
+        return args
+    return {
+        key: (f"<{len(value)} chars>" if key in _SENSITIVE_ARG_KEYS and isinstance(value, (str, list)) else value)
+        for key, value in args.items()
+    }
+
+
+def _loggable_result(func_name: str, result_text: Any) -> str:
+    """Short, secret-safe description of a tool result for the log."""
+    text = str(result_text)
+    if func_name in _SENSITIVE_RESULT_TOOLS:
+        return f"<{len(text)} chars>"
+    return text[:100]
+
 
 def _normalize_tool_name(func_name: Any) -> str:
     """Normalize a tool name for alias resolution."""
@@ -348,7 +371,10 @@ async def run_tool_turn(
     """
     func_name, args = normalize_tool_call(raw_func_name, raw_args)
     if func_name != raw_func_name or args != raw_args:
-        logger.info("Normalized tool call '%s' -> '%s' with args %s", raw_func_name, func_name, args)
+        logger.info(
+            "Normalized tool call '%s' -> '%s' with args %s",
+            raw_func_name, func_name, _loggable_args(args),
+        )
 
     normalized_call = {"name": func_name, "args": args}
 
@@ -364,7 +390,7 @@ async def run_tool_turn(
             normalized_call=normalized_call,
         )
 
-    logger.info("AI Turn %d: requested tool %s with %s", turn, func_name, args)
+    logger.info("AI Turn %d: requested tool %s with %s", turn, func_name, _loggable_args(args))
 
     image_bytes: Optional[bytes] = None
     if func_name == "list_directory":
@@ -419,7 +445,7 @@ async def run_tool_turn(
             result_text = dispatched.result
             image_bytes = dispatched.image_bytes
 
-    logger.info("Tool %s result: %s", func_name, str(result_text)[:100])
+    logger.info("Tool %s result: %s", func_name, _loggable_result(func_name, result_text))
 
     return ToolTurnResult(
         tool_result=tool_result,

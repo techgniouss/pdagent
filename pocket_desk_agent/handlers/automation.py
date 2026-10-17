@@ -484,7 +484,7 @@ async def typeenter_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"✅ Typed '{text_to_type}' and pressed Enter"
         )
         
-        logger.info(f"Typed and entered: {text_to_type}")
+        logger.info("Typed and entered %d characters", len(text_to_type))
         
     except ImportError as e:
         await update.message.reply_text(

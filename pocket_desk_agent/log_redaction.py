@@ -48,7 +48,9 @@ class SecretRedactingFilter(logging.Filter):
             record.msg = redact_secrets(record.getMessage())
             record.args = ()
             if record.exc_info and not record.exc_text:
-                record.exc_text = self._exception_formatter.formatException(record.exc_info)
+                record.exc_text = self._exception_formatter.formatException(
+                    record.exc_info
+                )
             if record.exc_text:
                 record.exc_text = redact_secrets(record.exc_text)
             if record.stack_info:

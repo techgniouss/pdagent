@@ -284,5 +284,5 @@ def record_action_if_active(user_id: int, action_type: str, args: list) -> bool:
     from pocket_desk_agent.command_registry import CommandAction
     action = CommandAction(type=action_type, args=[str(arg) for arg in args])
     session["actions"].append(action)
-    logger.info(f"Recorded action for user {user_id}: {action_type} {args}")
+    logger.info("Recorded action for user %s: %s (%d arg(s))", user_id, action_type, len(args))
     return True
