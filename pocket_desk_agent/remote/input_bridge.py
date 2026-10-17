@@ -138,8 +138,14 @@ class InputDispatcher:
                 pyautogui.hotkey(*[str(k) for k in keys[:_MAX_HOTKEY_KEYS]], _pause=False)
             elif etype == "text":
                 text = str(event.get("text", ""))[:_MAX_TEXT_CHARS]
-                if text:
+                if text and text.isascii():
                     pyautogui.write(text, interval=0.0, _pause=False)
+                elif text:
+                    # pyautogui.write silently drops anything it can't type with a
+                    # US keyboard (accents, Cyrillic, emoji); paste those instead.
+                    from pocket_desk_agent.automation_utils import write_text
+
+                    write_text(pyautogui, text, interval=0.0)
             else:
                 return None
 
