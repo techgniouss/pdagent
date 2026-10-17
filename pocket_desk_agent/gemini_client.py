@@ -14,7 +14,7 @@ from pocket_desk_agent.antigravity_auth import AntigravityOAuth
 from pocket_desk_agent.gemini_cli_auth import GeminiCLIOAuth
 from pocket_desk_agent.gemini_actions import get_gemini_action_tools
 from pocket_desk_agent.ai_tool_loop import ALLOWED_TOOLS as _ALLOWED_TOOLS
-from pocket_desk_agent.ai_tool_loop import run_tool_turn
+from pocket_desk_agent.ai_tool_loop import finish_empty_reply, run_tool_turn
 from pocket_desk_agent.ai_types import ProviderResult
 from pocket_desk_agent.constants import (
     ANTIGRAVITY_ENDPOINT_DAILY,
@@ -861,9 +861,20 @@ class GeminiClient:
 
                 if not tool_call:
                     response_text = _parse_full_response(response_data)
+                    if not response_text.strip():
+                        # Safety block / empty message: never store an empty text
+                        # part — Gemini rejects it on every later request.
+                        result = finish_empty_reply(
+                            history,
+                            base_history_len,
+                            "Gemini",
+                            candidates[0].get("finishReason"),
+                        )
+                        self.sessions[user_id] = _trim_history(history)
+                        return result
                     history.append({"role": "model", "parts": [{"text": response_text}]})
                     self.sessions[user_id] = _trim_history(history)
-                    return ProviderResult(text=response_text or "(The model returned an empty message.)")
+                    return ProviderResult(text=response_text)
 
                 raw_func_name = tool_call.get('name')
                 raw_args = tool_call.get('args', {}) or {}

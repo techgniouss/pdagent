@@ -20,6 +20,20 @@ class _FakeGemini(BaseHTTPRequestHandler):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         model = self.path.split("/models/")[1].split(":")[0]
         type(self).seen.append({"model": model, "path": self.path, "key": self.headers.get("x-goog-api-key"), "body": body})
+        if model == "empty-safety":
+            self._reply(200, {"candidates": [{"finishReason": "SAFETY"}]})
+            return
+        if model == "empty-after-tool":
+            has_tool_result = any(
+                "functionResponse" in part
+                for content in body["contents"] for part in content.get("parts", [])
+            )
+            if has_tool_result:
+                self._reply(200, {"candidates": [{"finishReason": "STOP", "content": {"role": "model", "parts": []}}]})
+            else:
+                self._reply(200, {"candidates": [{"content": {"role": "model", "parts": [
+                    {"functionCall": {"name": "get_current_directory", "args": {}}}]}}]})
+            return
         if model == "gemini-2.0-flash":
             self._reply(404, {"error": {"code": 404, "message": f"models/{model} is no longer available"}})
             return
@@ -81,3 +95,40 @@ def test_retired_model_404_falls_back_and_tool_loop_completes(gemini_server) -> 
     assert "functionResponse" in final[-1]["parts"][0]
     # Stored history is complete and clean for the next turn.
     assert [c["role"] for c in client.sessions[1]] == ["user", "model", "user", "model"]
+
+
+def _no_text_parts(history):
+    return [
+        part for entry in history for part in entry["parts"]
+        if "text" in part and not part["text"].strip()
+    ]
+
+
+def test_safety_block_is_a_retryable_error_and_leaves_history_clean(gemini_server) -> None:
+    client = gc.GeminiClient()
+    client.model = "empty-safety"
+    original = gc._candidate_model_names
+    gc._candidate_model_names = lambda requested: [requested]
+    try:
+        result = asyncio.run(client.send_message(1, "do something risky", _FileManager(), tool_runtime=None))
+    finally:
+        gc._candidate_model_names = original
+
+    assert result.is_retryable_error is True and "SAFETY" in result.text
+    # Nothing (especially no empty text part) is left behind to poison later requests.
+    assert client.sessions.get(1, []) == []
+
+
+def test_empty_reply_after_a_tool_ran_reports_success_without_empty_parts(gemini_server) -> None:
+    client = gc.GeminiClient()
+    client.model = "empty-after-tool"
+    original = gc._candidate_model_names
+    gc._candidate_model_names = lambda requested: [requested]
+    try:
+        result = asyncio.run(client.send_message(1, "where am I?", _FileManager(), tool_runtime=None))
+    finally:
+        gc._candidate_model_names = original
+
+    assert result.is_retryable_error is False  # the tool already ran: don't re-run it elsewhere
+    assert result.text == "✅ Done."
+    assert _no_text_parts(client.sessions[1]) == []

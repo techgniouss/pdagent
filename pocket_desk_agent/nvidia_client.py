@@ -25,7 +25,7 @@ from pocket_desk_agent.ai_history import (
     gemini_tools_to_openai,
     openai_message_to_gemini_parts,
 )
-from pocket_desk_agent.ai_tool_loop import run_tool_turn
+from pocket_desk_agent.ai_tool_loop import finish_empty_reply, run_tool_turn
 from pocket_desk_agent.ai_types import ProviderResult
 from pocket_desk_agent.config import Config
 from pocket_desk_agent.gemini_client import DEFAULT_SYSTEM_INSTRUCTION, _get_api_tools
@@ -141,8 +141,17 @@ class NvidiaClient:
 
                 if not tool_calls:
                     response_text = "".join(p.get("text", "") for p in parts if "text" in p)
-                    history.append({"role": "model", "parts": parts or [{"text": ""}]})
-                    return ProviderResult(text=response_text or "(NVIDIA returned an empty message.)")
+                    if not response_text.strip():
+                        # An empty text part in the shared history breaks Gemini
+                        # on every later request; never store one.
+                        return finish_empty_reply(
+                            history,
+                            base_history_len,
+                            "NVIDIA",
+                            choices[0].get("finish_reason"),
+                        )
+                    history.append({"role": "model", "parts": parts})
+                    return ProviderResult(text=response_text)
 
                 history.append({"role": "model", "parts": parts})
 

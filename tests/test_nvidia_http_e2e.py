@@ -101,3 +101,22 @@ def test_retired_model_is_reported_as_retryable_error(nim_server, monkeypatch) -
     assert result.is_retryable_error is True
     assert "410" in result.text
     assert history == []  # the failed turn is rolled back
+
+
+def test_empty_nvidia_reply_is_not_stored_in_the_shared_history(nim_server, monkeypatch) -> None:
+    class EmptyNim(_FakeNim):
+        def do_POST(self):
+            self.rfile.read(int(self.headers["Content-Length"]))
+            self._reply(200, {"choices": [{"message": {"role": "assistant", "content": ""}, "finish_reason": "stop"}]})
+
+    server = HTTPServer(("127.0.0.1", 0), EmptyNim)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    monkeypatch.setattr(Config, "NVIDIA_BASE_URL", f"http://127.0.0.1:{server.server_port}/v1")
+    try:
+        history: list = []
+        result = asyncio.run(NvidiaClient().send_message(1, "hi", _FileManager(), history=history))
+    finally:
+        server.shutdown()
+
+    assert result.is_retryable_error is True and "empty response" in result.text
+    assert history == []  # an empty text part here would make Gemini reject every later request

@@ -14,6 +14,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from pocket_desk_agent.ai_types import ProviderResult
 from pocket_desk_agent.gemini_actions import dispatch_gemini_tool
 
 logger = logging.getLogger(__name__)
@@ -340,6 +341,38 @@ ALLOWED_TOOLS = frozenset({
     "get_remote_session_status",
     "update_bot",
 })
+
+
+EMPTY_AFTER_TOOLS_TEXT = "✅ Done."
+
+
+def finish_empty_reply(
+    history: list,
+    base_history_len: int,
+    provider_label: str,
+    finish_reason: Optional[str] = None,
+) -> ProviderResult:
+    """Resolve a final model reply that has no text, without corrupting history.
+
+    An empty text part stored in the shared history is rejected by Gemini
+    (HTTP 400) on every later request, which would break the conversation until
+    /new. So an empty reply is never stored:
+
+    * If tools already ran this turn their side effects happened — report
+      success with a short placeholder (and store that, not an empty part).
+    * Otherwise roll the pending turn back and report a retryable error so the
+      router can fall back to another provider (nothing has been executed).
+    """
+    if len(history) > base_history_len + 1:
+        history.append({"role": "model", "parts": [{"text": EMPTY_AFTER_TOOLS_TEXT}]})
+        return ProviderResult(text=EMPTY_AFTER_TOOLS_TEXT)
+
+    del history[base_history_len:]
+    reason = f" (reason: {finish_reason})" if finish_reason and finish_reason != "STOP" else ""
+    return ProviderResult(
+        text=f"{provider_label} returned an empty response{reason}. Please try rephrasing.",
+        is_retryable_error=True,
+    )
 
 
 @dataclass
