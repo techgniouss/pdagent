@@ -19,6 +19,22 @@ _IGNORED_WINDOW_TITLES = {
 }
 
 
+# Title fragments of windows that are browsers, terminals or other tools. An app
+# finder that matches on a word in the title ("Claude", "Antigravity") must skip
+# these, or automation keystrokes land in a browser tab or the bot's own terminal.
+NON_APP_TITLE_MARKERS = (
+    "google chrome", "microsoft edge", "mozilla firefox", "brave", "opera",
+    "claude cli", "command prompt", "powershell", "windows terminal",
+    "cmd.exe", "git bash", "build:",
+)
+
+
+def title_looks_like_browser_or_terminal(title: str) -> bool:
+    """True when ``title`` belongs to a browser/terminal rather than a desktop app."""
+    lowered = (title or "").lower()
+    return any(marker in lowered for marker in NON_APP_TITLE_MARKERS)
+
+
 @dataclass(frozen=True)
 class WindowInfo:
     """Metadata for a switchable top-level window."""
@@ -123,6 +139,17 @@ def activate_window(handle: int) -> bool:
         return False
 
     return user32.GetForegroundWindow() == handle
+
+
+def foreground_window_handle() -> Optional[int]:
+    """Native handle of the current foreground window (None off Windows / on error)."""
+    if platform.system() != "Windows":
+        return None
+    try:
+        handle = ctypes.windll.user32.GetForegroundWindow()
+    except Exception:
+        return None
+    return int(handle) if handle else None
 
 
 def _window_handle(window: object) -> Optional[int]:

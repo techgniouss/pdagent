@@ -414,12 +414,45 @@ def _parse_full_response(data: dict) -> str:
         if "text" in part and not part.get("thought")
     )
 
+def _is_plain_user_turn(entry: dict) -> bool:
+    """True for a user turn that carries text and no tool response."""
+    if entry.get("role") != "user":
+        return False
+    parts = entry.get("parts") or []
+    return any("text" in part for part in parts) and not any("functionResponse" in part for part in parts)
+
+
+def _strip_inline_images(history: list) -> None:
+    """Remove ``inlineData`` (screenshot) parts from every stored turn, in place.
+
+    A screenshot tool result is only useful to the model during the turn that
+    produced it. Left in the history it is re-sent with every later request;
+    a handful of full-screen JPEGs is megabytes per call and eventually
+    exceeds the request size limit.
+    """
+    for entry in history:
+        parts = entry.get("parts")
+        if parts and any("inlineData" in part for part in parts):
+            entry["parts"] = [part for part in parts if "inlineData" not in part]
+
+
 def _trim_history(history: list) -> list:
-    """Keep only the most recent MAX_HISTORY_TURNS pairs of messages."""
+    """Keep only the most recent MAX_HISTORY_TURNS pairs of messages.
+
+    The kept window must start at a plain user text turn. A blind slice often
+    begins on a model turn or on a functionResponse whose functionCall was cut
+    off; Gemini rejects such a history with HTTP 400, and since the broken
+    history is what gets stored, every later request would fail until /new.
+    """
+    _strip_inline_images(history)
     max_items = MAX_HISTORY_TURNS * 2  # each turn = user + model
-    if len(history) > max_items:
-        return history[-max_items:]
-    return history
+    if len(history) <= max_items:
+        return history
+    window = history[-max_items:]
+    for index, entry in enumerate(window):
+        if _is_plain_user_turn(entry):
+            return window[index:]
+    return []
 
 
 # Signs that the OAuth credentials themselves are dead (expired/revoked), as

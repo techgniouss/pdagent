@@ -95,6 +95,8 @@ def _opt_int(value: Any) -> Optional[int]:
         return int(float(value))
     except (TypeError, ValueError, OverflowError):
         return None
+
+
 _GEMINI_TOOL_RATE_LIMITER = RateLimiter(default_calls=20, default_window=60)
 _RATE_LIMIT_LABELS = {
     "capture_screenshot": "screenshot captures",
@@ -1032,6 +1034,11 @@ async def dispatch_gemini_tool(
     if func_name == "schedule_claude_prompt":
         execute_at = str(args.get("execute_at", ""))
         prompt = str(args.get("prompt", ""))
+        if not prompt.strip():
+            return GeminiToolResult(False, "Please provide the prompt to schedule.")
+        invalid_time = _check_schedule_time(execute_at)
+        if invalid_time is not None:
+            return invalid_time
         return await _queue_confirmation(
             user_id=user_id,
             action_type=func_name,
@@ -1044,6 +1051,9 @@ async def dispatch_gemini_tool(
         execute_at = str(args.get("execute_at", ""))
         name = str(args.get("name", "")).strip()
         actions = args.get("actions", [])
+        invalid_time = _check_schedule_time(execute_at)
+        if invalid_time is not None:
+            return invalid_time
         return await _queue_confirmation(
             user_id=user_id,
             action_type=func_name,
@@ -1715,6 +1725,16 @@ async def _execute_confirmed_action(pending: PendingGeminiAction, bot: Any) -> G
 def _parse_schedule_time(time_str: str) -> Optional[dt.datetime]:
     """Parse schedule strings using the same formats as /schedule."""
     return parse_schedule_time(time_str)
+
+
+def _check_schedule_time(time_str: str) -> Optional[GeminiToolResult]:
+    """Return a failure result when ``time_str`` is unparseable or not in the future."""
+    parsed = _parse_schedule_time(time_str.strip())
+    if parsed is None:
+        return GeminiToolResult(False, "Invalid schedule time. Use HH:MM or YYYY-MM-DD HH:MM.")
+    if parsed <= dt.datetime.now().astimezone():
+        return GeminiToolResult(False, "That time is in the past. Please provide a future time.")
+    return None
 
 
 def _coerce_scheduled_actions(raw_actions: Any) -> list[CommandAction]:

@@ -11,6 +11,7 @@ from telegram.ext import ContextTypes
 from pocket_desk_agent.handlers._shared import (
     file_manager,
     getfile_retrieval_state,
+    reset_selection_workflows,
 )
 from pocket_desk_agent.handlers.build import send_document_with_upload_fallback
 
@@ -205,6 +206,7 @@ async def getfile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     current_path = file_manager.get_current_dir(user_id)
+    reset_selection_workflows(user_id, keep="getfile")
     getfile_retrieval_state[user_id] = {
         "current_path": current_path,
         "timestamp": time.time(),

@@ -17,6 +17,7 @@ from pocket_desk_agent.handlers._shared import (
     claudecli_options,
 )
 from pocket_desk_agent.config import Config
+from pocket_desk_agent.window_utils import title_looks_like_browser_or_terminal
 
 # Lazy-loaded on first call to _load_win_deps() to avoid ~15 MB at startup.
 Application = None
@@ -73,22 +74,67 @@ _BROWSER_LABELS = {
 _FOLDER_SCAN_LIMIT = 40
 
 
+_BROWSER_TITLE_MARKERS = (
+    "google chrome", "microsoft edge", "mozilla firefox", "brave", "opera",
+    "visual studio code",
+)
+
+
+def _is_claude_cli_window(window) -> bool:
+    """True for the terminal window titled "Claude CLI" (not a browser tab about it)."""
+    try:
+        title = (window.title or "").strip().lower()
+        visible = bool(window.visible)
+    except Exception:
+        return False
+    return (
+        visible
+        and title.startswith("claude cli")
+        and not any(marker in title for marker in _BROWSER_TITLE_MARKERS)
+    )
+
+
+def _focus_claude_cli_window(window) -> bool:
+    """Activate ``window`` and confirm it really is the foreground window.
+
+    Keystrokes are only sent after this returns True; otherwise they would
+    land in whatever application happens to be in front.
+    """
+    from pocket_desk_agent.window_utils import foreground_window_handle
+
+    try:
+        if window.isMinimized:
+            window.restore()
+        window.activate()
+        time.sleep(0.5)
+    except Exception:
+        return False
+    handle = getattr(window, "_hWnd", None)
+    return handle is None or foreground_window_handle() == int(handle)
+
+
+def _window_is_foreground(window) -> bool:
+    """True when ``window`` is the foreground window (or has no native handle to check)."""
+    from pocket_desk_agent.window_utils import foreground_window_handle
+
+    handle = getattr(window, "_hWnd", None)
+    return handle is None or foreground_window_handle() == int(handle)
+
+
 def _find_vscode_window():
-    """Return the first visible VS Code window, if any."""
+    """Return the first visible VS Code window, if any.
+
+    Only a title naming "Visual Studio Code" qualifies. A looser match (any
+    title containing "code") also hits "Barcode scanner", "notes.txt - source
+    code" or browser tabs, and the palette/folder-open keystrokes that follow
+    would be typed into that unrelated window.
+    """
     try:
         import pygetwindow as _gw
 
         for window in _gw.getAllWindows():
             try:
                 if "visual studio code" in window.title.lower() and window.visible:
-                    return window
-            except Exception:
-                continue
-
-        for window in _gw.getAllWindows():
-            try:
-                title = window.title.lower()
-                if "code" in title and window.visible and window.width > 200:
                     return window
             except Exception:
                 continue
@@ -118,6 +164,8 @@ def _run_vscode_palette_command(command_text: str) -> tuple[bool, str]:
         pass
 
     time.sleep(0.8)
+    if not _window_is_foreground(vscode_window):
+        return False, "Could not bring VS Code to the foreground; nothing was typed."
     pyautogui.hotkey('ctrl', 'shift', 'p')
     time.sleep(0.7)
     pyautogui.hotkey('ctrl', 'a')
@@ -191,7 +239,10 @@ def resolve_workspace_folder(query: str) -> tuple[bool, str]:
         return False, "Please provide a folder path or folder name."
 
     direct_path = Path(os.path.expandvars(raw_query)).expanduser()
-    if direct_path.exists() and direct_path.is_dir():
+    # Only an absolute path is taken literally. A bare name like "src" would
+    # otherwise resolve against the bot process's own working directory and
+    # pick an unrelated folder instead of searching the approved directories.
+    if direct_path.is_absolute() and direct_path.is_dir():
         if file_manager._is_safe_path(direct_path):
             return True, str(direct_path.resolve())
         return False, f"Access denied: {direct_path} is outside the approved directories."
@@ -268,6 +319,8 @@ def open_folder_in_vscode(folder_path: str) -> tuple[bool, str]:
                 pass
 
             time.sleep(0.8)
+            if not _window_is_foreground(vscode_window):
+                return False, "Could not bring VS Code to the foreground; nothing was typed."
             pyautogui.hotkey('ctrl', 'k')
             time.sleep(0.3)
             pyautogui.hotkey('ctrl', 'o')
@@ -322,17 +375,11 @@ def launch_claude_cli(folder_path: str, initial_prompt: str = "") -> tuple[bool,
             for _ in range(10):
                 time.sleep(1.0)
                 for window in _gw.getAllWindows():
-                    if "Claude CLI" not in window.title or not window.visible:
+                    if not _is_claude_cli_window(window):
                         continue
-                    try:
-                        if window.isMinimized:
-                            window.restore()
-                        window.activate()
-                        time.sleep(0.5)
+                    if _focus_claude_cli_window(window):
                         window_found = True
                         break
-                    except Exception:
-                        continue
                 if window_found:
                     break
 
@@ -367,13 +414,11 @@ def send_prompt_to_claude_cli(prompt: str) -> tuple[bool, str]:
         return False, f"Missing dependency: {exc}"
 
     for window in _gw.getAllWindows():
-        if "Claude CLI" not in window.title or not window.visible:
+        if not _is_claude_cli_window(window):
+            continue
+        if not _focus_claude_cli_window(window):
             continue
         try:
-            if window.isMinimized:
-                window.restore()
-            window.activate()
-            time.sleep(0.5)
             pyautogui.write(message, interval=0.01)
             pyautogui.press('enter')
             return True, "Follow-up prompt sent to Claude CLI."
@@ -390,24 +435,19 @@ def find_antigravity_window():
     _load_win_deps()
 
     try:
-        # Try to find Antigravity window
-        window = None
-        
-        # Try exact match first
-        windows = gw.getWindowsWithTitle("Antigravity")
-        if windows:
-            window = windows[0]
-        
-        # If not found, try partial match (common in Electron apps)
-        if not window:
-            all_windows = gw.getAllTitles()
-            antigravity_titles = [t for t in all_windows if "Antigravity" in t]
-            if antigravity_titles:
-                windows = gw.getWindowsWithTitle(antigravity_titles[0])
-                if windows:
-                    window = windows[0]
-        
-        return window
+        # Match on the title, but never a browser tab or terminal that merely
+        # mentions "Antigravity" — keystrokes would go to the wrong app.
+        candidates = [
+            title for title in gw.getAllTitles()
+            if "antigravity" in title.lower() and not title_looks_like_browser_or_terminal(title)
+        ]
+        # Prefer the exact "Antigravity" title, then the first remaining candidate.
+        candidates.sort(key=lambda title: title.strip() != "Antigravity")
+        for title in candidates:
+            matching = [w for w in gw.getWindowsWithTitle(title) if w.title == title]
+            if matching:
+                return matching[0]
+        return None
     except Exception as e:
         logger.error(f"Error finding Antigravity window: {e}")
         return None

@@ -70,6 +70,24 @@ from pocket_desk_agent.config import Config
 DEFAULT_REPO_PATH = Config.CLAUDE_DEFAULT_REPO_PATH
 
 
+def reset_selection_workflows(user_id: int, keep: Optional[str] = None) -> None:
+    """Drop every number-reply workflow for ``user_id`` except ``keep``.
+
+    /build, /getapk and /getfile are all driven by a bare number typed into the
+    chat, and ``handle_message`` offers each reply to the workflows in a fixed
+    order. A forgotten /build selection would otherwise swallow the number meant
+    for /getfile and go on to run an npm script. Starting one workflow must
+    therefore cancel the others. ``keep`` is "build", "apk" or "getfile".
+    """
+    for name, state in (
+        ("build", build_state),
+        ("apk", apk_retrieval_state),
+        ("getfile", getfile_retrieval_state),
+    ):
+        if name != keep:
+            state.pop(user_id, None)
+
+
 def _prune_media_groups(user_id: int) -> None:
     groups = recent_media_groups.get(user_id)
     if not groups:

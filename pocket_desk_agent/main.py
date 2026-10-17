@@ -30,6 +30,7 @@ from pocket_desk_agent.handlers import (
     resume_if_enabled,
 )
 from pocket_desk_agent.scheduler_registry import get_scheduler_registry
+from pocket_desk_agent.scheduling_utils import format_duration, get_task_due_at, local_now
 from pocket_desk_agent.updater import (
     get_version_string,
     startup_update_check,
@@ -66,6 +67,29 @@ logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 SCHEDULER_POLL_INTERVAL_SECONDS = 5
+
+# A one-shot task that is overdue by more than this was missed (bot or PC was
+# off/asleep). Running it late is wrong and sometimes dangerous — a shutdown
+# scheduled for last night must not fire at 09:00 when the bot starts — so it
+# is skipped and reported instead. Shutdown gets a much tighter window.
+MISSED_TASK_GRACE_SECONDS = 600
+MISSED_SHUTDOWN_GRACE_SECONDS = 120
+
+
+def missed_task_lateness(task, now=None) -> float | None:
+    """Seconds a one-shot ``task`` is overdue beyond its grace window, else None.
+
+    Repeating tasks are never "missed": they simply run at the next poll.
+    """
+    if task.interval_seconds:
+        return None
+    due_at = get_task_due_at(task.to_dict())
+    if due_at is None:
+        return None
+    is_shutdown = task.task_type == "system_shutdown" or task.command == "system_shutdown"
+    grace = MISSED_SHUTDOWN_GRACE_SECONDS if is_shutdown else MISSED_TASK_GRACE_SECONDS
+    lateness = ((now or local_now()) - due_at).total_seconds()
+    return lateness if lateness > grace else None
 
 def _should_enable_reloader(project_root: Path) -> bool:
     """Enable live reload only for interactive dev sessions."""
@@ -273,6 +297,33 @@ def start_reloader():
 
 
 
+async def _skip_missed_task(application: Application, registry, task, lateness: float) -> None:
+    """Mark an overdue one-shot task failed (not run) and tell its owner."""
+    late_for = format_duration(int(lateness))
+    summary = describe_task(task)
+    logger.warning(
+        "Skipping scheduled task %s (%s): overdue by %s, missed while the bot was not running",
+        task.id, task.command, late_for,
+    )
+    updated = registry.finalize_task_run(
+        task.id,
+        success=False,
+        error=f"Missed its scheduled time by {late_for}; skipped instead of running late.",
+    )
+    if updated and updated.status in {"completed", "failed"}:
+        cleanup_scheduled_task_artifacts(updated)
+    try:
+        await application.bot.send_message(
+            chat_id=task.user_id,
+            text=(
+                f"⏭️ Skipped scheduled task (it was due {late_for} ago, while the bot "
+                f"wasn't running): {summary}\nSchedule it again if you still want it."
+            ),
+        )
+    except Exception:
+        pass
+
+
 async def scheduler_loop(application: Application):
     """Background task to check and execute scheduled tasks."""
     logger.info("🕒 Scheduler loop started.")
@@ -293,6 +344,11 @@ async def scheduler_loop(application: Application):
             due_tasks = registry.get_pending_tasks()
             
             for task in due_tasks:
+                lateness = missed_task_lateness(task)
+                if lateness is not None:
+                    await _skip_missed_task(application, registry, task, lateness)
+                    continue
+
                 logger.info(f"🚀 Executing scheduled task {task.id}: {task.command}")
                 
                 # Execute the task. An exception must still finalize the run,

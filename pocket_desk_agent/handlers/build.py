@@ -21,6 +21,7 @@ from pocket_desk_agent.handlers._shared import (
     large_file_upload_state,
     apk_retrieval_state,
     file_manager,
+    reset_selection_workflows,
 )
 from pocket_desk_agent.config import Config
 
@@ -129,6 +130,7 @@ def prepare_build_workflow(
     project_query: str | None = None,
 ) -> tuple[bool, str]:
     """Prime the existing build-selection state for slash commands or Gemini."""
+    reset_selection_workflows(user_id, keep="build")
     current_path = str(current_dir)
     if not os.path.exists(current_path):
         build_state.pop(user_id, None)
@@ -315,6 +317,7 @@ def prepare_apk_retrieval_workflow(
     project_query: str | None = None,
 ) -> tuple[bool, str]:
     """Prime the existing APK retrieval state for slash commands or Gemini."""
+    reset_selection_workflows(user_id, keep="apk")
     current_path = str(current_dir)
     if not os.path.exists(current_path):
         apk_retrieval_state.pop(user_id, None)
