@@ -14,6 +14,8 @@ from pocket_desk_agent.handlers._shared import (
 
 logger = logging.getLogger(__name__)
 
+_SMARTCLICK_MAX_CHOICES = 20
+
 async def clicktext_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /clicktext command - click at coordinates or search text."""
     if not update.message or not update.effective_user:
@@ -146,13 +148,16 @@ async def findtext_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         # Take screenshot
-        screenshot = pyautogui.screenshot()
+        # Screen grab + multi-pass OCR take seconds — run them off the event loop.
+        screenshot = await asyncio.to_thread(pyautogui.screenshot)
         
         # Use the shared multi-pass OCR matcher used by /smartclick.
-        matches = find_text_in_image(screenshot, search_text)
+        matches = await asyncio.to_thread(find_text_in_image, screenshot, search_text)
         
         if matches:
-            annotated_screenshot = annotate_screenshot_with_markers(screenshot, matches)
+            annotated_screenshot = await asyncio.to_thread(
+                annotate_screenshot_with_markers, screenshot, matches
+            )
 
             img_byte_arr = io.BytesIO()
             annotated_screenshot.save(img_byte_arr, format='PNG')
@@ -257,10 +262,10 @@ async def smartclick_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         logger.info(f"Smart click searching for: {search_text}")
         
         # Take screenshot
-        screenshot = pyautogui.screenshot()
+        screenshot = await asyncio.to_thread(pyautogui.screenshot)
         
-        # Find all occurrences using utility function
-        matches = find_text_in_image(screenshot, search_text)
+        # Find all occurrences using utility function (OCR: keep off the event loop)
+        matches = await asyncio.to_thread(find_text_in_image, screenshot, search_text)
         
         if len(matches) == 0:
             # No matches found
@@ -291,9 +296,13 @@ async def smartclick_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
             logger.info(f"Single match clicked at ({match.x}, {match.y})")
             
         else:
-            # Multiple matches - show selection keyboard
+            # Multiple matches - show selection keyboard. Telegram allows at most
+            # 100 inline buttons per message, so only offer the best matches.
+            matches = matches[:_SMARTCLICK_MAX_CHOICES]
             # Annotate screenshot with numbered markers
-            annotated_screenshot = annotate_screenshot_with_markers(screenshot, matches)
+            annotated_screenshot = await asyncio.to_thread(
+                annotate_screenshot_with_markers, screenshot, matches
+            )
             
             # Create inline keyboard with numbered buttons
             keyboard = []

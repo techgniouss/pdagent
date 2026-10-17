@@ -297,7 +297,7 @@ async def aiprovider_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     from pocket_desk_agent import configure as configure_module
 
     configure_module.ensure_app_dir()
-    cfg_parser = configparser.ConfigParser()
+    cfg_parser = configparser.ConfigParser(interpolation=None)
     cfg_path = configure_module.config_path()
     if cfg_path.exists():
         cfg_parser.read(cfg_path, encoding="utf-8")
@@ -305,10 +305,7 @@ async def aiprovider_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         cfg_parser["bot"] = {}
     cfg_parser["bot"]["ai_provider_order"] = ",".join(new_order)
 
-    with open(cfg_path, "w", encoding="utf-8") as f:
-        f.write("# Pocket Desk Agent — configuration\n")
-        f.write("# Edit values here and restart the bot to apply changes.\n\n")
-        cfg_parser.write(f)
+    configure_module.write_config_file(cfg_path, cfg_parser)
 
     import os
     os.environ["AI_PROVIDER_ORDER"] = ",".join(new_order)

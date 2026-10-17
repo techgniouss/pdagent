@@ -16,6 +16,7 @@ import requests
 import logging
 
 from pocket_desk_agent.app_paths import app_path, ensure_app_dir
+from pocket_desk_agent.json_store import write_private_text
 from pocket_desk_agent.constants import (
     OAUTH_REDIRECT_URI,
     ANTIGRAVITY_SCOPES,
@@ -59,10 +60,7 @@ class TokenStorage:
         crash/power-loss mid-write can never leave tokens.json truncated
         or half-written (which would otherwise poison every later load).
         """
-        tmp_file = self.tokens_file.with_suffix(".json.tmp")
-        with open(tmp_file, 'w') as f:
-            json.dump(tokens, f, indent=2)
-        os.replace(tmp_file, self.tokens_file)
+        write_private_text(self.tokens_file, json.dumps(tokens, indent=2))
         # Restrict file permissions so other users cannot read tokens
         try:
             if os.name != "nt":
@@ -499,7 +497,9 @@ class AntigravityOAuth:
                 return True
             else:
                 self._update_status(f"Token refresh failed: {response.text}")
-                if response.status_code in (400, 401, 403) or "invalid_grant" in response.text:
+                # Only a dead grant justifies wiping the login; a 403 can be a
+                # transient quota/rate-limit response and must not log the user out.
+                if response.status_code == 401 or "invalid_grant" in response.text:
                     logger.warning(
                         "Antigravity token refresh rejected by Google (HTTP %d). Auto-logging out.",
                         response.status_code,

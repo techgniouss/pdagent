@@ -1,4 +1,4 @@
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from pocket_desk_agent import app_catalog
 
@@ -19,8 +19,13 @@ def test_builtin_catalog_skips_unresolved_bare_executables(monkeypatch) -> None:
 
     catalog = app_catalog.build_builtin_app_catalog()
 
+    # The catalog targets Windows: judge targets by Windows path rules (so the
+    # test is meaningful on any host), and accept a not-yet-expanded %VAR%
+    # prefix, which only expands on Windows.
     assert all(
         Path(entry.launch_target).is_absolute()
+        or PureWindowsPath(entry.launch_target).is_absolute()
+        or entry.launch_target.startswith("%")
         or entry.launch_target.lower().startswith(("shell:appsfolder\\", "ms-settings:"))
         for entry in catalog
     )

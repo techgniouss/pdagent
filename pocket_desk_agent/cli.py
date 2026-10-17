@@ -140,63 +140,65 @@ def _configure() -> int:
 
 def _stop() -> int:
     """Stop the background bot via the PID file."""
-    try:
-        from scripts.manage_service import stop_bot  # type: ignore
-    except ImportError:
-        # When installed from PyPI the scripts/ dir isn't packaged, so
-        # fall back to reading the PID file directly.
-        return _stop_via_pidfile()
-    stop_bot()
-    return 0
-
-
-def _stop_via_pidfile() -> int:
-    """Fallback stop implementation that doesn't depend on scripts/."""
-    import signal
+    from pocket_desk_agent.process_utils import (
+        read_pid,
+        running_bot_pid,
+        stop_process,
+    )
 
     pid_file = existing_app_path("bot.pid")
     if not pid_file.exists():
         _safe_print("❌ No PID file found. Is the bot running?")
         return 1
-    try:
-        pid = int(pid_file.read_text().strip())
-    except Exception as exc:
-        _safe_print(f"❌ Could not read PID file: {exc}")
-        return 1
 
-    try:
-        if sys.platform == "win32":
-            subprocess.run(
-                ["taskkill", "/pid", str(pid), "/f"], check=False,
-            )
-        else:
-            os.kill(pid, signal.SIGTERM)
+    pid = running_bot_pid(pid_file)
+    if pid is None:
+        stale = read_pid(pid_file)
         pid_file.unlink(missing_ok=True)
-        _safe_print(f"✅ Bot stopped (PID {pid}).")
+        _safe_print(
+            "ℹ️ The bot is not running"
+            + (f" (removed stale PID file for PID {stale})." if stale else " (removed unreadable PID file).")
+        )
         return 0
-    except Exception as exc:
-        _safe_print(f"❌ Error stopping bot: {exc}")
+
+    if not stop_process(pid):
+        _safe_print(f"❌ Could not stop the bot (PID {pid}).")
         return 1
+    pid_file.unlink(missing_ok=True)
+    _safe_print(f"✅ Bot stopped (PID {pid}).")
+    return 0
 
 
 def _status() -> int:
     """Print whether the bot is currently running."""
+    from pocket_desk_agent.process_utils import read_pid, running_bot_pid
+
     pid_file = existing_app_path("bot.pid")
     if not pid_file.exists():
         _safe_print("Status: 🛑 NOT RUNNING")
         return 0
-    try:
-        pid = int(pid_file.read_text().strip())
+    pid = running_bot_pid(pid_file)
+    if pid is not None:
         _safe_print(f"Status: 🚀 RUNNING (PID {pid})")
-    except Exception:
+    elif read_pid(pid_file) is None:
         _safe_print("Status: ❓ UNKNOWN (could not read PID file)")
+    else:
+        _safe_print("Status: 🛑 NOT RUNNING (stale PID file)")
     return 0
 
 
 def _restart() -> int:
     """Stop then start the bot in the background."""
-    _stop()
+    if _stop() != 0 and running_bot_is_alive():
+        return 1
     return _run_background()
+
+
+def running_bot_is_alive() -> bool:
+    """True when the PID file points at a live bot process."""
+    from pocket_desk_agent.process_utils import running_bot_pid
+
+    return running_bot_pid(existing_app_path("bot.pid")) is not None
 
 
 def _auth() -> int:

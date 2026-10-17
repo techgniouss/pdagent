@@ -422,16 +422,14 @@ def _trim_history(history: list) -> list:
     return history
 
 
-_AUTH_ERROR_SIGNATURES = (
-    "HTTP 401",
-    "HTTP 403",
-    "401 ",
-    "403 ",
-    "invalid_grant",
-    "token has been expired",
-    "token has been revoked",
-    "UNAUTHENTICATED",
-    "PERMISSION_DENIED",
+# Signs that the OAuth credentials themselves are dead (expired/revoked), as
+# opposed to a permission, quota or project problem. A bare "HTTP 403" is NOT
+# one of them: Code Assist returns 403 for missing project access and similar
+# things that re-login can't fix, and logging out there would wipe a working
+# session over and over.
+_AUTH_ERROR_PATTERN = re.compile(
+    r"^HTTP 401\b|invalid_grant|token has been expired|token has been revoked|UNAUTHENTICATED",
+    re.IGNORECASE,
 )
 
 _SESSION_EXPIRED_MESSAGE = (
@@ -441,14 +439,16 @@ _SESSION_EXPIRED_MESSAGE = (
 )
 
 
-def _is_auth_error(error_text: str) -> bool:
-    """Return True when the API error indicates expired or revoked credentials."""
+def _is_auth_error(error_text: str, auth_mode: Optional[str] = None) -> bool:
+    """Return True when the API error means the OAuth session is expired or revoked.
+
+    API-key mode never has an OAuth session, so a bad key is a plain error.
+    """
+    if auth_mode == AUTH_MODE_APIKEY:
+        return False
     if not isinstance(error_text, str):
         return False
-    for sig in _AUTH_ERROR_SIGNATURES:
-        if sig in error_text:
-            return True
-    return False
+    return bool(_AUTH_ERROR_PATTERN.search(error_text))
 
 _MAX_RETRIES = 3
 
@@ -562,6 +562,10 @@ class GeminiClient:
             logger.warning(
                 "_get_request_token: ensure_valid_token raised unexpectedly: %s", exc
             )
+        # A failed refresh leaves the expired token in place; sending it would
+        # only earn a 401 that logs the user out. Report "no usable token".
+        if not resolved_oauth.is_authenticated():
+            return ""
         return resolved_oauth.access_token or ""
 
     def _get_project(
@@ -646,6 +650,35 @@ class GeminiClient:
                 user_id,
                 exc,
             )
+
+    def _no_token_result(
+        self, user_id: int, resolved_oauth: Optional[OAuthProvider]
+    ) -> ProviderResult:
+        """Build the result for "OAuth mode but no usable access token".
+
+        The OAuth classes log themselves out when Google rejects the refresh
+        token, which clears ``refresh_token``. If a refresh token is still
+        present the refresh merely failed (network blip, Google outage), so
+        keep the credentials and let the caller retry or fall back.
+        """
+        if resolved_oauth is not None and getattr(resolved_oauth, "refresh_token", None):
+            logger.warning(
+                "No usable Gemini access token for user %d: refresh failed but "
+                "credentials were kept (likely a transient network error).",
+                user_id,
+            )
+            return ProviderResult(
+                text=(
+                    "Could not refresh the Gemini session right now (network or "
+                    "Google outage?). Please try again in a moment."
+                ),
+                is_retryable_error=True,
+            )
+        logger.warning(
+            "No valid access token for user %d — auto-logging out.", user_id
+        )
+        self._auto_logout_oauth(user_id, resolved_oauth, reason="no token")
+        return ProviderResult(text=_SESSION_EXPIRED_MESSAGE, is_retryable_error=True)
 
     def _get_request_model_candidates(self) -> list[str]:
         """Return the configured model plus safe fallbacks, preferring known-good cache."""
@@ -735,13 +768,7 @@ class GeminiClient:
             # session has expired or the credentials were revoked.  Auto-logout
             # so the stale tokens don't persist, and tell the user to re-login.
             if resolved_auth_mode != AUTH_MODE_APIKEY and not token:
-                logger.warning(
-                    "send_message: no valid access token for user %d — "
-                    "auto-logging out.",
-                    user_id,
-                )
-                self._auto_logout_oauth(user_id, resolved_oauth, reason="no token")
-                return ProviderResult(text=_SESSION_EXPIRED_MESSAGE, is_retryable_error=True)
+                return self._no_token_result(user_id, resolved_oauth)
 
             history.append({"role": "user", "parts": [{"text": full_message}]})
 
@@ -767,7 +794,7 @@ class GeminiClient:
                     self.sessions[user_id] = _trim_history(history)
                     # If the API returned an auth error (401/403/revoked),
                     # auto-logout so stale tokens are cleared immediately.
-                    if _is_auth_error(err):
+                    if _is_auth_error(err, resolved_auth_mode):
                         logger.warning(
                             "send_message: auth error detected for user %d — "
                             "auto-logging out.",
@@ -979,13 +1006,7 @@ class GeminiClient:
             # session has expired or the credentials were revoked.  Auto-logout
             # so the stale tokens don't persist, and tell the user to re-login.
             if resolved_auth_mode != AUTH_MODE_APIKEY and not token:
-                logger.warning(
-                    "send_message_with_image: no valid access token for user %d — "
-                    "auto-logging out.",
-                    user_id,
-                )
-                self._auto_logout_oauth(user_id, resolved_oauth, reason="no token")
-                return ProviderResult(text=_SESSION_EXPIRED_MESSAGE, is_retryable_error=True)
+                return self._no_token_result(user_id, resolved_oauth)
 
             # Build contents with inline image data
             image_b64 = base64.b64encode(image_bytes).decode("utf-8")
@@ -1047,7 +1068,7 @@ class GeminiClient:
                 err = response_data["error"]
                 # If the API returned an auth error (401/403/revoked),
                 # auto-logout so stale tokens are cleared immediately.
-                if _is_auth_error(err):
+                if _is_auth_error(err, resolved_auth_mode):
                     logger.warning(
                         "send_message_with_image: auth error detected for user %d — "
                         "auto-logging out.",

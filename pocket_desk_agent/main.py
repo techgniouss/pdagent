@@ -10,6 +10,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQu
 from wakepy import keep
 
 from pocket_desk_agent.async_utils import spawn_background_task
+from pocket_desk_agent.process_utils import is_bot_process
 from pocket_desk_agent.app_paths import app_path, ensure_app_dir, existing_app_path
 from pocket_desk_agent.config import Config
 from pocket_desk_agent.telegram_safe import MarkdownFallbackBot
@@ -66,19 +67,6 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 SCHEDULER_POLL_INTERVAL_SECONDS = 5
 
-def _process_is_running(pid: int) -> bool:
-    """Return True when the target PID is alive."""
-    try:
-        if sys.platform == "win32":
-            import psutil
-
-            return psutil.pid_exists(pid)
-        os.kill(pid, 0)
-        return True
-    except Exception:
-        return False
-
-
 def _should_enable_reloader(project_root: Path) -> bool:
     """Enable live reload only for interactive dev sessions."""
     if not (project_root / ".git").exists():
@@ -103,7 +91,10 @@ def acquire_lock():
         old_pid = existing_pid_file.read_text().strip()
         try:
             pid = int(old_pid)
-            if _process_is_running(pid):
+            # A PID alone proves nothing: after a crash/reboot the OS may have
+            # reused it for an unrelated program. Only a live *bot* process
+            # counts as another instance.
+            if is_bot_process(pid) and pid != os.getpid():
                 logger.error(f"Another bot instance is already running (PID {pid}). Exiting.")
                 sys.exit(1)
             raise ValueError("stale pid")

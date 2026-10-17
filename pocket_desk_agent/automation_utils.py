@@ -229,6 +229,9 @@ def _build_phrase_candidates(words: List[dict[str, Any]], max_window: int) -> Li
     return candidates
 
 
+_MIN_SUBSTRING_MATCH_CHARS = 3
+
+
 def _score_ocr_candidate(
     candidate_text: str,
     normalized_search: str,
@@ -244,6 +247,11 @@ def _score_ocr_candidate(
         return 1.0
     if normalized_candidate == normalized_search:
         return 0.99
+    # Very short searches ("OK", "Run", "Yes") must match a whole OCR word:
+    # as substrings they hit unrelated words ("Token", "Running", "Yesterday")
+    # and the click lands on the wrong control.
+    if len(compact_search) <= _MIN_SUBSTRING_MATCH_CHARS:
+        return None
     if compact_search and compact_search in compact_candidate:
         return 0.97
     if normalized_search and normalized_search in normalized_candidate:
@@ -252,11 +260,6 @@ def _score_ocr_candidate(
     compact_ratio = SequenceMatcher(None, compact_search, compact_candidate).ratio()
     normalized_ratio = SequenceMatcher(None, normalized_search, normalized_candidate).ratio()
     ratio = max(compact_ratio, normalized_ratio)
-
-    if len(compact_search) <= 2:
-        if compact_candidate == compact_search:
-            return 1.0
-        return None
 
     if ratio >= 0.88:
         return ratio

@@ -371,8 +371,8 @@ async def execute_custom_command(update: Update, context: ContextTypes.DEFAULT_T
                     await update.message.reply_text(f"⏳ Step {idx}/{len(actions)}: finding text '{search_text}'...")
                     
                     from pocket_desk_agent.automation_utils import find_text_in_image
-                    screenshot = pyautogui.screenshot()
-                    matches = find_text_in_image(screenshot, search_text)
+                    screenshot = await asyncio.to_thread(pyautogui.screenshot)
+                    matches = await asyncio.to_thread(find_text_in_image, screenshot, search_text)
                     
                     if matches:
                         await update.message.reply_text(f"✅ Step {idx}/{len(actions)}: found '{search_text}' at ({matches[0].x}, {matches[0].y})")
@@ -385,8 +385,8 @@ async def execute_custom_command(update: Update, context: ContextTypes.DEFAULT_T
                     await update.message.reply_text(f"⏳ Step {idx}/{len(actions)}: smart clicking '{search_text}'...")
                     
                     from pocket_desk_agent.automation_utils import find_text_in_image
-                    screenshot = pyautogui.screenshot()
-                    matches = find_text_in_image(screenshot, search_text)
+                    screenshot = await asyncio.to_thread(pyautogui.screenshot)
+                    matches = await asyncio.to_thread(find_text_in_image, screenshot, search_text)
                     
                     if matches:
                         # Click the first match

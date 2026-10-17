@@ -137,6 +137,27 @@ class AntigravityAuth:
 
         return self._load_saved_instance(user_id) is not None
 
+    def has_credentials(self, user_id: int) -> bool:
+        """Cheap, network-free "can this user authenticate?" check.
+
+        Unlike :meth:`is_authenticated` this never refreshes an expired
+        access token (a blocking HTTP call): a saved refresh token is enough,
+        since the real request path refreshes off the event loop. The router
+        calls this on every incoming message.
+        """
+        if Config.GEMINI_AUTH_MODE == AUTH_MODE_APIKEY:
+            return bool(Config.GOOGLE_API_KEY)
+
+        existing = self.user_oauth_instances.get(user_id)
+        if existing is not None and (existing.is_authenticated() or existing.refresh_token):
+            return True
+
+        for mode in (AUTH_MODE_ANTIGRAVITY, AUTH_MODE_GEMINI_CLI):
+            tokens = self._build_oauth_instance(user_id, mode).storage.load_tokens()
+            if tokens and (tokens.get("refresh_token") or tokens.get("access_token")):
+                return True
+        return False
+
     def get_user_info(self, user_id: int, auth_mode: Optional[str] = None) -> Optional[dict]:
         """Get authenticated user info."""
         if Config.GEMINI_AUTH_MODE == AUTH_MODE_APIKEY:
