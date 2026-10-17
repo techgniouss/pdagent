@@ -16,6 +16,11 @@ import getpass
 import os
 from pathlib import Path
 
+from pocket_desk_agent.constants import (
+    DEFAULT_GEMINI_MODEL,
+    DEFAULT_NVIDIA_MODEL,
+    RETIRED_NVIDIA_MODELS,
+)
 from pocket_desk_agent.app_paths import (
     app_path,
     app_path_candidates,
@@ -91,6 +96,8 @@ _INI_ENV_MAP: dict[tuple[str, str, str], str] = {
     ("config", "bot", "gemini_auth_mode"):       "GEMINI_AUTH_MODE",
     ("config", "bot", "gemini_model"):          "GEMINI_MODEL",
     ("config", "bot", "nvidia_model"):          "NVIDIA_MODEL",
+    ("config", "bot", "nvidia_vision_model"):   "NVIDIA_VISION_MODEL",
+    ("config", "bot", "nvidia_base_url"):       "NVIDIA_BASE_URL",
     ("config", "bot", "ai_provider_order"):     "AI_PROVIDER_ORDER",
     ("config", "bot", "max_tokens_per_request"): "MAX_TOKENS_PER_REQUEST",
     ("config", "bot", "system_prompt"):         "SYSTEM_PROMPT",
@@ -679,8 +686,8 @@ def _run_full_wizard() -> None:
         "approved_directories": approved_directories,
         "gemini_auth_mode": gemini_auth_mode,
         "google_oauth_enabled": google_oauth_enabled,
-        "gemini_model": "gemini-2.0-flash",
-        "nvidia_model": "meta/llama-3.3-70b-instruct",
+        "gemini_model": DEFAULT_GEMINI_MODEL,
+        "nvidia_model": DEFAULT_NVIDIA_MODEL,
         "ai_provider_order": ai_provider_order,
         "max_tokens_per_request": "8000",
         "system_prompt": "",
@@ -1103,7 +1110,8 @@ def _update_nvidia_fallback(
 ) -> None:
     """Prompt for and update the NVIDIA fallback key, model, and provider order."""
     current_key = cred_parser.get("default", "nvidia_api_key", fallback="")
-    current_model = cfg_parser.get("bot", "nvidia_model", fallback="meta/llama-3.3-70b-instruct")
+    current_model = cfg_parser.get("bot", "nvidia_model", fallback=DEFAULT_NVIDIA_MODEL)
+    current_model = RETIRED_NVIDIA_MODELS.get(current_model.strip().lower(), current_model)
     current_order = cfg_parser.get("bot", "ai_provider_order", fallback="gemini,nvidia")
 
     print(f"\n  Current NVIDIA API Key : {_mask(current_key) if current_key else '(not set)'}")
@@ -1123,7 +1131,7 @@ def _update_nvidia_fallback(
         )
     new_model = _prompt_optional(
         "New NVIDIA Model",
-        hint="e.g. meta/llama-3.3-70b-instruct",
+        hint=f"e.g. {DEFAULT_NVIDIA_MODEL}",
         default=current_model,
     )
     while True:

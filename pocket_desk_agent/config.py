@@ -6,9 +6,18 @@ Config values are loaded via the ``load()`` classmethod so that:
   3. Import-time side-effects are limited to the initial load.
 """
 
+import logging
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+
+from pocket_desk_agent.constants import (
+    DEFAULT_GEMINI_MODEL,
+    DEFAULT_NVIDIA_MODEL,
+    DEFAULT_NVIDIA_VISION_MODEL,
+    RETIRED_GEMINI_MODELS,
+    RETIRED_NVIDIA_MODELS,
+)
 
 # Load INI-based config/credentials first (new format).
 # Uses os.environ.setdefault — never overwrites shell env vars.
@@ -36,6 +45,22 @@ def _resolve_user_path(raw_path: str, *, default: Path | None = None) -> Path:
         return expanded
 
     return (Path.home() / expanded).resolve()
+
+
+logger = logging.getLogger(__name__)
+
+
+def _migrate_retired_model(name: str, retired: dict[str, str], setting: str) -> str:
+    """Swap a retired model name (e.g. pinned by an old config file) for its replacement."""
+    replacement = retired.get(name.strip().lower())
+    if replacement is None:
+        return name
+    logger.warning(
+        "%s '%s' has been retired by its provider; using '%s' instead. "
+        "Update the setting to silence this warning.",
+        setting, name, replacement,
+    )
+    return replacement
 
 
 def _env_int(name: str, default: int, minimum: int | None = None) -> int:
@@ -91,7 +116,7 @@ class Config:
     TELEGRAM_BOT_USERNAME: str = ""
     AUTHORIZED_USER_IDS: list[int] = []
     GOOGLE_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-2.0-flash"
+    GEMINI_MODEL: str = DEFAULT_GEMINI_MODEL
     GOOGLE_OAUTH_ENABLED: bool = True
     GEMINI_AUTH_MODE: str = "antigravity"
     MAX_TOKENS_PER_REQUEST: int = 8000
@@ -107,7 +132,8 @@ class Config:
     # ── NVIDIA AI + provider order ──────────────────────────────────
     NVIDIA_API_KEY: str = ""
     NVIDIA_BASE_URL: str = "https://integrate.api.nvidia.com/v1"
-    NVIDIA_MODEL: str = "meta/llama-3.3-70b-instruct"
+    NVIDIA_MODEL: str = DEFAULT_NVIDIA_MODEL
+    NVIDIA_VISION_MODEL: str = DEFAULT_NVIDIA_VISION_MODEL
     AI_PROVIDER_ORDER: list[str] = ["gemini", "nvidia"]
 
     # ── Remote desktop (/remote) ────────────────────────────────────
@@ -141,10 +167,14 @@ class Config:
 
         cls.GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 
-        cls.GEMINI_MODEL = (
-            os.getenv("ANTIGRAVITY_MODEL")
-            or os.getenv("GEMINI_MODEL")
-            or "gemini-2.0-flash"
+        cls.GEMINI_MODEL = _migrate_retired_model(
+            (
+                os.getenv("ANTIGRAVITY_MODEL")
+                or os.getenv("GEMINI_MODEL")
+                or DEFAULT_GEMINI_MODEL
+            ).strip(),
+            RETIRED_GEMINI_MODELS,
+            "GEMINI_MODEL",
         )
 
         cls.NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY", "")
@@ -152,7 +182,15 @@ class Config:
             os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1").strip()
             or "https://integrate.api.nvidia.com/v1"
         )
-        cls.NVIDIA_MODEL = os.getenv("NVIDIA_MODEL", "meta/llama-3.3-70b-instruct").strip() or "meta/llama-3.3-70b-instruct"
+        cls.NVIDIA_MODEL = _migrate_retired_model(
+            os.getenv("NVIDIA_MODEL", DEFAULT_NVIDIA_MODEL).strip() or DEFAULT_NVIDIA_MODEL,
+            RETIRED_NVIDIA_MODELS,
+            "NVIDIA_MODEL",
+        )
+        cls.NVIDIA_VISION_MODEL = (
+            os.getenv("NVIDIA_VISION_MODEL", DEFAULT_NVIDIA_VISION_MODEL).strip()
+            or DEFAULT_NVIDIA_VISION_MODEL
+        )
         cls.AI_PROVIDER_ORDER = _parse_provider_order(
             os.getenv("AI_PROVIDER_ORDER", ",".join(_VALID_AI_PROVIDERS))
         )

@@ -113,5 +113,23 @@ THINKING_TIER_BUDGETS = {
 # ── Standard Gemini API (API key mode fallback) ─────────────────────────────
 GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com"
 
+# ── Default / retired AI models ─────────────────────────────────────────────
+# Providers retire models on a schedule (gemini-2.0-flash shut down
+# 2026-06-01; NVIDIA's meta/llama-3.3-70b-instruct reached end of life
+# 2026-08-26 and now answers HTTP 410). Config files written by older
+# `pdagent configure` runs pin those names explicitly, so Config.load()
+# remaps anything in the RETIRED_* tables to the current default.
+DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
+DEFAULT_NVIDIA_MODEL = "nvidia/nemotron-3-super-120b-a12b"
+DEFAULT_NVIDIA_VISION_MODEL = "nvidia/nemotron-3.5-super-vl-120b-a12b"
+
+RETIRED_GEMINI_MODELS = {
+    "gemini-2.0-flash": DEFAULT_GEMINI_MODEL,
+    "gemini-2.0-flash-001": DEFAULT_GEMINI_MODEL,
+}
+RETIRED_NVIDIA_MODELS = {
+    "meta/llama-3.3-70b-instruct": DEFAULT_NVIDIA_MODEL,
+}
+
 # ── History Limits ───────────────────────────────────────────────────────────
 MAX_HISTORY_TURNS = 40  # Maximum conversation turns to keep in memory

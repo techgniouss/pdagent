@@ -191,10 +191,10 @@ All values live in `pocket_desk_agent/config.py` → `Config` class.
 | `GOOGLE_OAUTH_CLIENT_ID` | No | built-in | Override the built-in Antigravity plugin OAuth client ID |
 | `GOOGLE_OAUTH_CLIENT_SECRET` | No | built-in | Override the built-in Antigravity plugin OAuth client secret |
 | `GOOGLE_API_KEY` | API key mode | — | Gemini API key (used when `GOOGLE_OAUTH_ENABLED=false`) |
-| `GEMINI_MODEL` | No | `gemini-2.0-flash` | Gemini model selection |
+| `GEMINI_MODEL` | No | `gemini-2.5-flash` | Gemini model selection |
 | `NVIDIA_API_KEY` | No | — | NVIDIA NIM (build.nvidia.com) API key, enables the NVIDIA fallback provider |
 | `NVIDIA_BASE_URL` | No | `https://integrate.api.nvidia.com/v1` | NVIDIA NIM OpenAI-compatible API base URL |
-| `NVIDIA_MODEL` | No | `meta/llama-3.3-70b-instruct` | NVIDIA NIM model selection |
+| `NVIDIA_MODEL` | No | `nvidia/nemotron-3-super-120b-a12b` | NVIDIA NIM model selection |
 | `AI_PROVIDER_ORDER` | No | `gemini,nvidia` | Comma-separated AI provider fallback order |
 | `APPROVED_DIRECTORIES` | No | `Path.home()` | Comma-separated allowed paths for file ops |
 | `CLAUDE_DEFAULT_REPO_PATH` | No | `~/Documents` | Default repo root for Claude integration |

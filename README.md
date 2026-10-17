@@ -299,7 +299,7 @@ GOOGLE_OAUTH_CLIENT_SECRET="your_client_secret"
 
 | Variable | Default | Purpose |
 | :--- | :--- | :--- |
-| `GEMINI_MODEL` | `gemini-2.0-flash` | Gemini model to use |
+| `GEMINI_MODEL` | `gemini-2.5-flash` | Gemini model to use |
 | `GEMINI_AUTH_MODE` | `antigravity` | Auth provider: `antigravity`, `gemini-cli`, or `apikey` |
 | `GOOGLE_PROJECT_ID` | `(unset)` | Optional Antigravity project override if auto-detection fails |
 | `UPLOAD_EXPIRY_TIME` | `1h` | TempFile upload expiry for large-file links (`1h`/`12h`/`24h`/`72h`) |

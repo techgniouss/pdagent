@@ -10,7 +10,7 @@ def test_nvidia_defaults(monkeypatch) -> None:
 
     assert config.Config.NVIDIA_API_KEY == ""
     assert config.Config.NVIDIA_BASE_URL == "https://integrate.api.nvidia.com/v1"
-    assert config.Config.NVIDIA_MODEL == "meta/llama-3.3-70b-instruct"
+    assert config.Config.NVIDIA_MODEL == "nvidia/nemotron-3-super-120b-a12b"
     assert config.Config.AI_PROVIDER_ORDER == ["gemini", "nvidia"]
 
 
@@ -61,3 +61,25 @@ def test_load_into_environ_reads_nvidia_ini_values(tmp_path, monkeypatch) -> Non
     assert os.environ["NVIDIA_API_KEY"] == "nvapi-test"
     assert os.environ["NVIDIA_MODEL"] == "meta/llama-3.1-70b-instruct"
     assert os.environ["AI_PROVIDER_ORDER"] == "nvidia,gemini"
+
+
+def test_retired_nvidia_model_is_migrated(monkeypatch) -> None:
+    monkeypatch.setenv("NVIDIA_MODEL", "meta/llama-3.3-70b-instruct")
+    config.Config.load()
+    assert config.Config.NVIDIA_MODEL == "nvidia/nemotron-3-super-120b-a12b"
+
+
+def test_retired_gemini_model_is_migrated(monkeypatch) -> None:
+    monkeypatch.delenv("ANTIGRAVITY_MODEL", raising=False)
+    monkeypatch.setenv("GEMINI_MODEL", "gemini-2.0-flash")
+    config.Config.load()
+    assert config.Config.GEMINI_MODEL == "gemini-2.5-flash"
+
+
+def test_current_models_are_left_alone(monkeypatch) -> None:
+    monkeypatch.delenv("ANTIGRAVITY_MODEL", raising=False)
+    monkeypatch.setenv("GEMINI_MODEL", "gemini-2.5-pro")
+    monkeypatch.setenv("NVIDIA_MODEL", "z-ai/glm-5.3")
+    config.Config.load()
+    assert config.Config.GEMINI_MODEL == "gemini-2.5-pro"
+    assert config.Config.NVIDIA_MODEL == "z-ai/glm-5.3"

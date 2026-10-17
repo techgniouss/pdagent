@@ -206,9 +206,8 @@ class NvidiaClient:
     ) -> ProviderResult:
         """Send a message with an image to NVIDIA for vision analysis (no tools).
 
-        Not every NIM model supports vision — an unsupported model simply
-        fails here like any other provider error, and AIRouter's normal
-        fallback handles it.
+        Uses ``Config.NVIDIA_VISION_MODEL`` since the chat model is text-only;
+        a failure is a normal provider error that AIRouter's fallback handles.
         """
         if not self.is_configured():
             return ProviderResult(text="NVIDIA is not configured (no API key).", is_retryable_error=True)
@@ -227,7 +226,7 @@ class NvidiaClient:
                 ],
             })
             payload = {
-                "model": Config.NVIDIA_MODEL,
+                "model": Config.NVIDIA_VISION_MODEL,
                 "messages": messages,
                 "temperature": 0.7,
                 "top_p": 0.95,

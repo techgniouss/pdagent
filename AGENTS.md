@@ -187,7 +187,7 @@ All values live in `pocket_desk_agent/config.py` → `Config` class.
 | `GOOGLE_OAUTH_CLIENT_ID` | No | built-in | Override the built-in Antigravity plugin OAuth client ID |
 | `GOOGLE_OAUTH_CLIENT_SECRET` | No | built-in | Override the built-in Antigravity plugin OAuth client secret |
 | `GOOGLE_API_KEY` | API key mode | — | Gemini API key (used when `GOOGLE_OAUTH_ENABLED=false`) |
-| `GEMINI_MODEL` | No | `gemini-2.0-flash` | Gemini model selection |
+| `GEMINI_MODEL` | No | `gemini-2.5-flash` | Gemini model selection |
 | `APPROVED_DIRECTORIES` | No | `Path.home()` | Comma-separated allowed paths for file ops |
 | `CLAUDE_DEFAULT_REPO_PATH` | No | `~/Documents` | Default repo root for Codex integration |
 | `UPLOAD_EXPIRY_TIME` | No | `1h` | Dropbox link expiry (`1h`/`12h`/`24h`/`72h`) |

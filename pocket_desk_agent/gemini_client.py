@@ -189,16 +189,20 @@ def _candidate_model_names(requested_model: str) -> list[str]:
         add("gemini-3-pro")
         add("gemini-2.5-flash")
 
-    add("gemini-2.0-flash")
     return candidates
 
 
 def _is_model_not_found_error(response_data: dict) -> bool:
-    """Return True when the backend rejected the requested model lookup."""
+    """Return True when the backend rejected the requested model lookup.
+
+    Code Assist answers 404 "Requested entity was not found"; the public
+    API-key endpoint answers 404 "models/X is not found" and a retired model
+    can come back as 410 Gone. Treat all of them as "try the next candidate".
+    """
     error_text = response_data.get("error", "")
     if not isinstance(error_text, str):
         return False
-    return "HTTP 404" in error_text and "Requested entity was not found" in error_text
+    return error_text.startswith(("HTTP 404", "HTTP 410"))
 
 
 def _get_code_assist_headers(auth_mode: str, access_token: str) -> dict:
