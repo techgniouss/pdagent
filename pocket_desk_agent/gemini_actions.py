@@ -1820,12 +1820,18 @@ class _MessageCollector:
 
 
 def _summarize_file_action(func_name: str, args: dict[str, Any]) -> str:
-    """Build a readable confirmation summary for file mutations."""
+    """Build a readable confirmation summary for file mutations.
+
+    Writes include a preview of the content: the user is approving what will
+    land on disk, and a path alone says nothing about that.
+    """
     path = str(args.get("path", ""))
-    if func_name == "write_file":
-        return f"overwrite or create the file '{path}'"
-    if func_name == "append_file":
-        return f"append content to the file '{path}'"
+    if func_name in {"write_file", "append_file"}:
+        content = str(args.get("content", ""))
+        preview = f" with {_shorten(content, 120)} ({len(content)} chars)" if content else " with empty content"
+        if func_name == "write_file":
+            return f"overwrite or create the file '{path}'{preview}"
+        return f"append content to the file '{path}'{preview}"
     if func_name == "delete_file":
         return f"delete the file '{path}'"
     return f"create the directory '{path}'"

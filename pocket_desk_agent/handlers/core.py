@@ -45,11 +45,12 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = update.effective_user.id
 
-    # Check if authenticated with antigravity
-    authenticated = auth_client.is_authenticated(user_id)
+    # Both calls may refresh an expired token over the network — keep that
+    # blocking work off the event loop.
+    authenticated = await asyncio.to_thread(auth_client.is_authenticated, user_id)
 
     if authenticated:
-        user_info = auth_client.get_user_info(user_id)
+        user_info = await asyncio.to_thread(auth_client.get_user_info, user_id) or {}
         await update.message.reply_text(
             f"Welcome! I'm your personal automation assistant.\n\n"
             f"✅ Gemini AI: Authenticated as {user_info.get('email', 'Unknown')}\n\n"
@@ -93,7 +94,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     user_id = update.effective_user.id
-    is_authenticated = auth_client.is_authenticated(user_id)
+    is_authenticated = await asyncio.to_thread(auth_client.is_authenticated, user_id)
 
     auth_note = (
         ""
@@ -208,6 +209,20 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Just send a message or image to chat — Gemini by default, with automatic NVIDIA fallback if configured (see /aiprovider)."
     )
 
+    # Any registered command the hand-written sections above don't mention is
+    # listed here from its registry description, so /help can never drift out
+    # of sync with the command menu again.
+    from pocket_desk_agent.command_map import COMMAND_REGISTRY
+
+    described = part1 + part2 + part3
+    extras = [
+        f"/{name} - {description}"
+        for name, _, description in COMMAND_REGISTRY
+        if f"/{name}" not in described
+    ]
+    if extras:
+        part3 += "\n\n🧰 More commands:\n" + "\n".join(extras)
+
     await update.message.reply_text(part1)
     await update.message.reply_text(part2)
     await update.message.reply_text(part3)
@@ -232,10 +247,10 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     user_id = update.effective_user.id
-    is_auth = auth_client.is_authenticated(user_id)
+    is_auth = await asyncio.to_thread(auth_client.is_authenticated, user_id)
     has_session = user_id in ai_router.sessions
 
-    user_info = auth_client.get_user_info(user_id)
+    user_info = await asyncio.to_thread(auth_client.get_user_info, user_id)
 
     status_text = f"📊 *Bot Status*\n\n"
     status_text += f"📦 Version: `{get_version_string()}`\n\n"
