@@ -463,7 +463,7 @@ async def typeenter_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return  # Don't execute, just record
         
         # Type the text
-        write_text(pyautogui, text_to_type, interval=0.05)
+        await asyncio.to_thread(write_text, pyautogui, text_to_type, interval=0.05)
         
         # Wait a bit
         await asyncio.sleep(0.2)

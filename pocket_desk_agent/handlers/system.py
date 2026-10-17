@@ -73,7 +73,7 @@ def _set_privacy_mode_windows(enable: bool) -> tuple[bool, str]:
     wm_syscommand = 0x0112
     sc_monitorpower = 0xF170
     if enable:
-        user32.SendMessageW(hwnd_broadcast, wm_syscommand, sc_monitorpower, 2)
+        user32.PostMessageW(hwnd_broadcast, wm_syscommand, sc_monitorpower, 2)
         _set_privacy_mode_state(True)
         logger.info("Privacy mode enabled: display power-off requested without locking")
         return (
@@ -85,7 +85,7 @@ def _set_privacy_mode_windows(enable: bool) -> tuple[bool, str]:
         )
 
     # Request a monitor wake without injecting a real keystroke into the active app.
-    user32.SendMessageW(hwnd_broadcast, wm_syscommand, sc_monitorpower, -1)
+    user32.PostMessageW(hwnd_broadcast, wm_syscommand, sc_monitorpower, -1)
     _set_privacy_mode_state(False)
     logger.info("Privacy mode disabled: display wake requested")
     return (
@@ -566,10 +566,15 @@ async def screenshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     try:
         import pyautogui
-        img = pyautogui.screenshot()
-        screenshot = io.BytesIO()
-        img.save(screenshot, format='PNG')
-        screenshot.seek(0)
+
+        def _capture_png() -> io.BytesIO:
+            # Grab + PNG-encode take hundreds of ms; keep them off the event loop.
+            buffer = io.BytesIO()
+            pyautogui.screenshot().save(buffer, format='PNG')
+            buffer.seek(0)
+            return buffer
+
+        screenshot = await asyncio.to_thread(_capture_png)
 
         if screenshot:
             # Send screenshot to user
@@ -727,7 +732,7 @@ async def hotkey_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             import pyautogui
             from pocket_desk_agent.automation_utils import write_text
 
-            write_text(pyautogui, text_to_type, interval=0.05)
+            await asyncio.to_thread(write_text, pyautogui, text_to_type, interval=0.05)
             await update.message.reply_text(f"✅ Typed: {text_to_type[:100]}{'...' if len(text_to_type) > 100 else ''}")
             logger.info(f"Typed text: {text_to_type[:50]}")
         except Exception as e:

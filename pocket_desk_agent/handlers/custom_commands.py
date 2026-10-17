@@ -421,7 +421,7 @@ async def execute_custom_command(update: Update, context: ContextTypes.DEFAULT_T
                         # Keep spaces between words
                         text_to_type = " ".join(args)
                     
-                    write_text(pyautogui, text_to_type, interval=0.05)
+                    await asyncio.to_thread(write_text, pyautogui, text_to_type, interval=0.05)
                     await asyncio.sleep(0.2)
                     press_key(pyautogui, "enter")
                     await update.message.reply_text(f"✅ Step {idx}/{len(actions)}: typeenter {text_to_type}")

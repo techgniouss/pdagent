@@ -2,6 +2,7 @@
 
 import logging
 import os
+import secrets
 import sys
 import asyncio
 import time
@@ -30,6 +31,11 @@ from pocket_desk_agent.handlers._shared import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Telegram caps callback_data at 64 bytes, which a Dropbox path easily exceeds,
+# so the delete button carries a short token that maps back to the path here.
+_dropbox_delete_requests: dict[str, tuple[int, str]] = {}
+_DROPBOX_DELETE_MAX_PENDING = 50
 
 
 def _parse_app_selection_callback_data(data: str) -> tuple[str | None, str | None, int | None]:
@@ -422,7 +428,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text(
                 f"Opening `{folder_path}` in VS Code...", parse_mode="Markdown"
             )
-            success, message = open_folder_in_vscode(folder_path)
+            success, message = await asyncio.to_thread(open_folder_in_vscode, folder_path)
             await context.bot.send_message(
                 chat_id=query.message.chat_id,
                 text=message,
@@ -545,13 +551,19 @@ async def handle_dropbox_delete(
 ):
     """Handle Dropbox file deletion request."""
     try:
-        # Parse callback data: delete_dropbox_{user_id}_{file_path}
-        parts = query.data.split("_", 3)
-        if len(parts) < 4:
-            await query.answer("Invalid delete request", show_alert=True)
+        # Callback data: delete_dropbox_{token}
+        token = query.data[len("delete_dropbox_"):]
+        request = _dropbox_delete_requests.pop(token, None)
+        if request is None:
+            await query.edit_message_text(
+                "This delete request expired. Delete the file from the Dropbox app."
+            )
             return
-
-        dropbox_path = parts[3]
+        owner_id, dropbox_path = request
+        if update.effective_user and update.effective_user.id != owner_id:
+            _dropbox_delete_requests[token] = request
+            await query.answer("This request belongs to a different user.", show_alert=True)
+            return
 
         await query.edit_message_text(
             f"Deleting file from Dropbox...\n\n"
@@ -701,12 +713,16 @@ async def handle_upload_choice(
             if service == "dropbox":
                 # Store dropbox file path for deletion
                 dropbox_file_path = f"/{os.path.basename(file_path)}"
+                delete_token = secrets.token_hex(6)
+                if len(_dropbox_delete_requests) >= _DROPBOX_DELETE_MAX_PENDING:
+                    _dropbox_delete_requests.pop(next(iter(_dropbox_delete_requests)))
+                _dropbox_delete_requests[delete_token] = (user_id, dropbox_file_path)
 
                 keyboard = [
                     [
                         InlineKeyboardButton(
                             "Delete from Dropbox",
-                            callback_data=f"delete_dropbox_{user_id}_{dropbox_file_path}",
+                            callback_data=f"delete_dropbox_{delete_token}",
                         )
                     ]
                 ]

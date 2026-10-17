@@ -27,6 +27,12 @@ _RATE_LIMIT_PER_SEC = 200
 
 _MOUSE_BUTTONS = {"left", "right", "middle"}
 
+# apply() runs pyautogui synchronously on the event loop, so one oversized
+# event would freeze the whole bot. Cap anything that scales with input size.
+_MAX_TEXT_CHARS = 2000
+_MAX_HOTKEY_KEYS = 6
+_MAX_SCROLL_UNITS = 1000
+
 
 class InputDispatcher:
     """Per-session input dispatcher with rate limit and fail-safe tracking."""
@@ -110,8 +116,8 @@ class InputDispatcher:
                 button = self._button(event)
                 pyautogui.click(button=button, _pause=False)
             elif etype == "scroll":
-                dy = int(event.get("dy", 0))
-                dx = int(event.get("dx", 0))
+                dy = max(-_MAX_SCROLL_UNITS, min(_MAX_SCROLL_UNITS, int(event.get("dy", 0))))
+                dx = max(-_MAX_SCROLL_UNITS, min(_MAX_SCROLL_UNITS, int(event.get("dx", 0))))
                 if dy:
                     pyautogui.scroll(dy, _pause=False)
                 if dx:
@@ -129,9 +135,9 @@ class InputDispatcher:
                 keys = event.get("keys") or []
                 if not isinstance(keys, list) or not keys:
                     return None
-                pyautogui.hotkey(*[str(k) for k in keys], _pause=False)
+                pyautogui.hotkey(*[str(k) for k in keys[:_MAX_HOTKEY_KEYS]], _pause=False)
             elif etype == "text":
-                text = str(event.get("text", ""))
+                text = str(event.get("text", ""))[:_MAX_TEXT_CHARS]
                 if text:
                     pyautogui.write(text, interval=0.0, _pause=False)
             else:

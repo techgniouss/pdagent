@@ -5,7 +5,9 @@ from __future__ import annotations
 import ctypes
 import os
 import platform
+import re
 import time
+from pathlib import Path
 from dataclasses import dataclass, field
 
 import psutil
@@ -118,24 +120,55 @@ def _find_matching_window_handles(entry: DesktopAppEntry) -> list[int]:
     return handles
 
 
+# Single-word hints derived from a Start Menu name ("Windows Terminal" ->
+# "windows", "Microsoft Word" -> "microsoft") are too generic to identify one
+# app: they would match unrelated windows and system processes.
+_GENERIC_NAME_HINTS = frozenset({
+    "windows", "microsoft", "google", "adobe", "visual", "apple", "intel",
+    "nvidia", "amd", "system", "service", "services", "app", "the", "my",
+    "python", "program", "programs", "setup", "update", "launcher",
+})
+_MIN_NAME_HINT_LENGTH = 3
+
+
+def _protected_process_ids() -> set[int]:
+    """PIDs that must never be terminated: this bot and its ancestors."""
+    protected = {os.getpid()}
+    try:
+        protected.update(parent.pid for parent in psutil.Process().parents())
+    except (psutil.Error, OSError):
+        pass
+    return protected
+
+
+def _name_matches(candidate: str, haystack: str) -> bool:
+    """True when ``candidate`` starts a token of the normalized ``haystack``."""
+    return re.search(r"(?:^| )" + re.escape(candidate), haystack) is not None
+
+
 def _find_matching_process_ids(entry: DesktopAppEntry) -> list[int]:
-    """Find process IDs that likely belong to the app."""
+    """Find process IDs that likely belong to the app.
+
+    Only the process name and the executable's file name are searched — not
+    the full path or command line, which would let "windows" or "microsoft"
+    match every process installed under those directories.
+    """
     normalized_names = _candidate_names(entry)
+    protected = _protected_process_ids()
     process_ids: list[int] = []
 
-    for process in psutil.process_iter(["pid", "name", "exe", "cmdline"]):
+    for process in psutil.process_iter(["pid", "name", "exe"]):
         try:
-            fields = [
-                process.info.get("name") or "",
-                process.info.get("exe") or "",
-                " ".join(process.info.get("cmdline") or []),
-            ]
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pid = int(process.info["pid"])
+            if pid in protected:
+                continue
+            exe_name = Path(process.info.get("exe") or "").name
+            haystack = normalize_app_name(f"{process.info.get('name') or ''} {exe_name}")
+        except (psutil.NoSuchProcess, psutil.AccessDenied, KeyError, ValueError):
             continue
 
-        searchable = normalize_app_name(" ".join(fields))
-        if any(name in searchable for name in normalized_names):
-            process_ids.append(int(process.info["pid"]))
+        if any(_name_matches(name, haystack) for name in normalized_names):
+            process_ids.append(pid)
 
     return sorted(set(process_ids))
 
@@ -175,8 +208,15 @@ def _terminate_process_ids(process_ids: list[int]) -> list[int]:
 
 
 def _candidate_names(entry: DesktopAppEntry) -> list[str]:
-    """Return normalized names used for process and window matching."""
+    """Return normalized names used for process and window matching.
+
+    Names that are too short or too generic to identify one app are dropped.
+    """
     candidates = [normalize_app_name(entry.display_name)]
     candidates.extend(normalize_app_name(alias) for alias in entry.aliases)
     candidates.extend(normalize_app_name(hint) for hint in entry.process_hints)
-    return [candidate for candidate in dict.fromkeys(candidates) if candidate]
+    return [
+        candidate
+        for candidate in dict.fromkeys(candidates)
+        if len(candidate) >= _MIN_NAME_HINT_LENGTH and candidate not in _GENERIC_NAME_HINTS
+    ]

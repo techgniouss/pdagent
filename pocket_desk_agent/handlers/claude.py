@@ -48,7 +48,7 @@ async def openclaude_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     try:
         # First check if Claude is already running
         if PYWINAUTO_AVAILABLE:
-            window = find_claude_window()
+            window = await asyncio.to_thread(find_claude_window)
             if window:
                 # Claude is already open, just restore and activate
                 try:
@@ -303,13 +303,13 @@ async def claudescreen_command(update: Update, context: ContextTypes.DEFAULT_TYP
     
     try:
         # Ensure Claude is open
-        window = ensure_claude_open()
+        window = await asyncio.to_thread(ensure_claude_open)
         if not window:
             await update.message.reply_text("❌ Could not open or find Claude desktop app.")
             return
         
         # Capture screenshot
-        screenshot = capture_claude_screenshot()
+        screenshot = await asyncio.to_thread(capture_claude_screenshot)
         
         if screenshot:
             await update.message.reply_photo(

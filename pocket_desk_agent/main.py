@@ -5,11 +5,14 @@ import sys
 import os
 import atexit
 from pathlib import Path
+from telegram.request import HTTPXRequest
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
 from wakepy import keep
 
+from pocket_desk_agent.async_utils import spawn_background_task
 from pocket_desk_agent.app_paths import app_path, ensure_app_dir, existing_app_path
 from pocket_desk_agent.config import Config
+from pocket_desk_agent.telegram_safe import MarkdownFallbackBot
 from pocket_desk_agent.command_map import COMMAND_REGISTRY
 from pocket_desk_agent.handlers import (
     button_callback,
@@ -44,7 +47,7 @@ LOG_FILE = app_path("bot.log")
 from logging.handlers import RotatingFileHandler as _RotatingFileHandler
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=getattr(logging, Config.LOG_LEVEL),
+    level=getattr(logging, str(Config.LOG_LEVEL).strip().upper(), logging.INFO),
     handlers=[
         logging.StreamHandler(),
         _RotatingFileHandler(
@@ -62,7 +65,6 @@ logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 SCHEDULER_POLL_INTERVAL_SECONDS = 5
-
 
 def _process_is_running(pid: int) -> bool:
     """Return True when the target PID is alive."""
@@ -184,7 +186,7 @@ async def post_init(application: Application):
         logger.warning(f"[updater] Startup update check failed: {exc}")
 
     # ── Background tasks (running inside the Application's event loop) ────
-    asyncio.create_task(scheduler_loop(application))
+    spawn_background_task(scheduler_loop(application))
 
     if Config.AUTO_UPDATE_ENABLED:
         async def _notify_update(info):
@@ -200,7 +202,7 @@ async def post_init(application: Application):
                     pass
 
         interval = Config.AUTO_UPDATE_INTERVAL_MINUTES * 60
-        asyncio.create_task(update_checker_loop(interval, _notify_update))
+        spawn_background_task(update_checker_loop(interval, _notify_update))
 
     # ── Auto battery manager (resumes if previously enabled) ────────────────
     try:
@@ -294,26 +296,23 @@ async def scheduler_loop(application: Application):
                 _cleanup_counter = 0
                 registry.cleanup_old_tasks(days=7)
                 # Purge Gemini confirmation prompts the user never responded to.
-                # Keeps the dict from growing unbounded when prompts are ignored.
-                import time as _time
-                from pocket_desk_agent.gemini_actions import pending_gemini_actions
-                _stale_cutoff = _time.time() - 900  # 15 minutes
-                stale_ids = [
-                    aid for aid, action in list(pending_gemini_actions.items())
-                    if action.created_at < _stale_cutoff
-                ]
-                for aid in stale_ids:
-                    pending_gemini_actions.pop(aid, None)
-                if stale_ids:
-                    logger.debug("Purged %d stale Gemini confirmation prompt(s).", len(stale_ids))
+                from pocket_desk_agent.gemini_actions import _purge_expired_pending_actions
+                _purge_expired_pending_actions()
 
             due_tasks = registry.get_pending_tasks()
             
             for task in due_tasks:
                 logger.info(f"🚀 Executing scheduled task {task.id}: {task.command}")
                 
-                # Execute the task
-                success, error = await execute_scheduled_task(task, application.bot)
+                # Execute the task. An exception must still finalize the run,
+                # otherwise the task stays pending and re-fires every poll.
+                try:
+                    success, error = await execute_scheduled_task(task, application.bot)
+                except Exception as task_exc:
+                    logger.error(
+                        "Scheduled task %s raised: %s", task.id, task_exc, exc_info=True
+                    )
+                    success, error = False, f"{type(task_exc).__name__}: {task_exc}"
                 
                 updated_task = registry.finalize_task_run(
                     task.id,
@@ -388,18 +387,28 @@ def main():
     # Telegram's confirmation, surfacing a spurious "timed out" error even
     # though the file was delivered. Document sends additionally pass their own
     # per-call timeouts (see build.send_document_with_upload_fallback).
+    # The bot is built explicitly (rather than via builder.token()) so it can be
+    # the MarkdownFallbackBot; the builder's timeout setters aren't allowed
+    # together with .bot(), so the same timeouts go on the HTTPXRequest.
+    bot = MarkdownFallbackBot(
+        token=Config.TELEGRAM_BOT_TOKEN,
+        request=HTTPXRequest(
+            connection_pool_size=256,
+            connect_timeout=30.0,
+            read_timeout=60.0,
+            write_timeout=120.0,
+            pool_timeout=30.0,
+        ),
+        get_updates_request=HTTPXRequest(connection_pool_size=1),
+    )
     application = (
         Application.builder()
-        .token(Config.TELEGRAM_BOT_TOKEN)
-        .connect_timeout(30.0)
-        .read_timeout(60.0)
-        .write_timeout(120.0)
-        .pool_timeout(30.0)
+        .bot(bot)
         .post_init(post_init)
         .post_shutdown(post_shutdown)
         .build()
     )
-    
+
     # Register all commands dynamically from the centralized registry.
     # Every handler is wrapped with safe_command so that any unhandled exception
     # is caught, logged, and reported back to the user — the bot never crashes silently.

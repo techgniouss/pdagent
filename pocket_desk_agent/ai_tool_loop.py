@@ -91,6 +91,10 @@ _TOOL_NAME_ALIASES: dict[str, str] = {
 }
 
 
+# "scroll_up"/"scroll_down" alias to scroll_screen; keep the direction they imply.
+_SCROLL_DIRECTION_ALIASES = {"scroll_up": "up", "scroll_down": "down"}
+
+
 def _normalize_tool_name(func_name: Any) -> str:
     """Normalize a tool name for alias resolution."""
     if not isinstance(func_name, str):
@@ -255,6 +259,8 @@ def normalize_tool_call(func_name: Any, args: Any) -> tuple[str, dict[str, Any]]
     canonical_name = _TOOL_NAME_ALIASES.get(normalized_name, normalized_name)
     raw_args = args if isinstance(args, dict) else {}
     normalized_args = _normalize_tool_args(canonical_name, raw_args)
+    if normalized_name in _SCROLL_DIRECTION_ALIASES and "direction" not in normalized_args:
+        normalized_args = {**normalized_args, "direction": _SCROLL_DIRECTION_ALIASES[normalized_name]}
     return canonical_name, normalized_args
 
 
@@ -372,8 +378,8 @@ async def run_tool_turn(
             file_manager.get_tree_structure,
             user_id,
             args.get("path"),
-            args.get("max_depth", 3),
-            args.get("max_files", 100),
+            max(1, min(_as_int(args.get("max_depth"), default=3), 10)),
+            max(1, min(_as_int(args.get("max_files"), default=100), 500)),
         )
         tool_result = {"result": result_text, "success": success}
     elif func_name == "read_file":
@@ -392,16 +398,26 @@ async def run_tool_turn(
         )
         tool_result = {"result": result_text, "success": success}
     else:
-        dispatched = await dispatch_gemini_tool(
-            user_id=user_id,
-            func_name=func_name,
-            args=args,
-            file_manager=file_manager,
-            tool_runtime=tool_runtime,
-        )
-        tool_result = dispatched.to_response()
-        result_text = dispatched.result
-        image_bytes = dispatched.image_bytes
+        try:
+            dispatched = await dispatch_gemini_tool(
+                user_id=user_id,
+                func_name=func_name,
+                args=args,
+                file_manager=file_manager,
+                tool_runtime=tool_runtime,
+            )
+        except Exception as exc:
+            # Report the failure to the model instead of aborting the whole
+            # turn: an exception here would roll back history and make the
+            # router retry on another provider, re-running earlier tools
+            # that already had side effects.
+            logger.error("Tool %s raised: %s", func_name, exc, exc_info=True)
+            result_text = f"Error: tool '{func_name}' failed: {type(exc).__name__}: {exc}"
+            tool_result = {"result": result_text, "success": False}
+        else:
+            tool_result = dispatched.to_response()
+            result_text = dispatched.result
+            image_bytes = dispatched.image_bytes
 
     logger.info("Tool %s result: %s", func_name, str(result_text)[:100])
 

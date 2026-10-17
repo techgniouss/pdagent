@@ -9,6 +9,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Optional
 
 from pocket_desk_agent.app_paths import app_path, existing_app_path
+from pocket_desk_agent.json_store import atomic_write_json, quarantine_corrupt_file
 
 logger = logging.getLogger(__name__)
 
@@ -105,14 +106,13 @@ class RecipeRegistry:
             return True
         except Exception as exc:
             logger.error("Failed to load workflow recipes: %s", exc, exc_info=True)
+            quarantine_corrupt_file(RECIPES_PATH)
             self.recipes = {}
             return False
 
     def save(self) -> bool:
         try:
-            RECIPES_PATH.parent.mkdir(parents=True, exist_ok=True)
-            with open(RECIPES_PATH, "w", encoding="utf-8") as handle:
-                json.dump(self.recipes, handle, indent=2, ensure_ascii=False)
+            atomic_write_json(RECIPES_PATH, self.recipes)
             return True
         except Exception as exc:
             logger.error("Failed to save workflow recipes: %s", exc, exc_info=True)

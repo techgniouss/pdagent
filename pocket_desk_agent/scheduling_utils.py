@@ -14,10 +14,10 @@ def local_now() -> dt.datetime:
 
 def ensure_local_timezone(value: dt.datetime) -> dt.datetime:
     """Normalize naive or foreign datetimes to the local timezone."""
-    local_tz = local_now().tzinfo
-    if value.tzinfo is None:
-        return value.replace(tzinfo=local_tz)
-    return value.astimezone(local_tz)
+    # astimezone() on a naive datetime interprets it as system-local time and
+    # applies the UTC offset in force at *that* moment (DST-correct), unlike
+    # replace(tzinfo=<current offset>).
+    return value.astimezone()
 
 
 def parse_iso_datetime(value: str | None) -> Optional[dt.datetime]:
@@ -38,18 +38,14 @@ def parse_schedule_time(time_str: str) -> Optional[dt.datetime]:
     try:
         if ":" in text and "-" not in text:
             parsed = dt.datetime.strptime(text, "%H:%M")
-            candidate = now.replace(
-                hour=parsed.hour,
-                minute=parsed.minute,
-                second=0,
-                microsecond=0,
-            )
+            candidate = dt.datetime.combine(now.date(), parsed.time()).astimezone()
             if candidate < now:
-                candidate += dt.timedelta(days=1)
+                candidate = dt.datetime.combine(
+                    now.date() + dt.timedelta(days=1), parsed.time()
+                ).astimezone()
             return candidate
 
-        parsed = dt.datetime.strptime(text, "%Y-%m-%d %H:%M")
-        return parsed.replace(tzinfo=now.tzinfo)
+        return dt.datetime.strptime(text, "%Y-%m-%d %H:%M").astimezone()
     except ValueError:
         return None
 
@@ -86,7 +82,10 @@ def parse_duration_spec(spec: str) -> Optional[dt.timedelta]:
     if multiplier is None or amount <= 0:
         return None
 
-    return dt.timedelta(seconds=amount * multiplier)
+    try:
+        return dt.timedelta(seconds=amount * multiplier)
+    except OverflowError:
+        return None
 
 
 def parse_repeat_expression(raw_args: Sequence[str] | str) -> Optional[tuple[int, dt.timedelta]]:

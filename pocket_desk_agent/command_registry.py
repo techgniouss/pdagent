@@ -6,6 +6,7 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass
 
 from pocket_desk_agent.app_paths import app_path, existing_app_path
+from pocket_desk_agent.json_store import atomic_write_json, quarantine_corrupt_file
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,7 @@ class CommandRegistry:
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse registry JSON: {e}")
             logger.warning("Starting with empty registry due to corrupted file")
+            quarantine_corrupt_file(REGISTRY_PATH)
             self.registry = {}
             return False
         except Exception as e:
@@ -88,12 +90,8 @@ class CommandRegistry:
             True if saved successfully, False otherwise
         """
         try:
-            # Ensure parent directory exists
-            REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
-            
-            with open(REGISTRY_PATH, 'w', encoding='utf-8') as f:
-                json.dump(self.registry, f, indent=2, ensure_ascii=False)
-            
+            atomic_write_json(REGISTRY_PATH, self.registry)
+
             logger.info(f"Saved {len(self.registry)} commands to registry")
             return True
         except Exception as e:

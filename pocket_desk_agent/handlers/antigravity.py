@@ -423,7 +423,7 @@ async def openantigravity_command(update: Update, context: ContextTypes.DEFAULT_
     try:
         # First check if Antigravity is already running
         if PYWINAUTO_AVAILABLE:
-            window = find_antigravity_window()
+            window = await asyncio.to_thread(find_antigravity_window)
             if window:
                 try:
                     if window.isMinimized:
@@ -482,7 +482,9 @@ async def openclaudeinvscode_command(update: Update, context: ContextTypes.DEFAU
     await update.message.reply_text("Opening Claude Code in VS Code...")
 
     try:
-        success, error_message = _run_vscode_palette_command("Claude Code: Open")
+        success, error_message = await asyncio.to_thread(
+            _run_vscode_palette_command, "Claude Code: Open"
+        )
         if not success:
             await update.message.reply_text(f"{error_message}")
             return
@@ -579,7 +581,7 @@ async def claudeclisend_command(update: Update, context: ContextTypes.DEFAULT_TY
 
     await update.message.reply_text("Sending follow-up to Claude CLI...")
 
-    success, message = send_prompt_to_claude_cli(prompt)
+    success, message = await asyncio.to_thread(send_prompt_to_claude_cli, prompt)
     await update.message.reply_text(message)
     if not success:
         logger.warning("claudeclisend failed: %s", message)
@@ -604,7 +606,7 @@ async def antigravityopenfolder_command(update: Update, context: ContextTypes.DE
                 f"Opening `{payload}` in VS Code...",
                 parse_mode="Markdown",
             )
-            success, message = open_folder_in_vscode(payload)
+            success, message = await asyncio.to_thread(open_folder_in_vscode, payload)
             await update.message.reply_text(message, parse_mode="Markdown")
             if not success:
                 logger.warning("antigravityopenfolder direct launch failed: %s", message)

@@ -31,7 +31,6 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 from pocket_desk_agent.config import Config
-from pocket_desk_agent.handlers._shared import safe_command
 from pocket_desk_agent.remote.session import (
     ACTIVE_SESSIONS,
     RemoteSession,
@@ -96,6 +95,13 @@ def _has_viewer_token(url: str) -> bool:
     return "t" in dict(parse_qsl(urlsplit(url).query, keep_blank_values=True))
 
 
+def redact_viewer_url(url: str) -> str:
+    """Return ``url`` without its secret ``t`` token (safe to show an AI provider)."""
+    parts = urlsplit(url)
+    query = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True) if k != "t"]
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+
+
 def _session_is_healthy(session: RemoteSession) -> bool:
     """Return True if an existing session still has a live tunnel process."""
     if session.torn_down:
@@ -129,14 +135,15 @@ def _build_qr_png(url: str) -> Optional[bytes]:
 def sanitized_status(user_id: int) -> dict:
     """Safe status dict for the Gemini ``get_remote_session_status`` tool.
 
-    Never includes the raw token.
+    Never includes the raw token: the result is sent to the AI provider, and
+    the viewer URL's ``t`` parameter is the session secret.
     """
     session = get_for_user(user_id)
     if not session:
         return {"active": False}
     return {
         "active": True,
-        "url": session.tunnel_url,
+        "url": redact_viewer_url(session.tunnel_url),
         "idle_seconds": int(session.idle_seconds()),
         "fps": session.fps,
         "quality": session.quality,
@@ -155,7 +162,22 @@ async def _rollback_partial_start(session: Optional[RemoteSession]) -> None:
         logger.debug("[remote] rollback teardown raised: %s", exc)
 
 
+_start_locks: dict[int, asyncio.Lock] = {}
+
+
 async def start_remote_session(user_id: int, chat_id: int, bot) -> tuple[bool, str]:
+    """Serialize concurrent starts per user, then run :func:`_start_remote_session`.
+
+    Without the lock two quick /remote calls both pass the "no existing
+    session" check, and the second RemoteSession overwrites the first in
+    ACTIVE_SESSIONS, orphaning its server and tunnel process.
+    """
+    lock = _start_locks.setdefault(user_id, asyncio.Lock())
+    async with lock:
+        return await _start_remote_session(user_id, chat_id, bot)
+
+
+async def _start_remote_session(user_id: int, chat_id: int, bot) -> tuple[bool, str]:
     """Create and fully wire up a remote session for ``user_id``.
 
     Returns ``(success, message)``. On success, ``message`` contains the
@@ -399,7 +421,6 @@ async def handle_install_cloudflared_callback(update: Update, context: ContextTy
         )
 
 
-@safe_command
 async def remote_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """``/remote`` — start a live remote-desktop session and return the URL."""
     if not update.message or not update.effective_user or not update.effective_chat:
@@ -454,7 +475,6 @@ async def remote_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         logger.info("[remote] /remote start failed for user %s: %s", user_id, message.splitlines()[0])
 
 
-@safe_command
 async def remoteinfo_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """``/remoteinfo`` - show status for the caller's remote session."""
     if not update.message or not update.effective_user:
@@ -474,9 +494,12 @@ async def remoteinfo_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
             "%Y-%m-%d %H:%M:%S"
         )
 
+    session = get_for_user(update.effective_user.id)
+    full_url = session.tunnel_url if session else status.get("url", "unknown")
+
     await update.message.reply_text(
         "Remote session status:\n\n"
-        f"URL: {status.get('url', 'unknown')}\n"
+        f"URL: {full_url}\n"
         f"Idle: {status.get('idle_seconds', 0)}s\n"
         f"FPS: {status.get('fps', 'unknown')}\n"
         f"Quality: {status.get('quality', 'unknown')}\n"
@@ -486,7 +509,6 @@ async def remoteinfo_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     )
 
 
-@safe_command
 async def stopremote_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """``/stopremote`` — stop the caller's live remote-desktop session."""
     if not update.message or not update.effective_user:

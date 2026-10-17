@@ -21,7 +21,6 @@ from pocket_desk_agent.handlers._shared import (
     large_file_upload_state,
     apk_retrieval_state,
     file_manager,
-    safe_command,
 )
 from pocket_desk_agent.config import Config
 
@@ -829,7 +828,7 @@ async def execute_build_command(update: Update, context: ContextTypes.DEFAULT_TY
         # Run the build command directly — no .bat generation to avoid
         # shell injection via malicious package.json script names.
         import re
-        if not re.match(r'^[a-zA-Z0-9:_\-]+$', script_name):
+        if not re.fullmatch(r'[a-zA-Z0-9:_\-]+', script_name):
             await update.message.reply_text(
                 f"Blocked: script name `{script_name}` contains unsafe characters."
             )
@@ -918,7 +917,7 @@ async def monitor_build_window(bot, chat_id: int, user_id: int, window_title: st
         logger.info("Starting build screenshot monitoring for window: %s", window_title)
 
         for i in range(max_screenshots):
-            screenshot = capture_full_screen()
+            screenshot = await asyncio.to_thread(capture_full_screen)
             if screenshot:
                 await bot.send_photo(
                     chat_id=chat_id,
@@ -950,7 +949,6 @@ async def monitor_build_window(bot, chat_id: int, user_id: int, window_title: st
 
 
 
-@safe_command
 async def stopbuildscreenshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """/stopbuildscreenshot — cancel active build screenshot monitoring."""
     if not update.message or not update.effective_user:

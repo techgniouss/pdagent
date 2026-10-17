@@ -3,6 +3,7 @@
 import os
 import platform
 import re
+import time
 import logging
 import ctypes
 from difflib import SequenceMatcher
@@ -38,9 +39,11 @@ def validate_command_name(name: str) -> bool:
     Returns:
         True if valid, False otherwise
     """
-    if not name:
+    # Max 32 chars: Telegram's own command-name limit, and it keeps the
+    # overwrite_/delete_ callback_data well under Telegram's 64-byte cap.
+    if not name or len(name) > 32:
         return False
-    return bool(re.match(r'^[a-zA-Z0-9_]+$', name))
+    return bool(re.fullmatch(r'[a-zA-Z0-9_]+', name))
 
 
 def find_text_in_image(image: Image.Image, search_text: str) -> List[OCRMatch]:
@@ -506,11 +509,45 @@ def _run_keyboard_only_action(
             pyautogui.FAILSAFE = previous_failsafe
 
 
+def _paste_text_via_clipboard(pyautogui: Any, text: str) -> None:
+    """Paste ``text`` with Ctrl+V, restoring the previous clipboard text after.
+
+    ``pyautogui.write`` can only press keys that exist on a US keyboard and
+    silently drops everything else (accents, Cyrillic, emoji, ...).
+    """
+    import pyperclip
+
+    try:
+        previous = pyperclip.paste()
+    except Exception:
+        previous = None
+    pyperclip.copy(text)
+    time.sleep(0.1)
+    pyautogui.hotkey("ctrl", "v")
+    time.sleep(0.3)  # let the target app read the clipboard before restoring it
+    if previous is not None:
+        try:
+            pyperclip.copy(previous)
+        except Exception:
+            pass
+
+
+def _type_text(pyautogui: Any, text: str, interval: float, method: str) -> None:
+    """Type ``text``; non-ASCII text goes through the clipboard so nothing is dropped."""
+    if text and not text.isascii():
+        try:
+            _paste_text_via_clipboard(pyautogui, text)
+            return
+        except ImportError:
+            logger.warning("pyperclip unavailable; non-ASCII characters may be dropped")
+    getattr(pyautogui, method)(text, interval=interval)
+
+
 def write_text(pyautogui: Any, text: str, *, interval: float = 0.0) -> bool:
     """Type text via PyAutoGUI with a safe fail-safe retry for lock screens."""
     return _run_keyboard_only_action(
         pyautogui,
-        lambda: pyautogui.write(text, interval=interval),
+        lambda: _type_text(pyautogui, text, interval, "write"),
         description=f"write {len(text)} characters",
     )
 
@@ -519,7 +556,7 @@ def typewrite_text(pyautogui: Any, text: str, *, interval: float = 0.0) -> bool:
     """Type text via typewrite() with a safe fail-safe retry for lock screens."""
     return _run_keyboard_only_action(
         pyautogui,
-        lambda: pyautogui.typewrite(text, interval=interval),
+        lambda: _type_text(pyautogui, text, interval, "typewrite"),
         description=f"typewrite {len(text)} characters",
     )
 

@@ -145,8 +145,11 @@ def safe_command(func):
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # ── Centralized auth check ──────────────────────────────────
         # Replaces 60+ per-handler is_user_allowed() calls.
-        if update and update.effective_user and not is_user_allowed(update):
-            logger.debug(f"Unauthorized access attempt by user {update.effective_user.id}")
+        # Fail closed: an update with no identifiable sender (anonymous
+        # admin, channel post, ...) must not reach a handler.
+        if not update or not update.effective_user or not is_user_allowed(update):
+            sender = update.effective_user.id if update and update.effective_user else "unknown"
+            logger.debug(f"Unauthorized access attempt by user {sender}")
             return
 
         # ── Rate limiting ───────────────────────────────────────────

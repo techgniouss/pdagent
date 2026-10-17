@@ -18,6 +18,7 @@ and the (UA, hashed-IP) to match the first-hit fingerprint.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import logging
 import socket
@@ -89,12 +90,36 @@ def _cookie_token(request: Any) -> Optional[str]:
     return cookie if cookie else None
 
 
+def _token_matches(candidate: Optional[str], expected: str) -> bool:
+    """Constant-time token comparison."""
+    if not candidate or not expected:
+        return False
+    return hmac.compare_digest(candidate.encode("utf-8"), expected.encode("utf-8"))
+
+
+def _origin_allowed(request: Any) -> bool:
+    """Reject cross-origin WebSocket handshakes.
+
+    Browsers always send ``Origin`` on a WS handshake; the viewer is served
+    from the same host, so any other origin is a third-party page trying to
+    ride the cookie. Non-browser clients (no Origin header) are allowed —
+    they still need the session cookie.
+    """
+    origin = request.headers.get("Origin")
+    if not origin:
+        return True
+    from urllib.parse import urlsplit
+
+    return urlsplit(origin).netloc.lower() == (request.host or "").lower()
+
+
 def _authorize_ws(session: RemoteSession, request: Any) -> Optional[str]:
     """Return an error string when the WS request should be rejected."""
     if session.torn_down:
         return "session gone"
-    token = _cookie_token(request)
-    if not token or token != session.token:
+    if not _origin_allowed(request):
+        return "bad origin"
+    if not _token_matches(_cookie_token(request), session.token):
         return "bad cookie"
     current_fp = _fingerprint(request)
     if session.bound_fingerprint is None:
@@ -120,7 +145,7 @@ async def _handle_root(request: Any) -> Any:
     token = request.query.get("t", "")
     cookie_token = _cookie_token(request)
 
-    if token != session.token and cookie_token != session.token:
+    if not (_token_matches(token, session.token) or _token_matches(cookie_token, session.token)):
         logger.info("[remote] root request rejected: bad token")
         return web.Response(status=404, text="Not found.")
 
@@ -166,7 +191,7 @@ async def _handle_ws_video(request: Any) -> Any:
         logger.info("[remote] /ws/video rejected (%s) for user %s", reject, session.user_id)
         return web.Response(status=401, text="Unauthorized.")
 
-    ws = web.WebSocketResponse(heartbeat=20.0, max_msg_size=0)
+    ws = web.WebSocketResponse(heartbeat=20.0, max_msg_size=4096)
     await ws.prepare(request)
     _disable_nagle(request)
     session.active_ws.add(ws)
@@ -228,7 +253,7 @@ async def _handle_ws_input(request: Any) -> Any:
 
     from pocket_desk_agent.remote.input_bridge import InputDispatcher
 
-    ws = web.WebSocketResponse(heartbeat=20.0)
+    ws = web.WebSocketResponse(heartbeat=20.0, max_msg_size=64 * 1024)
     await ws.prepare(request)
     _disable_nagle(request)
     session.active_ws.add(ws)

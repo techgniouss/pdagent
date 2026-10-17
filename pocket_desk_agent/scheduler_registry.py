@@ -5,10 +5,12 @@ from __future__ import annotations
 import datetime as dt
 import json
 import logging
-from dataclasses import asdict, dataclass, field
+import uuid
+from dataclasses import asdict, dataclass, field, fields
 from typing import List, Optional
 
 from pocket_desk_agent.app_paths import app_path, existing_app_path
+from pocket_desk_agent.json_store import atomic_write_json, quarantine_corrupt_file
 from pocket_desk_agent.scheduling_utils import (
     get_task_due_at,
     local_now,
@@ -53,7 +55,8 @@ class ScheduledTask:
     @classmethod
     def from_dict(cls, data: dict) -> "ScheduledTask":
         """Create an instance from persisted data."""
-        return cls(**data)
+        known = {f.name for f in fields(cls)}
+        return cls(**{key: value for key, value in data.items() if key in known})
 
 
 class SchedulerRegistry:
@@ -72,29 +75,34 @@ class SchedulerRegistry:
 
             if load_path.exists():
                 with open(load_path, "r", encoding="utf-8") as handle:
-                    self.tasks = json.load(handle)
+                    loaded = json.load(handle)
+                if not isinstance(loaded, list):
+                    raise ValueError("scheduled tasks file must contain a JSON list")
+                self.tasks = [task for task in loaded if isinstance(task, dict)]
                 logger.info("Loaded %s scheduled tasks", len(self.tasks))
             else:
                 self.tasks = []
             return True
         except Exception as exc:
             logger.error("Failed to load scheduler registry: %s", exc, exc_info=True)
+            quarantine_corrupt_file(SCHEDULER_PATH)
             self.tasks = []
             return False
 
     def save(self) -> bool:
-        """Save scheduled tasks to disk."""
+        """Save scheduled tasks to disk atomically."""
         try:
-            SCHEDULER_PATH.parent.mkdir(parents=True, exist_ok=True)
-            with open(SCHEDULER_PATH, "w", encoding="utf-8") as handle:
-                json.dump(self.tasks, handle, indent=2, ensure_ascii=False)
+            atomic_write_json(SCHEDULER_PATH, self.tasks)
             return True
         except Exception as exc:
             logger.error("Failed to save scheduler registry: %s", exc, exc_info=True)
             return False
 
     def add_task(self, task: ScheduledTask) -> None:
-        """Add a new task."""
+        """Add a new task, making its id unique if another task already uses it."""
+        existing_ids = {t.get("id") for t in self.tasks}
+        if task.id in existing_ids:
+            task.id = f"{task.id}_{uuid.uuid4().hex[:6]}"
         task_dict = task.to_dict()
         if task_dict.get("interval_seconds") and not task_dict.get("next_run_at"):
             task_dict["next_run_at"] = task_dict["execute_at"]

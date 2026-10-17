@@ -19,6 +19,7 @@ from pocket_desk_agent.updater import (
     apply_update,
     restart_bot_after_delay,
 )
+from pocket_desk_agent.async_utils import reply_long_text, spawn_background_task
 from pocket_desk_agent.config import Config
 from pocket_desk_agent.constants import AUTH_MODE_APIKEY
 from pocket_desk_agent.telegram_commands import (
@@ -375,10 +376,11 @@ Provide ONLY the enhanced prompt, without any explanations or meta-commentary.""
         )
 
         # Send enhanced prompt
-        await update.message.reply_text(
+        await reply_long_text(
+            update.message,
             f"✨ Enhanced Prompt:\n\n{response}\n\n"
             f"━━━━━━━━━━━━━━━━\n"
-            f"Original: {original_text}"
+            f"Original: {original_text}",
         )
 
         # Copy to PC clipboard if on Windows
@@ -514,7 +516,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     # Send response
-    await update.message.reply_text(response)
+    await reply_long_text(update.message, response)
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -615,7 +617,7 @@ async def _reply_with_gemini_image_analysis(
         auth_mode=auth_mode,
         oauth=oauth,
     )
-    await update.message.reply_text(response)
+    await reply_long_text(update.message, response)
 
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
@@ -870,7 +872,7 @@ async def update_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if success:
         await update.message.reply_text("♻️ Restarting bot…")
-        asyncio.create_task(restart_bot_after_delay())
+        spawn_background_task(restart_bot_after_delay())
 
 
 def get_bot_commands():
