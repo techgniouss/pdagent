@@ -199,3 +199,24 @@ def test_getfile_browser_caps_long_listings() -> None:
 
         assert len(text) < 4096
         assert "25 more item(s) not shown" in text
+
+
+def test_search_files_skips_heavy_dirs_and_honours_time_limit(monkeypatch) -> None:
+    with tempfile.TemporaryDirectory() as root:
+        base = Path(root)
+        (base / "src").mkdir()
+        (base / "src" / "target_file.py").write_text("x", encoding="utf-8")
+        (base / "node_modules" / "pkg").mkdir(parents=True)
+        (base / "node_modules" / "pkg" / "target_dep.js").write_text("x", encoding="utf-8")
+
+        manager = FileManager()
+        manager.approved_dirs = [base]
+        manager.current_dirs[1] = base
+
+        ok, text = manager.search_files(1, "target")
+        assert ok and "target_file.py" in text and "target_dep.js" not in text
+
+        # An already-expired deadline stops the walk and says so.
+        monkeypatch.setattr(FileManager, "_SEARCH_TIME_LIMIT_SECONDS", -1.0)
+        ok, text = manager.search_files(1, "target")
+        assert ok and "Search stopped" in text

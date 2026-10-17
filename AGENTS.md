@@ -303,6 +303,7 @@ async def mycommand_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 ## Security Rules
 
 - All file operations **must** go through `FileManager._is_safe_path()`.
+- `_is_safe_path()` also refuses the credential stores (`~/.pdagent`, legacy `~/.pd-agent`, OAuth token dirs, `~/.ssh`, `~/.gnupg`, `~/.aws`, `~/.azure`, `~/.kube`, `~/.config/gcloud`) even when a parent directory is approved. Don't bypass it, and add new secret locations to `FileManager._protected_dirs()`.
 - All handlers **must** use `@safe_command` (authorization + rate limiting).
 - Never call `subprocess`/shell from a Gemini tool — no RCE vectors.
 - Never commit secrets (`.env`, OAuth token files, `credentials`).

@@ -1,5 +1,6 @@
 """File system command handlers."""
 
+import asyncio
 import logging
 import os
 import time
@@ -226,7 +227,8 @@ async def find_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     pattern = " ".join(context.args)
-    success, message = file_manager.search_files(user_id, pattern)
+    # A walk of a big folder can take seconds; keep it off the event loop.
+    success, message = await asyncio.to_thread(file_manager.search_files, user_id, pattern)
 
     if success:
         await update.message.reply_text(message)
