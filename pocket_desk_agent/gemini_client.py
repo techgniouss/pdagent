@@ -285,6 +285,21 @@ def _build_wrapped_body(project_id: str, model: str, history: list, message: Opt
 
     return wrapped, resolved
 
+def _without_empty_parameters(declaration: dict) -> dict:
+    """Drop ``parameters`` from a no-argument tool declaration.
+
+    Gemini rejects an OBJECT schema with empty ``properties`` ("should be
+    non-empty for OBJECT type"); the documented form for a function without
+    arguments is to omit ``parameters``. A rejected declaration fails every
+    request, since all tools are sent with each call. The OpenAI converter
+    (ai_history.gemini_tools_to_openai) re-adds an empty object schema.
+    """
+    parameters = declaration.get("parameters")
+    if isinstance(parameters, dict) and parameters.get("type") == "object" and not parameters.get("properties"):
+        return {key: value for key, value in declaration.items() if key != "parameters"}
+    return declaration
+
+
 def _get_api_tools() -> list:
     """Define tools available to the AI.
 
@@ -396,7 +411,7 @@ def _get_api_tools() -> list:
             },
         ]
     declarations.extend(get_gemini_action_tools())
-    return [{"functionDeclarations": declarations}]
+    return [{"functionDeclarations": [_without_empty_parameters(d) for d in declarations]}]
 
 def _build_wrapped_body_with_tools(project_id: str, model: str, history: list, message: Optional[str] = None) -> Tuple[dict, ResolvedModel]:
     wrapped, resolved = _build_wrapped_body(project_id, model, history, message)

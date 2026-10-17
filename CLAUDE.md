@@ -75,6 +75,11 @@ pocket-desk-agent/
 │   ├── scheduler_registry.py   # Persistent scheduled task storage
 │   ├── startup_manager.py      # Windows logon-task startup management
 │   ├── rate_limiter.py         # Token-bucket rate limiter
+│   ├── async_utils.py          # spawn_background_task() (GC-safe tasks), Telegram message splitting/reply_long_text()
+│   ├── json_store.py           # atomic_write_json(), write_private_text() (0600), corrupt-file quarantine
+│   ├── process_utils.py        # PID-file helpers that verify the PID is really the bot before trusting/killing it
+│   ├── telegram_safe.py        # MarkdownFallbackBot — retries Markdown parse failures as plain text
+│   ├── log_redaction.py        # SecretRedactingFilter — masks bot tokens/API keys in logs
 │   ├── updater.py              # Auto-update manager (PyPI only via pip upgrade, regardless of install type; /update)
 │   ├── automation_utils.py     # OCR/UI automation helpers
 │   ├── desktop_adapters.py     # Centralized find/activate logic for Claude, Antigravity, etc.

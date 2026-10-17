@@ -258,3 +258,23 @@ def test_trim_history_strips_old_screenshots() -> None:
     assert all("inlineData" not in part for entry in trimmed for part in entry["parts"])
     # The tool response itself must survive so the call/response pairing stays valid.
     assert any("functionResponse" in part for entry in trimmed for part in entry["parts"])
+
+
+def test_gemini_tool_declarations_have_no_empty_object_schemas() -> None:
+    from pocket_desk_agent.gemini_client import _get_api_tools
+
+    declarations = _get_api_tools()[0]["functionDeclarations"]
+    for decl in declarations:
+        params = decl.get("parameters")
+        assert params is None or params.get("properties"), f"{decl['name']} declares empty properties"
+    names = [d["name"] for d in declarations]
+    assert len(names) == len(set(names)) and "get_current_directory" in names
+
+
+def test_openai_conversion_restores_a_schema_for_argument_less_tools() -> None:
+    from pocket_desk_agent.ai_history import gemini_tools_to_openai
+    from pocket_desk_agent.gemini_client import _get_api_tools
+
+    tools = gemini_tools_to_openai(_get_api_tools()[0]["functionDeclarations"])
+    by_name = {t["function"]["name"]: t["function"] for t in tools}
+    assert by_name["capture_screenshot"]["parameters"] == {"type": "object", "properties": {}}
