@@ -113,20 +113,29 @@ class SchedulerRegistry:
         """Return all pending tasks that are due right now."""
         now = local_now()
         due_tasks: List[ScheduledTask] = []
+        invalid_found = False
         for task_dict in self.tasks:
             if task_dict.get("status") != "pending":
                 continue
 
             due_at = get_task_due_at(task_dict)
             if due_at is None:
+                # Left pending, an unparseable task would be re-examined (and
+                # logged) on every 5-second poll forever. Fail it once instead.
                 logger.error(
-                    "Invalid datetime format for task %s",
+                    "Invalid datetime format for task %s; marking it failed",
                     task_dict.get("id", "?"),
                 )
+                task_dict["status"] = "failed"
+                task_dict["error"] = "Invalid scheduled time; the task was skipped."
+                invalid_found = True
                 continue
 
             if due_at <= now:
                 due_tasks.append(ScheduledTask.from_dict(task_dict))
+
+        if invalid_found:
+            self.save()
 
         due_tasks.sort(
             key=lambda task: parse_iso_datetime(task.next_run_at or task.execute_at)

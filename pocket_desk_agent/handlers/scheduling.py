@@ -13,6 +13,7 @@ from typing import Iterable, Optional
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
+from pocket_desk_agent.async_utils import reply_long_text
 from pocket_desk_agent.handlers._shared import (
     RECORDING_TIMEOUT_SECS,
     recording_sessions,
@@ -766,7 +767,7 @@ async def watchstatus_command(
         lines.append(f"  Task ID: {task.id}")
     lines.append("")
     lines.append("Stop with /stopscreenwatch <task_id> or /cancelschedule <task_id>")
-    await update.message.reply_text("\n".join(lines))
+    await reply_long_text(update.message, "\n".join(lines))
 
 
 async def stopscreenwatch_command(
@@ -841,7 +842,8 @@ async def listschedules_command(
         lines.append("")
 
     lines.append("Cancel a task with: /cancelschedule <task_id>")
-    await update.message.reply_text("\n".join(lines).strip())
+    # Many tasks/watchers easily exceed Telegram's 4096-character limit.
+    await reply_long_text(update.message, "\n".join(lines).strip())
 
 
 async def cancelschedule_command(
