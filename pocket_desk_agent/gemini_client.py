@@ -983,7 +983,9 @@ class GeminiClient:
     def _call_api_key_raw(self, wrapped: dict, resolved: ResolvedModel) -> dict:
         """Call the standard Gemini API using an API key (fallback mode)."""
         model = resolved.actual_model
-        url = f"{GEMINI_API_BASE_URL}/v1beta/models/{model}:generateContent?key={Config.GOOGLE_API_KEY}"
+        # The key goes in a header, never the URL: requests embeds the URL in
+        # its exception text, and that text is shown to the user in Telegram.
+        url = f"{GEMINI_API_BASE_URL}/v1beta/models/{model}:generateContent"
         payload = wrapped.get("request", wrapped)
         payload = {k: v for k, v in payload.items() if k not in ("sessionId",)}
         last_error = "Unknown error"
@@ -991,7 +993,10 @@ class GeminiClient:
             try:
                 resp = requests.post(
                     url,
-                    headers={"Content-Type": "application/json"},
+                    headers={
+                        "Content-Type": "application/json",
+                        "x-goog-api-key": Config.GOOGLE_API_KEY,
+                    },
                     json=payload,
                     timeout=60,
                 )

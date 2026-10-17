@@ -5,6 +5,7 @@ import sys
 import os
 import atexit
 from pathlib import Path
+from telegram.error import InvalidToken
 from telegram.request import HTTPXRequest
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
 from wakepy import keep
@@ -13,6 +14,7 @@ from pocket_desk_agent.async_utils import spawn_background_task
 from pocket_desk_agent.process_utils import is_bot_process
 from pocket_desk_agent.app_paths import app_path, ensure_app_dir, existing_app_path
 from pocket_desk_agent.config import Config
+from pocket_desk_agent.log_redaction import SecretRedactingFilter
 from pocket_desk_agent.telegram_safe import MarkdownFallbackBot
 from pocket_desk_agent.command_map import COMMAND_REGISTRY
 from pocket_desk_agent.handlers import (
@@ -60,6 +62,10 @@ logging.basicConfig(
         ),
     ]
 )
+# Library errors embed secrets (PTB's InvalidToken message contains the bot
+# token; requests errors contain the request URL) — mask them on every handler.
+for _handler in logging.getLogger().handlers:
+    _handler.addFilter(SecretRedactingFilter())
 logger = logging.getLogger(__name__)
 
 # httpx logs every Telegram API request URL at INFO level, and those URLs
@@ -491,11 +497,20 @@ def main():
     else:
         logger.debug("Production/background mode — live reloader disabled.")
 
-    with keep.running():
-        application.run_polling(
-            allowed_updates=["message", "callback_query"],
-            drop_pending_updates=True
+    try:
+        with keep.running():
+            application.run_polling(
+                allowed_updates=["message", "callback_query"],
+                drop_pending_updates=True
+            )
+    except InvalidToken:
+        # A wrong/revoked token is a configuration problem, not a crash: say so
+        # plainly instead of letting a traceback (which echoes the token) escape.
+        logger.error(
+            "Telegram rejected the bot token (TELEGRAM_BOT_TOKEN). "
+            "Run `pdagent configure` to enter a valid token from @BotFather."
         )
+        sys.exit(1)
 
 
 if __name__ == "__main__":
