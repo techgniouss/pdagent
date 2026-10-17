@@ -43,7 +43,7 @@ AIの設定なしで、すぐに使える機能：
 - **AndroidのAPKをビルド・配信** — TelegramでReact Nativeプロジェクトから
 
 - **Scheduled shutdown** — Use `/scheduleshutdown <HH:MM>` to schedule a one-time shutdown (confirmation only when scheduling).
-**Google Gemini 2.0 Flash**の認証情報を追加すると解放される機能：
+**Google Gemini**の認証情報を追加すると解放される機能：
 - **会話型AIチャット** — マルチターン記憶と画像分析
 - **エージェント型コンピュータ制御** — Geminiがファイル閲覧、スクリーンショット、クリック、入力、自然言語によるPC操作を行い、破壊的な操作は人間が確認
 - **プロンプト改善** `/enhance`コマンド
@@ -68,7 +68,7 @@ AIの設定なしで、すぐに使える機能：
 
 **オプション（Google Gemini認証情報が必要）：**
 
-- **AIチャット・コンピュータ制御**：Gemini 2.0 Flashでマルチターン会話、画像分析、ツール呼び出し。破壊的なアクションはすべてTelegramのインラインボタンで明示的な承認が必要。
+- **AIチャット・コンピュータ制御**：Geminiでマルチターン会話、画像分析、ツール呼び出し。破壊的なアクションはすべてTelegramのインラインボタンで明示的な承認が必要。
 - **プロンプト改善**：`/enhance`でGeminiがプロンプトを書き直し・改善。
 
 ---

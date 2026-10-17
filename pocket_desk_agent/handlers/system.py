@@ -13,6 +13,7 @@ from typing import Optional
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from pocket_desk_agent.app_catalog import build_builtin_app_catalog, resolve_app_query
+from pocket_desk_agent.async_utils import spawn_background_task
 from pocket_desk_agent.app_control import close_desktop_app, launch_desktop_app
 
 from pocket_desk_agent.handlers._shared import (
@@ -197,7 +198,9 @@ async def _expire_image_clipboard_after_ttl(
             or expected_hash != _global_image_clipboard_hash
         ):
             return
-        cleared = _clear_windows_clipboard_if_image_hash_matches(expected_hash)
+        cleared = await asyncio.to_thread(
+            _clear_windows_clipboard_if_image_hash_matches, expected_hash
+        )
         if cleared:
             logger.info(
                 "Auto-cleared Telegram image from clipboard after %ss",
@@ -222,7 +225,7 @@ def _schedule_image_clipboard_expiry(expected_hash: str) -> None:
     _global_image_clipboard_generation += 1
     current_generation = _global_image_clipboard_generation
     _global_image_clipboard_hash = expected_hash
-    task = asyncio.create_task(
+    task = spawn_background_task(
         _expire_image_clipboard_after_ttl(current_generation, expected_hash)
     )
     _global_image_clipboard_task = task
@@ -1019,7 +1022,7 @@ async def pasteimage_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
             await update.message.reply_text("Could not download the image bytes.")
             return
 
-        dib_hash = _copy_image_bytes_to_windows_clipboard(image_bytes)
+        dib_hash = await asyncio.to_thread(_copy_image_bytes_to_windows_clipboard, image_bytes)
         _schedule_image_clipboard_expiry(dib_hash)
 
         import pyautogui
@@ -1106,7 +1109,7 @@ async def pasteimages_command(update: Update, context: ContextTypes.DEFAULT_TYPE
             if not image_bytes:
                 raise RuntimeError(f"Image #{index} download returned empty bytes.")
 
-            dib_hash = _copy_image_bytes_to_windows_clipboard(image_bytes)
+            dib_hash = await asyncio.to_thread(_copy_image_bytes_to_windows_clipboard, image_bytes)
             _schedule_image_clipboard_expiry(dib_hash)
             await asyncio.sleep(0.12)
             send_hotkey(pyautogui, "ctrl", "v")

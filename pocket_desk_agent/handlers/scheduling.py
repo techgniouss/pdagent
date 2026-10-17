@@ -939,16 +939,18 @@ async def run_custom_actions(actions: Iterable) -> None:
                     logger.warning(
                         "Scheduled hotkey skipped because no keys were parsed"
                     )
-                elif len(keys) == 1:
-                    press_key(pyautogui, keys[0])
                 else:
-                    send_hotkey(pyautogui, *keys)
-
-                if len(action.args) > 1:
-                    await asyncio.sleep(0.5)
-                    await asyncio.to_thread(
-                        typewrite_text, pyautogui, action.args[1], interval=0.02
-                    )
+                    # Same semantics as the live /hotkey command: the optional
+                    # text goes on the clipboard FIRST so a paste hotkey pastes
+                    # it. (Typing it afterwards pasted stale clipboard content
+                    # and then typed the text a second time.)
+                    if len(action.args) > 1:
+                        pyperclip.copy(action.args[1])
+                        await asyncio.sleep(0.2)
+                    if len(keys) == 1:
+                        press_key(pyautogui, keys[0])
+                    else:
+                        send_hotkey(pyautogui, *keys)
 
         elif action.type == "clipboard":
             if action.args:

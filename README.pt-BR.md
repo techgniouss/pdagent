@@ -43,7 +43,7 @@ Pronto para usar, sem configuração de IA:
 - **Compilar e entregar APKs Android** de projetos React Native pelo Telegram
 
 - **Scheduled shutdown** — Use `/scheduleshutdown <HH:MM>` to schedule a one-time shutdown (confirmation only when scheduling).
-Adicione credenciais do **Google Gemini 2.0 Flash** para desbloquear:
+Adicione credenciais do **Google Gemini** para desbloquear:
 - **Chat de IA conversacional** com memória de múltiplos turnos e análise de imagens
 - **Controle agêntico do computador** — o Gemini pode navegar em arquivos, tirar capturas, clicar, digitar e automatizar seu PC em linguagem natural, com confirmação humana para ações destrutivas
 - **Melhoria de prompts** com `/enhance`
@@ -68,7 +68,7 @@ Tudo abaixo funciona sem configuração de IA:
 
 **Opcional — requer credenciais do Google Gemini:**
 
-- **Chat de IA e controle do computador**: Gemini 2.0 Flash com conversação de múltiplos turnos, análise de imagens e chamadas de ferramentas. Todas as ações destrutivas requerem confirmação explícita via botões do Telegram.
+- **Chat de IA e controle do computador**: Gemini com conversação de múltiplos turnos, análise de imagens e chamadas de ferramentas. Todas as ações destrutivas requerem confirmação explícita via botões do Telegram.
 - **Melhoria de prompts**: `/enhance` faz o Gemini reescrever e melhorar um prompt.
 
 ---

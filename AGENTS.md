@@ -19,7 +19,7 @@ Do not claim a task is complete after a single pass. Do not self-certify without
 
 ## Project Overview
 
-**Pocket Desk Agent** is a Python Telegram bot that provides secure remote control of a Windows PC, powered by Google Gemini 2.0 Flash AI. It is distributed as a PyPI package (`pocket-desk-agent`) and runs as a local CLI daemon (`pdagent`).
+**Pocket Desk Agent** is a Python Telegram bot that provides secure remote control of a Windows PC, powered by Google Gemini AI. It is distributed as a PyPI package (`pocket-desk-agent`) and runs as a local CLI daemon (`pdagent`).
 
 Key capabilities: AI chat & agentic computer use (Gemini), file system browsing, desktop screenshots, keyboard/clipboard control, OCR-based UI automation, macro recording, Claude Desktop/VS Code integration, build automation (React Native APKs), and task scheduling.
 
@@ -108,7 +108,7 @@ pocket-desk-agent/
 |---|---|
 | Language | Python 3.11+ |
 | Bot Framework | python-telegram-bot ≥ 21.0 (async) |
-| AI | Google Gemini 2.0 Flash (via REST API) |
+| AI | Google Gemini (via REST API) |
 | Auth | Multi-mode auth: Antigravity OAuth PKCE, Gemini CLI OAuth PKCE, or API key |
 | UI Automation | pywinauto, pyautogui, pygetwindow (Windows only) |
 | OCR | pytesseract (Tesseract engine) |

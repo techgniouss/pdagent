@@ -47,7 +47,7 @@ Out of the box, with zero AI setup:
 - **Schedule tasks** to run while you sleep — survives restarts
 - **Build and deliver Android APKs** from React Native projects via Telegram
 
-Add **Google Gemini 2.0 Flash** credentials to unlock:
+Add **Google Gemini** credentials to unlock:
 - **Conversational AI chat** with multi-turn memory and image analysis
 - **Agentic computer use** — Gemini can browse files, take screenshots, click, type, and automate your PC from natural language, with human-in-the-loop confirmation for any destructive action
 - **Prompt enhancement** via `/enhance`
@@ -79,7 +79,7 @@ Everything below works with no AI configuration required:
 
 **Optional — requires Google Gemini credentials:**
 
-- **AI Chat & Computer Use**: Google Gemini 2.0 Flash with multi-turn conversation, image analysis, and full agentic tool-calling. Send any text or photo directly to chat. Gemini acts as an autonomous agent that can natively browse your files, analyze screenshots, and use UI automation (click, type, navigate) to perform tasks on your PC in response to natural language requests. All destructive or system-altering actions require explicit human-in-the-loop confirmation via Telegram buttons.
+- **AI Chat & Computer Use**: Google Gemini with multi-turn conversation, image analysis, and full agentic tool-calling. Send any text or photo directly to chat. Gemini acts as an autonomous agent that can natively browse your files, analyze screenshots, and use UI automation (click, type, navigate) to perform tasks on your PC in response to natural language requests. All destructive or system-altering actions require explicit human-in-the-loop confirmation via Telegram buttons.
 - **Prompt Enhancement**: Use `/enhance` to let Gemini rewrite and improve a prompt before sending it anywhere.
 
 ---
@@ -388,7 +388,7 @@ If you are upgrading from an earlier version of Pocket Desk Agent, the following
 | `/update` | Upgrade the installed package and restart |
 | `/sync` | Force-sync the command list with Telegram's bot menu |
 | `/selftest` | Run non-GUI functional checks for command wiring |
-| *(any text/photo)* | Chat with Gemini 2.0 Flash |
+| *(any text/photo)* | Chat with Gemini |
 
 ### File System
 

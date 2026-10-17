@@ -348,15 +348,16 @@ async def execute_custom_command(update: Update, context: ContextTypes.DEFAULT_T
                     mapped_keys = map_keys_to_pyautogui(args[0])
                     
                     if mapped_keys:
+                        # Same order as the live /hotkey command: put the text on
+                        # the clipboard FIRST so a paste hotkey (ctrl+v) pastes it.
+                        if len(args) > 1:
+                            pyperclip.copy(args[1])
+                            await asyncio.sleep(0.2)
+
                         if len(mapped_keys) == 1:
                             press_key(pyautogui, mapped_keys[0])
                         else:
                             send_hotkey(pyautogui, *mapped_keys)
-                            
-                        # If there's clipboard text after the hotkey
-                        if len(args) > 1:
-                            pyperclip.copy(args[1])
-                            await asyncio.sleep(0.1)
                             
                         await update.message.reply_text(f"✅ Step {idx}/{len(actions)}: hotkey {args[0]}")
                     
