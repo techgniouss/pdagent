@@ -43,7 +43,7 @@
 - **构建并传输 Android APK**，通过 Telegram 处理 React Native 项目
 
 - **Scheduled shutdown** — Use `/scheduleshutdown <HH:MM>` to schedule a one-time shutdown (confirmation only when scheduling).
-添加 **Google Gemini 2.0 Flash** 凭据以解锁：
+添加 **Google Gemini** 凭据以解锁：
 - **对话式 AI 聊天**，支持多轮记忆和图片分析
 - **AI 代理控制**——Gemini 可以浏览文件、截图、点击、输入，并通过自然语言自动化操作你的电脑，对任何破坏性操作都需要人工确认
 - **提示词增强**，通过 `/enhance` 命令
@@ -68,7 +68,7 @@
 
 **可选功能——需要 Google Gemini 凭据：**
 
-- **AI 聊天与计算机控制**：Google Gemini 2.0 Flash，支持多轮对话、图片分析和完整的代理工具调用。直接发送任何文字或照片即可聊天。Gemini 作为自主代理，可以原生浏览文件、分析截图，并根据自然语言请求使用 UI 自动化（点击、输入、导航）在你的 PC 上执行任务。所有破坏性或系统级操作都需要通过 Telegram 内联按钮进行明确的人工确认。
+- **AI 聊天与计算机控制**：Google Gemini，支持多轮对话、图片分析和完整的代理工具调用。直接发送任何文字或照片即可聊天。Gemini 作为自主代理，可以原生浏览文件、分析截图，并根据自然语言请求使用 UI 自动化（点击、输入、导航）在你的 PC 上执行任务。所有破坏性或系统级操作都需要通过 Telegram 内联按钮进行明确的人工确认。
 - **提示词增强**：使用 `/enhance` 让 Gemini 在将提示词发送到任何地方之前对其进行重写和改进。
 
 ---

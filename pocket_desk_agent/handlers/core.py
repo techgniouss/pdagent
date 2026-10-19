@@ -19,6 +19,7 @@ from pocket_desk_agent.updater import (
     apply_update,
     restart_bot_after_delay,
 )
+from pocket_desk_agent.async_utils import reply_long_text, spawn_background_task
 from pocket_desk_agent.config import Config
 from pocket_desk_agent.constants import AUTH_MODE_APIKEY
 from pocket_desk_agent.telegram_commands import (
@@ -44,11 +45,12 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = update.effective_user.id
 
-    # Check if authenticated with antigravity
-    authenticated = auth_client.is_authenticated(user_id)
+    # Both calls may refresh an expired token over the network — keep that
+    # blocking work off the event loop.
+    authenticated = await asyncio.to_thread(auth_client.is_authenticated, user_id)
 
     if authenticated:
-        user_info = auth_client.get_user_info(user_id)
+        user_info = await asyncio.to_thread(auth_client.get_user_info, user_id) or {}
         await update.message.reply_text(
             f"Welcome! I'm your personal automation assistant.\n\n"
             f"✅ Gemini AI: Authenticated as {user_info.get('email', 'Unknown')}\n\n"
@@ -92,7 +94,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     user_id = update.effective_user.id
-    is_authenticated = auth_client.is_authenticated(user_id)
+    is_authenticated = await asyncio.to_thread(auth_client.is_authenticated, user_id)
 
     auth_note = (
         ""
@@ -207,6 +209,20 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Just send a message or image to chat — Gemini by default, with automatic NVIDIA fallback if configured (see /aiprovider)."
     )
 
+    # Any registered command the hand-written sections above don't mention is
+    # listed here from its registry description, so /help can never drift out
+    # of sync with the command menu again.
+    from pocket_desk_agent.command_map import COMMAND_REGISTRY
+
+    described = part1 + part2 + part3
+    extras = [
+        f"/{name} - {description}"
+        for name, _, description in COMMAND_REGISTRY
+        if f"/{name}" not in described
+    ]
+    if extras:
+        part3 += "\n\n🧰 More commands:\n" + "\n".join(extras)
+
     await update.message.reply_text(part1)
     await update.message.reply_text(part2)
     await update.message.reply_text(part3)
@@ -231,10 +247,10 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     user_id = update.effective_user.id
-    is_auth = auth_client.is_authenticated(user_id)
+    is_auth = await asyncio.to_thread(auth_client.is_authenticated, user_id)
     has_session = user_id in ai_router.sessions
 
-    user_info = auth_client.get_user_info(user_id)
+    user_info = await asyncio.to_thread(auth_client.get_user_info, user_id)
 
     status_text = f"📊 *Bot Status*\n\n"
     status_text += f"📦 Version: `{get_version_string()}`\n\n"
@@ -296,7 +312,7 @@ async def aiprovider_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     from pocket_desk_agent import configure as configure_module
 
     configure_module.ensure_app_dir()
-    cfg_parser = configparser.ConfigParser()
+    cfg_parser = configparser.ConfigParser(interpolation=None)
     cfg_path = configure_module.config_path()
     if cfg_path.exists():
         cfg_parser.read(cfg_path, encoding="utf-8")
@@ -304,10 +320,7 @@ async def aiprovider_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         cfg_parser["bot"] = {}
     cfg_parser["bot"]["ai_provider_order"] = ",".join(new_order)
 
-    with open(cfg_path, "w", encoding="utf-8") as f:
-        f.write("# Pocket Desk Agent — configuration\n")
-        f.write("# Edit values here and restart the bot to apply changes.\n\n")
-        cfg_parser.write(f)
+    configure_module.write_config_file(cfg_path, cfg_parser)
 
     import os
     os.environ["AI_PROVIDER_ORDER"] = ",".join(new_order)
@@ -375,10 +388,11 @@ Provide ONLY the enhanced prompt, without any explanations or meta-commentary.""
         )
 
         # Send enhanced prompt
-        await update.message.reply_text(
+        await reply_long_text(
+            update.message,
             f"✨ Enhanced Prompt:\n\n{response}\n\n"
             f"━━━━━━━━━━━━━━━━\n"
-            f"Original: {original_text}"
+            f"Original: {original_text}",
         )
 
         # Copy to PC clipboard if on Windows
@@ -514,7 +528,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     # Send response
-    await update.message.reply_text(response)
+    await reply_long_text(update.message, response)
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -615,7 +629,7 @@ async def _reply_with_gemini_image_analysis(
         auth_mode=auth_mode,
         oauth=oauth,
     )
-    await update.message.reply_text(response)
+    await reply_long_text(update.message, response)
 
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
@@ -870,7 +884,7 @@ async def update_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if success:
         await update.message.reply_text("♻️ Restarting bot…")
-        asyncio.create_task(restart_bot_after_delay())
+        spawn_background_task(restart_bot_after_delay())
 
 
 def get_bot_commands():

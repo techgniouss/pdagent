@@ -13,6 +13,7 @@ from typing import Iterable, Optional
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
+from pocket_desk_agent.async_utils import reply_long_text
 from pocket_desk_agent.handlers._shared import (
     RECORDING_TIMEOUT_SECS,
     recording_sessions,
@@ -436,6 +437,11 @@ async def schedule_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             "Examples: /schedule 21:00 or /schedule 2026-05-01 09:30"
         )
         return
+    if execute_at <= local_now():
+        await update.message.reply_text(
+            "That time is in the past. Please provide a future time."
+        )
+        return
 
     user_id = update.effective_user.id
     if user_id in recording_sessions:
@@ -761,7 +767,7 @@ async def watchstatus_command(
         lines.append(f"  Task ID: {task.id}")
     lines.append("")
     lines.append("Stop with /stopscreenwatch <task_id> or /cancelschedule <task_id>")
-    await update.message.reply_text("\n".join(lines))
+    await reply_long_text(update.message, "\n".join(lines))
 
 
 async def stopscreenwatch_command(
@@ -836,7 +842,8 @@ async def listschedules_command(
         lines.append("")
 
     lines.append("Cancel a task with: /cancelschedule <task_id>")
-    await update.message.reply_text("\n".join(lines).strip())
+    # Many tasks/watchers easily exceed Telegram's 4096-character limit.
+    await reply_long_text(update.message, "\n".join(lines).strip())
 
 
 async def cancelschedule_command(
@@ -934,16 +941,18 @@ async def run_custom_actions(actions: Iterable) -> None:
                     logger.warning(
                         "Scheduled hotkey skipped because no keys were parsed"
                     )
-                elif len(keys) == 1:
-                    press_key(pyautogui, keys[0])
                 else:
-                    send_hotkey(pyautogui, *keys)
-
-                if len(action.args) > 1:
-                    await asyncio.sleep(0.5)
-                    await asyncio.to_thread(
-                        typewrite_text, pyautogui, action.args[1], interval=0.02
-                    )
+                    # Same semantics as the live /hotkey command: the optional
+                    # text goes on the clipboard FIRST so a paste hotkey pastes
+                    # it. (Typing it afterwards pasted stale clipboard content
+                    # and then typed the text a second time.)
+                    if len(action.args) > 1:
+                        pyperclip.copy(action.args[1])
+                        await asyncio.sleep(0.2)
+                    if len(keys) == 1:
+                        press_key(pyautogui, keys[0])
+                    else:
+                        send_hotkey(pyautogui, *keys)
 
         elif action.type == "clipboard":
             if action.args:
@@ -1136,6 +1145,7 @@ async def _execute_screen_watch(task: ScheduledTask, bot) -> tuple[bool, Optiona
     # Screen grabs and OCR take hundreds of ms to seconds — run them in a
     # worker thread so the bot's event loop stays responsive.
     screenshot = None
+    window = None
     if scope == "screen":
         screenshot = await asyncio.to_thread(pyautogui.screenshot)
     else:
@@ -1180,6 +1190,11 @@ async def _execute_screen_watch(task: ScheduledTask, bot) -> tuple[bool, Optiona
         keys = map_keys_to_pyautogui(hotkey)
         if not keys:
             return False, f"Could not parse hotkey '{hotkey}'."
+
+        # The text was found inside the app's window, so the key must go to
+        # that window — not to whatever the user happens to be working in.
+        if window is not None:
+            await _activate_window(window)
 
         if len(keys) == 1:
             await asyncio.to_thread(press_key, pyautogui, keys[0])

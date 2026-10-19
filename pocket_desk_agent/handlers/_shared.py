@@ -70,6 +70,24 @@ from pocket_desk_agent.config import Config
 DEFAULT_REPO_PATH = Config.CLAUDE_DEFAULT_REPO_PATH
 
 
+def reset_selection_workflows(user_id: int, keep: Optional[str] = None) -> None:
+    """Drop every number-reply workflow for ``user_id`` except ``keep``.
+
+    /build, /getapk and /getfile are all driven by a bare number typed into the
+    chat, and ``handle_message`` offers each reply to the workflows in a fixed
+    order. A forgotten /build selection would otherwise swallow the number meant
+    for /getfile and go on to run an npm script. Starting one workflow must
+    therefore cancel the others. ``keep`` is "build", "apk" or "getfile".
+    """
+    for name, state in (
+        ("build", build_state),
+        ("apk", apk_retrieval_state),
+        ("getfile", getfile_retrieval_state),
+    ):
+        if name != keep:
+            state.pop(user_id, None)
+
+
 def _prune_media_groups(user_id: int) -> None:
     groups = recent_media_groups.get(user_id)
     if not groups:
@@ -145,8 +163,30 @@ def safe_command(func):
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # ── Centralized auth check ──────────────────────────────────
         # Replaces 60+ per-handler is_user_allowed() calls.
-        if update and update.effective_user and not is_user_allowed(update):
-            logger.debug(f"Unauthorized access attempt by user {update.effective_user.id}")
+        # Fail closed: an update with no identifiable sender (anonymous
+        # admin, channel post, ...) must not reach a handler.
+        if not update or not update.effective_user or not is_user_allowed(update):
+            sender = update.effective_user.id if update and update.effective_user else "unknown"
+            logger.debug(f"Unauthorized access attempt by user {sender}")
+            return
+
+        # ── Private chats only ──────────────────────────────────────
+        # Output (screenshots, clipboard, remote links) goes to the chat the
+        # command came from; in a group every member could read it.
+        chat = getattr(update, "effective_chat", None)
+        if chat is not None and getattr(chat, "type", "private") != "private" and not Config.ALLOW_GROUP_CHATS:
+            logger.warning(
+                "Ignoring command from non-private chat %s (type=%s); set ALLOW_GROUP_CHATS=true to allow.",
+                getattr(chat, "id", "?"), chat.type,
+            )
+            try:
+                await context.bot.send_message(
+                    chat_id=chat.id,
+                    text="🔒 For safety this bot only works in a private chat with you. "
+                         "(Set ALLOW_GROUP_CHATS=true in the config to override.)",
+                )
+            except Exception:
+                pass
             return
 
         # ── Rate limiting ───────────────────────────────────────────
@@ -244,5 +284,5 @@ def record_action_if_active(user_id: int, action_type: str, args: list) -> bool:
     from pocket_desk_agent.command_registry import CommandAction
     action = CommandAction(type=action_type, args=[str(arg) for arg in args])
     session["actions"].append(action)
-    logger.info(f"Recorded action for user {user_id}: {action_type} {args}")
+    logger.info("Recorded action for user %s: %s (%d arg(s))", user_id, action_type, len(args))
     return True

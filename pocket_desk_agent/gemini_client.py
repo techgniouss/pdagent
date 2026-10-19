@@ -14,7 +14,7 @@ from pocket_desk_agent.antigravity_auth import AntigravityOAuth
 from pocket_desk_agent.gemini_cli_auth import GeminiCLIOAuth
 from pocket_desk_agent.gemini_actions import get_gemini_action_tools
 from pocket_desk_agent.ai_tool_loop import ALLOWED_TOOLS as _ALLOWED_TOOLS
-from pocket_desk_agent.ai_tool_loop import run_tool_turn
+from pocket_desk_agent.ai_tool_loop import finish_empty_reply, run_tool_turn
 from pocket_desk_agent.ai_types import ProviderResult
 from pocket_desk_agent.constants import (
     ANTIGRAVITY_ENDPOINT_DAILY,
@@ -189,16 +189,20 @@ def _candidate_model_names(requested_model: str) -> list[str]:
         add("gemini-3-pro")
         add("gemini-2.5-flash")
 
-    add("gemini-2.0-flash")
     return candidates
 
 
 def _is_model_not_found_error(response_data: dict) -> bool:
-    """Return True when the backend rejected the requested model lookup."""
+    """Return True when the backend rejected the requested model lookup.
+
+    Code Assist answers 404 "Requested entity was not found"; the public
+    API-key endpoint answers 404 "models/X is not found" and a retired model
+    can come back as 410 Gone. Treat all of them as "try the next candidate".
+    """
     error_text = response_data.get("error", "")
     if not isinstance(error_text, str):
         return False
-    return "HTTP 404" in error_text and "Requested entity was not found" in error_text
+    return error_text.startswith(("HTTP 404", "HTTP 410"))
 
 
 def _get_code_assist_headers(auth_mode: str, access_token: str) -> dict:
@@ -280,6 +284,21 @@ def _build_wrapped_body(project_id: str, model: str, history: list, message: Opt
         wrapped["project"] = project_id
 
     return wrapped, resolved
+
+def _without_empty_parameters(declaration: dict) -> dict:
+    """Drop ``parameters`` from a no-argument tool declaration.
+
+    Gemini rejects an OBJECT schema with empty ``properties`` ("should be
+    non-empty for OBJECT type"); the documented form for a function without
+    arguments is to omit ``parameters``. A rejected declaration fails every
+    request, since all tools are sent with each call. The OpenAI converter
+    (ai_history.gemini_tools_to_openai) re-adds an empty object schema.
+    """
+    parameters = declaration.get("parameters")
+    if isinstance(parameters, dict) and parameters.get("type") == "object" and not parameters.get("properties"):
+        return {key: value for key, value in declaration.items() if key != "parameters"}
+    return declaration
+
 
 def _get_api_tools() -> list:
     """Define tools available to the AI.
@@ -392,7 +411,7 @@ def _get_api_tools() -> list:
             },
         ]
     declarations.extend(get_gemini_action_tools())
-    return [{"functionDeclarations": declarations}]
+    return [{"functionDeclarations": [_without_empty_parameters(d) for d in declarations]}]
 
 def _build_wrapped_body_with_tools(project_id: str, model: str, history: list, message: Optional[str] = None) -> Tuple[dict, ResolvedModel]:
     wrapped, resolved = _build_wrapped_body(project_id, model, history, message)
@@ -410,24 +429,55 @@ def _parse_full_response(data: dict) -> str:
         if "text" in part and not part.get("thought")
     )
 
+def _is_plain_user_turn(entry: dict) -> bool:
+    """True for a user turn that carries text and no tool response."""
+    if entry.get("role") != "user":
+        return False
+    parts = entry.get("parts") or []
+    return any("text" in part for part in parts) and not any("functionResponse" in part for part in parts)
+
+
+def _strip_inline_images(history: list) -> None:
+    """Remove ``inlineData`` (screenshot) parts from every stored turn, in place.
+
+    A screenshot tool result is only useful to the model during the turn that
+    produced it. Left in the history it is re-sent with every later request;
+    a handful of full-screen JPEGs is megabytes per call and eventually
+    exceeds the request size limit.
+    """
+    for entry in history:
+        parts = entry.get("parts")
+        if parts and any("inlineData" in part for part in parts):
+            entry["parts"] = [part for part in parts if "inlineData" not in part]
+
+
 def _trim_history(history: list) -> list:
-    """Keep only the most recent MAX_HISTORY_TURNS pairs of messages."""
+    """Keep only the most recent MAX_HISTORY_TURNS pairs of messages.
+
+    The kept window must start at a plain user text turn. A blind slice often
+    begins on a model turn or on a functionResponse whose functionCall was cut
+    off; Gemini rejects such a history with HTTP 400, and since the broken
+    history is what gets stored, every later request would fail until /new.
+    """
+    _strip_inline_images(history)
     max_items = MAX_HISTORY_TURNS * 2  # each turn = user + model
-    if len(history) > max_items:
-        return history[-max_items:]
-    return history
+    if len(history) <= max_items:
+        return history
+    window = history[-max_items:]
+    for index, entry in enumerate(window):
+        if _is_plain_user_turn(entry):
+            return window[index:]
+    return []
 
 
-_AUTH_ERROR_SIGNATURES = (
-    "HTTP 401",
-    "HTTP 403",
-    "401 ",
-    "403 ",
-    "invalid_grant",
-    "token has been expired",
-    "token has been revoked",
-    "UNAUTHENTICATED",
-    "PERMISSION_DENIED",
+# Signs that the OAuth credentials themselves are dead (expired/revoked), as
+# opposed to a permission, quota or project problem. A bare "HTTP 403" is NOT
+# one of them: Code Assist returns 403 for missing project access and similar
+# things that re-login can't fix, and logging out there would wipe a working
+# session over and over.
+_AUTH_ERROR_PATTERN = re.compile(
+    r"^HTTP 401\b|invalid_grant|token has been expired|token has been revoked|UNAUTHENTICATED",
+    re.IGNORECASE,
 )
 
 _SESSION_EXPIRED_MESSAGE = (
@@ -437,14 +487,16 @@ _SESSION_EXPIRED_MESSAGE = (
 )
 
 
-def _is_auth_error(error_text: str) -> bool:
-    """Return True when the API error indicates expired or revoked credentials."""
+def _is_auth_error(error_text: str, auth_mode: Optional[str] = None) -> bool:
+    """Return True when the API error means the OAuth session is expired or revoked.
+
+    API-key mode never has an OAuth session, so a bad key is a plain error.
+    """
+    if auth_mode == AUTH_MODE_APIKEY:
+        return False
     if not isinstance(error_text, str):
         return False
-    for sig in _AUTH_ERROR_SIGNATURES:
-        if sig in error_text:
-            return True
-    return False
+    return bool(_AUTH_ERROR_PATTERN.search(error_text))
 
 _MAX_RETRIES = 3
 
@@ -558,6 +610,10 @@ class GeminiClient:
             logger.warning(
                 "_get_request_token: ensure_valid_token raised unexpectedly: %s", exc
             )
+        # A failed refresh leaves the expired token in place; sending it would
+        # only earn a 401 that logs the user out. Report "no usable token".
+        if not resolved_oauth.is_authenticated():
+            return ""
         return resolved_oauth.access_token or ""
 
     def _get_project(
@@ -642,6 +698,35 @@ class GeminiClient:
                 user_id,
                 exc,
             )
+
+    def _no_token_result(
+        self, user_id: int, resolved_oauth: Optional[OAuthProvider]
+    ) -> ProviderResult:
+        """Build the result for "OAuth mode but no usable access token".
+
+        The OAuth classes log themselves out when Google rejects the refresh
+        token, which clears ``refresh_token``. If a refresh token is still
+        present the refresh merely failed (network blip, Google outage), so
+        keep the credentials and let the caller retry or fall back.
+        """
+        if resolved_oauth is not None and getattr(resolved_oauth, "refresh_token", None):
+            logger.warning(
+                "No usable Gemini access token for user %d: refresh failed but "
+                "credentials were kept (likely a transient network error).",
+                user_id,
+            )
+            return ProviderResult(
+                text=(
+                    "Could not refresh the Gemini session right now (network or "
+                    "Google outage?). Please try again in a moment."
+                ),
+                is_retryable_error=True,
+            )
+        logger.warning(
+            "No valid access token for user %d — auto-logging out.", user_id
+        )
+        self._auto_logout_oauth(user_id, resolved_oauth, reason="no token")
+        return ProviderResult(text=_SESSION_EXPIRED_MESSAGE, is_retryable_error=True)
 
     def _get_request_model_candidates(self) -> list[str]:
         """Return the configured model plus safe fallbacks, preferring known-good cache."""
@@ -731,13 +816,7 @@ class GeminiClient:
             # session has expired or the credentials were revoked.  Auto-logout
             # so the stale tokens don't persist, and tell the user to re-login.
             if resolved_auth_mode != AUTH_MODE_APIKEY and not token:
-                logger.warning(
-                    "send_message: no valid access token for user %d — "
-                    "auto-logging out.",
-                    user_id,
-                )
-                self._auto_logout_oauth(user_id, resolved_oauth, reason="no token")
-                return ProviderResult(text=_SESSION_EXPIRED_MESSAGE, is_retryable_error=True)
+                return self._no_token_result(user_id, resolved_oauth)
 
             history.append({"role": "user", "parts": [{"text": full_message}]})
 
@@ -763,7 +842,7 @@ class GeminiClient:
                     self.sessions[user_id] = _trim_history(history)
                     # If the API returned an auth error (401/403/revoked),
                     # auto-logout so stale tokens are cleared immediately.
-                    if _is_auth_error(err):
+                    if _is_auth_error(err, resolved_auth_mode):
                         logger.warning(
                             "send_message: auth error detected for user %d — "
                             "auto-logging out.",
@@ -797,9 +876,20 @@ class GeminiClient:
 
                 if not tool_call:
                     response_text = _parse_full_response(response_data)
+                    if not response_text.strip():
+                        # Safety block / empty message: never store an empty text
+                        # part — Gemini rejects it on every later request.
+                        result = finish_empty_reply(
+                            history,
+                            base_history_len,
+                            "Gemini",
+                            candidates[0].get("finishReason"),
+                        )
+                        self.sessions[user_id] = _trim_history(history)
+                        return result
                     history.append({"role": "model", "parts": [{"text": response_text}]})
                     self.sessions[user_id] = _trim_history(history)
-                    return ProviderResult(text=response_text or "(The model returned an empty message.)")
+                    return ProviderResult(text=response_text)
 
                 raw_func_name = tool_call.get('name')
                 raw_args = tool_call.get('args', {}) or {}
@@ -919,7 +1009,9 @@ class GeminiClient:
     def _call_api_key_raw(self, wrapped: dict, resolved: ResolvedModel) -> dict:
         """Call the standard Gemini API using an API key (fallback mode)."""
         model = resolved.actual_model
-        url = f"{GEMINI_API_BASE_URL}/v1beta/models/{model}:generateContent?key={Config.GOOGLE_API_KEY}"
+        # The key goes in a header, never the URL: requests embeds the URL in
+        # its exception text, and that text is shown to the user in Telegram.
+        url = f"{GEMINI_API_BASE_URL}/v1beta/models/{model}:generateContent"
         payload = wrapped.get("request", wrapped)
         payload = {k: v for k, v in payload.items() if k not in ("sessionId",)}
         last_error = "Unknown error"
@@ -927,7 +1019,10 @@ class GeminiClient:
             try:
                 resp = requests.post(
                     url,
-                    headers={"Content-Type": "application/json"},
+                    headers={
+                        "Content-Type": "application/json",
+                        "x-goog-api-key": Config.GOOGLE_API_KEY,
+                    },
                     json=payload,
                     timeout=60,
                 )
@@ -975,13 +1070,7 @@ class GeminiClient:
             # session has expired or the credentials were revoked.  Auto-logout
             # so the stale tokens don't persist, and tell the user to re-login.
             if resolved_auth_mode != AUTH_MODE_APIKEY and not token:
-                logger.warning(
-                    "send_message_with_image: no valid access token for user %d — "
-                    "auto-logging out.",
-                    user_id,
-                )
-                self._auto_logout_oauth(user_id, resolved_oauth, reason="no token")
-                return ProviderResult(text=_SESSION_EXPIRED_MESSAGE, is_retryable_error=True)
+                return self._no_token_result(user_id, resolved_oauth)
 
             # Build contents with inline image data
             image_b64 = base64.b64encode(image_bytes).decode("utf-8")
@@ -1043,7 +1132,7 @@ class GeminiClient:
                 err = response_data["error"]
                 # If the API returned an auth error (401/403/revoked),
                 # auto-logout so stale tokens are cleared immediately.
-                if _is_auth_error(err):
+                if _is_auth_error(err, resolved_auth_mode):
                     logger.warning(
                         "send_message_with_image: auth error detected for user %d — "
                         "auto-logging out.",

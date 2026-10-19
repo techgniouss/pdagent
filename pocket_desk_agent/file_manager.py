@@ -2,9 +2,11 @@
 
 import os
 import logging
+import time
 from pathlib import Path
 from typing import Optional, Tuple
 
+from pocket_desk_agent.app_paths import app_dir, legacy_app_dirs
 from pocket_desk_agent.config import Config
 
 logger = logging.getLogger(__name__)
@@ -31,15 +33,46 @@ class FileManager:
                 
         self.current_dirs = {}  # user_id -> current_directory
     
+    @staticmethod
+    def _protected_dirs() -> list[Path]:
+        """Credential stores that are off limits even inside an approved directory.
+
+        The default approved directory is the whole home folder, which holds the
+        bot's own secrets (Telegram token, API keys, OAuth tokens) and the
+        user's SSH/cloud credentials. File tools feed the AI provider, and a
+        prompt injection could read — or, with a careless approval, overwrite —
+        them, so they are denied regardless of what is approved.
+        """
+        home = Path.home()
+        return [
+            app_dir(),
+            *legacy_app_dirs(),
+            home / ".config" / "antigravity-chatbot",
+            home / ".config" / "pdagent-gemini",
+            home / ".ssh",
+            home / ".gnupg",
+            home / ".aws",
+            home / ".azure",
+            home / ".kube",
+            home / ".config" / "gcloud",
+        ]
+
     def _is_safe_path(self, path: Path) -> bool:
         """Check if path is within any of the approved directories.
 
         Uses Path.is_relative_to() (Python 3.9+) instead of string prefix
         matching, which is vulnerable to directory-prefix attacks
         (e.g. /home/user/projects_evil passing /home/user/projects).
+        Paths inside a protected credential directory are always refused.
         """
         try:
             resolved = path.resolve()
+            for protected in self._protected_dirs():
+                try:
+                    resolved.relative_to(protected.resolve())
+                    return False
+                except ValueError:
+                    continue
             for approved in self.approved_dirs:
                 approved_resolved = approved.resolve()
                 try:
@@ -215,43 +248,68 @@ class FileManager:
             logger.error(f"Error reading file: {e}")
             return False, f"Error: {str(e)}"
     
+    # Directories that are huge, machine-generated, and never what a user is
+    # looking for with /find. Skipping them keeps a search of the home folder fast.
+    _SEARCH_SKIP_DIRS = frozenset({
+        "node_modules", "__pycache__", "venv", "site-packages",
+        "$recycle.bin", "system volume information",
+    })
+    _SEARCH_TIME_LIMIT_SECONDS = 10.0
+
     def search_files(self, user_id: int, pattern: str, max_results: int = 20) -> Tuple[bool, str]:
-        """Search for files matching pattern."""
+        """Search for files matching pattern (stops after a time limit)."""
         try:
             current = self.get_current_dir(user_id)
-            
+            deadline = time.monotonic() + self._SEARCH_TIME_LIMIT_SECONDS
+            timed_out = False
+            needle = (pattern or "").lower()
+
             matches = []
             for root, dirs, files in os.walk(current):
-                # Skip hidden directories
-                dirs[:] = [d for d in dirs if not d.startswith('.')]
-                
+                if time.monotonic() > deadline:
+                    timed_out = True
+                    break
+
+                # Skip hidden and generated directories
+                dirs[:] = [
+                    d for d in dirs
+                    if not d.startswith('.') and d.lower() not in self._SEARCH_SKIP_DIRS
+                ]
+
                 for file in files:
-                    if pattern.lower() in file.lower():
+                    if needle in file.lower():
                         full_path = Path(root) / file
                         rel_path = full_path.relative_to(current)
                         matches.append(str(rel_path))
-                        
+
                         if len(matches) >= max_results:
                             break
-                
+
                 if len(matches) >= max_results:
                     break
-            
+
+            note = (
+                f"\n\n⏱️ Search stopped after {int(self._SEARCH_TIME_LIMIT_SECONDS)}s — "
+                "narrow it with /cd or a longer pattern."
+                if timed_out else ""
+            )
+
             if not matches:
-                return True, f"No files found matching: {pattern}"
-            
+                return True, f"No files found matching: {pattern}{note}"
+
             result = f"🔍 Found {len(matches)} file(s) matching '{pattern}':\n\n"
             result += "\n".join(f"📄 {m}" for m in matches)
-            
+
             if len(matches) >= max_results:
                 result += f"\n\n... search limited to {max_results} results"
-            
+            result += note
+
             return True, result
-            
+
         except Exception as e:
             logger.error(f"Error searching files: {e}")
             return False, f"Error: {str(e)}"
-    
+
     def get_file_info(self, user_id: int, path: str) -> Tuple[bool, str]:
         """Get information about a file or directory."""
         try:
@@ -457,118 +515,6 @@ class FileManager:
             
         except Exception as e:
             logger.error(f"Error getting tree structure: {e}")
-            return False, f"Error: {str(e)}"
-    
-    # Allowlist of safe command prefixes.  Only commands whose first token
-    # (lowercased) matches one of these are executed.  This is far safer than
-    # a blocklist because unknown/novel attack strings are rejected by default.
-    _ALLOWED_COMMANDS = frozenset({
-        # Navigation / inspection
-        "dir", "ls", "type", "cat", "head", "tail", "more",
-        "tree", "pwd", "cd", "where", "which",
-        # File comparison / sorting
-        "fc", "sort", "find", "findstr", "grep",
-        # Dev tools
-        "git", "python", "python3", "pip", "pip3",
-        "npm", "npx", "node", "yarn", "pnpm",
-        # System info (read-only)
-        "whoami", "hostname", "echo", "tasklist",
-        "ping", "ipconfig", "ifconfig", "netstat",
-    })
-
-    # Shell metacharacters that can chain or redirect commands.
-    # Blocking these prevents `git status && rm -rf /` style attacks.
-    # NOTE: a lone "&" (cmd.exe's unconditional sequencer, e.g.
-    # `dir & format c:`) must be blocked too, not just "&&" — "&" is a
-    # substring of "&&", so listing "&" alone covers both.
-    _DANGEROUS_SHELL_CHARS = ("&", "||", ";", "|", "`", "$(", ">", "<", "\n", "\r")
-
-    def execute_command(self, user_id: int, command: str, timeout: int = 30) -> Tuple[bool, str]:
-        """Execute a shell command in the current directory.
-
-        Security model — allowlist + metacharacter block:
-        1. The first token of the command must be in ``_ALLOWED_COMMANDS``.
-        2. Shell metacharacters that could chain extra commands are rejected.
-        3. The handler layer gates this behind user authorization; it is NOT
-           exposed to the AI model as a callable tool.
-        """
-        try:
-            import subprocess
-            import shlex
-
-            current = self.get_current_dir(user_id)
-            stripped = command.strip()
-
-            if not stripped:
-                return False, "Blocked: empty command."
-
-            # ── Metacharacter check (before splitting, since shlex
-            #    won't help if the string is meant for shell=True) ──
-            for meta in self._DANGEROUS_SHELL_CHARS:
-                if meta in stripped:
-                    return False, (
-                        f"Blocked: command contains shell metacharacter `{meta}`. "
-                        "Chain/redirect operators are not allowed."
-                    )
-
-            # ── Allowlist check on the first token ──
-            try:
-                tokens = shlex.split(stripped)
-            except ValueError:
-                return False, "Blocked: malformed command (unmatched quotes)."
-
-            first_token = Path(tokens[0]).stem.lower()  # strip .exe / path prefix
-            if first_token not in self._ALLOWED_COMMANDS:
-                allowed_list = ", ".join(sorted(self._ALLOWED_COMMANDS))
-                return False, (
-                    f"Blocked: `{tokens[0]}` is not in the command allowlist.\n"
-                    f"Permitted commands: {allowed_list}"
-                )
-
-            logger.info(f"Executing command for user {user_id}: {stripped}")
-
-            # Execute command — shell=True is needed for built-in commands
-            # like `dir` on Windows, but metacharacters are already stripped.
-            result = subprocess.run(
-                stripped,
-                shell=True,
-                cwd=str(current),
-                capture_output=True,
-                text=True,
-                timeout=timeout
-            )
-            
-            # Format output
-            output_parts = []
-            
-            if result.stdout:
-                output_parts.append(f"📤 STDOUT:\n{result.stdout}")
-            
-            if result.stderr:
-                output_parts.append(f"⚠️ STDERR:\n{result.stderr}")
-            
-            if not result.stdout and not result.stderr:
-                output_parts.append("(no output)")
-            
-            output_parts.append(f"\n📊 Exit Code: {result.returncode}")
-            
-            output = "\n\n".join(output_parts)
-            
-            # Truncate if too long
-            if len(output) > 4000:
-                output = output[:4000] + "\n\n... (output truncated)"
-            
-            success = result.returncode == 0
-            status = "✅ Success" if success else "❌ Failed"
-            
-            final_output = f"🖥️ Command: {command}\n📂 Directory: {current}\n\n{status}\n\n{output}"
-            
-            return True, final_output
-            
-        except subprocess.TimeoutExpired:
-            return False, f"⏱️ Command timed out after {timeout} seconds"
-        except Exception as e:
-            logger.error(f"Error executing command: {e}")
             return False, f"Error: {str(e)}"
     
     @staticmethod

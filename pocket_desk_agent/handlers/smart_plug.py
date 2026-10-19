@@ -98,19 +98,24 @@ _load_state()
 
 # ── Smart plug client helpers ─────────────────────────────────────────────────
 
+class PlugNotConfiguredError(RuntimeError):
+    """Raised when Qubo credentials are missing — retrying can't fix that."""
+
+
+_PLUG_CONNECT_RETRY_START_SECS = 30
+_PLUG_CONNECT_RETRY_MAX_SECS = 300
+
+
 def _get_plug_credentials() -> tuple[str, str, str]:
     """Return (username, password, device_name) from Config, raising if missing."""
     username = getattr(Config, "QUBO_USERNAME", "").strip()
     password = getattr(Config, "QUBO_PASSWORD", "").strip()
     device_name = getattr(Config, "QUBO_DEVICE_NAME", "Smart Plug 10A").strip()
     if not username or not password:
-        raise RuntimeError(
-            "QUBO_USERNAME and QUBO_PASSWORD must be set in your "
-            "~/.pdagent/config to use the smart plug.\n\n"
-            "Add these lines:\n"
-            "QUBO_USERNAME=your-qubo-email\n"
-            "QUBO_PASSWORD=your-qubo-password\n"
-            "QUBO_DEVICE_NAME=Smart Plug 10A"
+        raise PlugNotConfiguredError(
+            "Qubo credentials are not set. Run `pdagent configure` and enter your "
+            "Qubo email and password (stored in ~/.pdagent/credentials), or set the "
+            "QUBO_USERNAME / QUBO_PASSWORD environment variables."
         )
     return username, password, device_name
 
@@ -161,20 +166,49 @@ async def _battery_manager_loop() -> None:
         _poll_interval,
     )
 
-    try:
-        plug = await _get_or_create_plug()
-    except Exception as exc:
-        msg = (
-            f"❌ Auto battery manager failed to connect to the smart plug:\n{exc}\n\n"
-            "Use /autobattery off to disable, then fix the credentials and re-enable."
-        )
-        logger.error("Auto battery manager startup failed: %s", exc)
-        if _bot and _user_id:
-            try:
-                await _bot.send_message(chat_id=_user_id, text=msg)
-            except Exception:
-                pass
-        return
+    # Connecting can fail for a while after boot (autostart runs ~30s after
+    # login, often before Wi-Fi is up). Retry with backoff instead of giving
+    # up forever; only missing credentials are a permanent failure.
+    plug = None
+    retry_delay = _PLUG_CONNECT_RETRY_START_SECS
+    notified = False
+    while plug is None:
+        try:
+            plug = await _get_or_create_plug()
+        except PlugNotConfiguredError as exc:
+            msg = (
+                f"❌ Auto battery manager can't start:\n{exc}\n\n"
+                "Fix the credentials, then run /autobattery on again."
+            )
+            logger.error("Auto battery manager startup failed: %s", exc)
+            if _bot and _user_id:
+                try:
+                    await _bot.send_message(chat_id=_user_id, text=msg)
+                except Exception:
+                    pass
+            return
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.warning(
+                "Auto battery manager: smart plug not reachable (%s); retrying in %ds",
+                exc, retry_delay,
+            )
+            if not notified and _bot and _user_id:
+                notified = True
+                try:
+                    await _bot.send_message(
+                        chat_id=_user_id,
+                        text=(
+                            "⚠️ Auto battery manager can't reach the smart plug yet "
+                            f"({exc}).\nIt will keep retrying in the background; "
+                            "use /autobattery off to stop."
+                        ),
+                    )
+                except Exception:
+                    pass
+            await asyncio.sleep(retry_delay)
+            retry_delay = min(retry_delay * 2, _PLUG_CONNECT_RETRY_MAX_SECS)
 
     # Seed _last_plug_action from the current physical plug state so we don't
     # send a redundant command on the first poll cycle.

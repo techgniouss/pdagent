@@ -19,7 +19,7 @@ Do not claim a task is complete after a single pass. Do not self-certify without
 
 ## Project Overview
 
-**Pocket Desk Agent** is a Python Telegram bot that provides secure remote control of a Windows PC, powered by Google Gemini 2.0 Flash AI. It is distributed as a PyPI package (`pocket-desk-agent`) and runs as a local CLI daemon (`pdagent`).
+**Pocket Desk Agent** is a Python Telegram bot that provides secure remote control of a Windows PC, powered by Google Gemini AI. It is distributed as a PyPI package (`pocket-desk-agent`) and runs as a local CLI daemon (`pdagent`).
 
 Key capabilities: AI chat (Gemini), file system browsing, desktop screenshots, keyboard/clipboard control, OCR-based UI automation, macro recording, Claude Desktop/VS Code integration, build automation (React Native APKs), and task scheduling.
 
@@ -75,6 +75,11 @@ pocket-desk-agent/
 │   ├── scheduler_registry.py   # Persistent scheduled task storage
 │   ├── startup_manager.py      # Windows logon-task startup management
 │   ├── rate_limiter.py         # Token-bucket rate limiter
+│   ├── async_utils.py          # spawn_background_task() (GC-safe tasks), Telegram message splitting/reply_long_text()
+│   ├── json_store.py           # atomic_write_json(), write_private_text() (0600), corrupt-file quarantine
+│   ├── process_utils.py        # PID-file helpers that verify the PID is really the bot before trusting/killing it
+│   ├── telegram_safe.py        # MarkdownFallbackBot — retries Markdown parse failures as plain text
+│   ├── log_redaction.py        # SecretRedactingFilter — masks bot tokens/API keys in logs
 │   ├── updater.py              # Auto-update manager (PyPI only via pip upgrade, regardless of install type; /update)
 │   ├── automation_utils.py     # OCR/UI automation helpers
 │   ├── desktop_adapters.py     # Centralized find/activate logic for Claude, Antigravity, etc.
@@ -109,7 +114,7 @@ pocket-desk-agent/
 |---|---|
 | Language | Python 3.11+ |
 | Bot Framework | python-telegram-bot ≥ 21.0 (async) |
-| AI | Google Gemini 2.0 Flash (via REST API) |
+| AI | Google Gemini (via REST API) |
 | Auth | Multi-mode auth: Antigravity OAuth PKCE, Gemini CLI OAuth PKCE, or API key |
 | UI Automation | pywinauto, pyautogui, pygetwindow (Windows only) |
 | OCR | pytesseract (Tesseract engine) |
@@ -187,14 +192,15 @@ All values live in `pocket_desk_agent/config.py` → `Config` class.
 | `TELEGRAM_BOT_TOKEN` | Yes | — | Bot auth token from BotFather |
 | `TELEGRAM_BOT_USERNAME` | Yes | — | Bot `@username` |
 | `AUTHORIZED_USER_IDS` | Yes | — | Comma-separated Telegram user IDs |
+| `ALLOW_GROUP_CHATS` | No | `false` | Serve commands from group chats too. Off by default: screenshots, clipboard text and remote-viewer links are sent to the chat the command came from, so a group would expose them to every member |
 | `GOOGLE_OAUTH_ENABLED` | No | `true` | Use OAuth instead of direct API key |
 | `GOOGLE_OAUTH_CLIENT_ID` | No | built-in | Override the built-in Antigravity plugin OAuth client ID |
 | `GOOGLE_OAUTH_CLIENT_SECRET` | No | built-in | Override the built-in Antigravity plugin OAuth client secret |
 | `GOOGLE_API_KEY` | API key mode | — | Gemini API key (used when `GOOGLE_OAUTH_ENABLED=false`) |
-| `GEMINI_MODEL` | No | `gemini-2.0-flash` | Gemini model selection |
+| `GEMINI_MODEL` | No | `gemini-2.5-flash` | Gemini model selection |
 | `NVIDIA_API_KEY` | No | — | NVIDIA NIM (build.nvidia.com) API key, enables the NVIDIA fallback provider |
 | `NVIDIA_BASE_URL` | No | `https://integrate.api.nvidia.com/v1` | NVIDIA NIM OpenAI-compatible API base URL |
-| `NVIDIA_MODEL` | No | `meta/llama-3.3-70b-instruct` | NVIDIA NIM model selection |
+| `NVIDIA_MODEL` | No | `nvidia/nemotron-3-super-120b-a12b` | NVIDIA NIM model selection |
 | `AI_PROVIDER_ORDER` | No | `gemini,nvidia` | Comma-separated AI provider fallback order |
 | `APPROVED_DIRECTORIES` | No | `Path.home()` | Comma-separated allowed paths for file ops |
 | `CLAUDE_DEFAULT_REPO_PATH` | No | `~/Documents` | Default repo root for Claude integration |
@@ -328,6 +334,7 @@ Once a tool is allowlisted and dispatched this way, **both** `GeminiClient` and 
 ## Security Rules
 
 - All file operations **must** go through `FileManager._is_safe_path()`.
+- `_is_safe_path()` also refuses the credential stores (`~/.pdagent`, legacy `~/.pd-agent`, OAuth token dirs, `~/.ssh`, `~/.gnupg`, `~/.aws`, `~/.azure`, `~/.kube`, `~/.config/gcloud`) even when a parent directory is approved. Don't bypass it, and add new secret locations to `FileManager._protected_dirs()`.
 - All handlers get `safe_command` applied automatically at registration — never add it as a decorator (double-wrapping).
 - Never call `subprocess`/shell from a Gemini tool — no RCE vectors.
 - Never commit secrets (`.env`, OAuth token files, `credentials`).

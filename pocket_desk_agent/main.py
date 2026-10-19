@@ -5,11 +5,17 @@ import sys
 import os
 import atexit
 from pathlib import Path
+from telegram.error import InvalidToken
+from telegram.request import HTTPXRequest
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
 from wakepy import keep
 
+from pocket_desk_agent.async_utils import spawn_background_task
+from pocket_desk_agent.process_utils import is_bot_process
 from pocket_desk_agent.app_paths import app_path, ensure_app_dir, existing_app_path
 from pocket_desk_agent.config import Config
+from pocket_desk_agent.log_redaction import SecretRedactingFilter
+from pocket_desk_agent.telegram_safe import MarkdownFallbackBot
 from pocket_desk_agent.command_map import COMMAND_REGISTRY
 from pocket_desk_agent.handlers import (
     button_callback,
@@ -26,6 +32,7 @@ from pocket_desk_agent.handlers import (
     resume_if_enabled,
 )
 from pocket_desk_agent.scheduler_registry import get_scheduler_registry
+from pocket_desk_agent.scheduling_utils import format_duration, get_task_due_at, local_now
 from pocket_desk_agent.updater import (
     get_version_string,
     startup_update_check,
@@ -44,7 +51,7 @@ LOG_FILE = app_path("bot.log")
 from logging.handlers import RotatingFileHandler as _RotatingFileHandler
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=getattr(logging, Config.LOG_LEVEL),
+    level=getattr(logging, str(Config.LOG_LEVEL).strip().upper(), logging.INFO),
     handlers=[
         logging.StreamHandler(),
         _RotatingFileHandler(
@@ -55,6 +62,10 @@ logging.basicConfig(
         ),
     ]
 )
+# Library errors embed secrets (PTB's InvalidToken message contains the bot
+# token; requests errors contain the request URL) — mask them on every handler.
+for _handler in logging.getLogger().handlers:
+    _handler.addFilter(SecretRedactingFilter())
 logger = logging.getLogger(__name__)
 
 # httpx logs every Telegram API request URL at INFO level, and those URLs
@@ -63,19 +74,28 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 SCHEDULER_POLL_INTERVAL_SECONDS = 5
 
+# A one-shot task that is overdue by more than this was missed (bot or PC was
+# off/asleep). Running it late is wrong and sometimes dangerous — a shutdown
+# scheduled for last night must not fire at 09:00 when the bot starts — so it
+# is skipped and reported instead. Shutdown gets a much tighter window.
+MISSED_TASK_GRACE_SECONDS = 600
+MISSED_SHUTDOWN_GRACE_SECONDS = 120
 
-def _process_is_running(pid: int) -> bool:
-    """Return True when the target PID is alive."""
-    try:
-        if sys.platform == "win32":
-            import psutil
 
-            return psutil.pid_exists(pid)
-        os.kill(pid, 0)
-        return True
-    except Exception:
-        return False
+def missed_task_lateness(task, now=None) -> float | None:
+    """Seconds a one-shot ``task`` is overdue beyond its grace window, else None.
 
+    Repeating tasks are never "missed": they simply run at the next poll.
+    """
+    if task.interval_seconds:
+        return None
+    due_at = get_task_due_at(task.to_dict())
+    if due_at is None:
+        return None
+    is_shutdown = task.task_type == "system_shutdown" or task.command == "system_shutdown"
+    grace = MISSED_SHUTDOWN_GRACE_SECONDS if is_shutdown else MISSED_TASK_GRACE_SECONDS
+    lateness = ((now or local_now()) - due_at).total_seconds()
+    return lateness if lateness > grace else None
 
 def _should_enable_reloader(project_root: Path) -> bool:
     """Enable live reload only for interactive dev sessions."""
@@ -101,7 +121,10 @@ def acquire_lock():
         old_pid = existing_pid_file.read_text().strip()
         try:
             pid = int(old_pid)
-            if _process_is_running(pid):
+            # A PID alone proves nothing: after a crash/reboot the OS may have
+            # reused it for an unrelated program. Only a live *bot* process
+            # counts as another instance.
+            if is_bot_process(pid) and pid != os.getpid():
                 logger.error(f"Another bot instance is already running (PID {pid}). Exiting.")
                 sys.exit(1)
             raise ValueError("stale pid")
@@ -184,7 +207,7 @@ async def post_init(application: Application):
         logger.warning(f"[updater] Startup update check failed: {exc}")
 
     # ── Background tasks (running inside the Application's event loop) ────
-    asyncio.create_task(scheduler_loop(application))
+    spawn_background_task(scheduler_loop(application))
 
     if Config.AUTO_UPDATE_ENABLED:
         async def _notify_update(info):
@@ -200,7 +223,7 @@ async def post_init(application: Application):
                     pass
 
         interval = Config.AUTO_UPDATE_INTERVAL_MINUTES * 60
-        asyncio.create_task(update_checker_loop(interval, _notify_update))
+        spawn_background_task(update_checker_loop(interval, _notify_update))
 
     # ── Auto battery manager (resumes if previously enabled) ────────────────
     try:
@@ -280,6 +303,33 @@ def start_reloader():
 
 
 
+async def _skip_missed_task(application: Application, registry, task, lateness: float) -> None:
+    """Mark an overdue one-shot task failed (not run) and tell its owner."""
+    late_for = format_duration(int(lateness))
+    summary = describe_task(task)
+    logger.warning(
+        "Skipping scheduled task %s (%s): overdue by %s, missed while the bot was not running",
+        task.id, task.command, late_for,
+    )
+    updated = registry.finalize_task_run(
+        task.id,
+        success=False,
+        error=f"Missed its scheduled time by {late_for}; skipped instead of running late.",
+    )
+    if updated and updated.status in {"completed", "failed"}:
+        cleanup_scheduled_task_artifacts(updated)
+    try:
+        await application.bot.send_message(
+            chat_id=task.user_id,
+            text=(
+                f"⏭️ Skipped scheduled task (it was due {late_for} ago, while the bot "
+                f"wasn't running): {summary}\nSchedule it again if you still want it."
+            ),
+        )
+    except Exception:
+        pass
+
+
 async def scheduler_loop(application: Application):
     """Background task to check and execute scheduled tasks."""
     logger.info("🕒 Scheduler loop started.")
@@ -294,26 +344,28 @@ async def scheduler_loop(application: Application):
                 _cleanup_counter = 0
                 registry.cleanup_old_tasks(days=7)
                 # Purge Gemini confirmation prompts the user never responded to.
-                # Keeps the dict from growing unbounded when prompts are ignored.
-                import time as _time
-                from pocket_desk_agent.gemini_actions import pending_gemini_actions
-                _stale_cutoff = _time.time() - 900  # 15 minutes
-                stale_ids = [
-                    aid for aid, action in list(pending_gemini_actions.items())
-                    if action.created_at < _stale_cutoff
-                ]
-                for aid in stale_ids:
-                    pending_gemini_actions.pop(aid, None)
-                if stale_ids:
-                    logger.debug("Purged %d stale Gemini confirmation prompt(s).", len(stale_ids))
+                from pocket_desk_agent.gemini_actions import _purge_expired_pending_actions
+                _purge_expired_pending_actions()
 
             due_tasks = registry.get_pending_tasks()
             
             for task in due_tasks:
+                lateness = missed_task_lateness(task)
+                if lateness is not None:
+                    await _skip_missed_task(application, registry, task, lateness)
+                    continue
+
                 logger.info(f"🚀 Executing scheduled task {task.id}: {task.command}")
                 
-                # Execute the task
-                success, error = await execute_scheduled_task(task, application.bot)
+                # Execute the task. An exception must still finalize the run,
+                # otherwise the task stays pending and re-fires every poll.
+                try:
+                    success, error = await execute_scheduled_task(task, application.bot)
+                except Exception as task_exc:
+                    logger.error(
+                        "Scheduled task %s raised: %s", task.id, task_exc, exc_info=True
+                    )
+                    success, error = False, f"{type(task_exc).__name__}: {task_exc}"
                 
                 updated_task = registry.finalize_task_run(
                     task.id,
@@ -388,18 +440,28 @@ def main():
     # Telegram's confirmation, surfacing a spurious "timed out" error even
     # though the file was delivered. Document sends additionally pass their own
     # per-call timeouts (see build.send_document_with_upload_fallback).
+    # The bot is built explicitly (rather than via builder.token()) so it can be
+    # the MarkdownFallbackBot; the builder's timeout setters aren't allowed
+    # together with .bot(), so the same timeouts go on the HTTPXRequest.
+    bot = MarkdownFallbackBot(
+        token=Config.TELEGRAM_BOT_TOKEN,
+        request=HTTPXRequest(
+            connection_pool_size=256,
+            connect_timeout=30.0,
+            read_timeout=60.0,
+            write_timeout=120.0,
+            pool_timeout=30.0,
+        ),
+        get_updates_request=HTTPXRequest(connection_pool_size=1),
+    )
     application = (
         Application.builder()
-        .token(Config.TELEGRAM_BOT_TOKEN)
-        .connect_timeout(30.0)
-        .read_timeout(60.0)
-        .write_timeout(120.0)
-        .pool_timeout(30.0)
+        .bot(bot)
         .post_init(post_init)
         .post_shutdown(post_shutdown)
         .build()
     )
-    
+
     # Register all commands dynamically from the centralized registry.
     # Every handler is wrapped with safe_command so that any unhandled exception
     # is caught, logged, and reported back to the user — the bot never crashes silently.
@@ -435,11 +497,20 @@ def main():
     else:
         logger.debug("Production/background mode — live reloader disabled.")
 
-    with keep.running():
-        application.run_polling(
-            allowed_updates=["message", "callback_query"],
-            drop_pending_updates=True
+    try:
+        with keep.running():
+            application.run_polling(
+                allowed_updates=["message", "callback_query"],
+                drop_pending_updates=True
+            )
+    except InvalidToken:
+        # A wrong/revoked token is a configuration problem, not a crash: say so
+        # plainly instead of letting a traceback (which echoes the token) escape.
+        logger.error(
+            "Telegram rejected the bot token (TELEGRAM_BOT_TOKEN). "
+            "Run `pdagent configure` to enter a valid token from @BotFather."
         )
+        sys.exit(1)
 
 
 if __name__ == "__main__":

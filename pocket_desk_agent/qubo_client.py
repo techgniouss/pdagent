@@ -143,9 +143,15 @@ class QuboClient:
         self._mqtt_lock = asyncio.Lock()
 
         self._stopping = False
-        await self.login()
-        await self.sync_devices()
-        await self.connect_mqtt()
+        try:
+            await self.login()
+            await self.sync_devices()
+            await self.connect_mqtt()
+        except BaseException:
+            # A half-started client must not leave a paho network thread
+            # running — callers retry start() and would leak one per attempt.
+            await self._disconnect_mqtt()
+            raise
         self._maintenance_task = asyncio.create_task(
             self._maintenance_loop(), name="qubo-maintenance"
         )

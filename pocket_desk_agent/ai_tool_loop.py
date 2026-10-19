@@ -14,6 +14,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from pocket_desk_agent.ai_types import ProviderResult
 from pocket_desk_agent.gemini_actions import dispatch_gemini_tool
 
 logger = logging.getLogger(__name__)
@@ -89,6 +90,33 @@ _TOOL_NAME_ALIASES: dict[str, str] = {
     "page_scroll": "scroll_screen",
     "screen_scroll": "scroll_screen",
 }
+
+
+# "scroll_up"/"scroll_down" alias to scroll_screen; keep the direction they imply.
+_SCROLL_DIRECTION_ALIASES = {"scroll_up": "up", "scroll_down": "down"}
+
+# Tool arguments/results that can carry secrets (typed passwords, clipboard,
+# file contents). They are logged by size only — bot.log is plaintext.
+_SENSITIVE_ARG_KEYS = frozenset({"text", "content", "message", "prompt", "keys", "actions"})
+_SENSITIVE_RESULT_TOOLS = frozenset({"read_file", "view_clipboard", "find_text_on_screen"})
+
+
+def _loggable_args(args: Any) -> Any:
+    """Copy of ``args`` with secret-prone values replaced by their length."""
+    if not isinstance(args, dict):
+        return args
+    return {
+        key: (f"<{len(value)} chars>" if key in _SENSITIVE_ARG_KEYS and isinstance(value, (str, list)) else value)
+        for key, value in args.items()
+    }
+
+
+def _loggable_result(func_name: str, result_text: Any) -> str:
+    """Short, secret-safe description of a tool result for the log."""
+    text = str(result_text)
+    if func_name in _SENSITIVE_RESULT_TOOLS:
+        return f"<{len(text)} chars>"
+    return text[:100]
 
 
 def _normalize_tool_name(func_name: Any) -> str:
@@ -255,6 +283,8 @@ def normalize_tool_call(func_name: Any, args: Any) -> tuple[str, dict[str, Any]]
     canonical_name = _TOOL_NAME_ALIASES.get(normalized_name, normalized_name)
     raw_args = args if isinstance(args, dict) else {}
     normalized_args = _normalize_tool_args(canonical_name, raw_args)
+    if normalized_name in _SCROLL_DIRECTION_ALIASES and "direction" not in normalized_args:
+        normalized_args = {**normalized_args, "direction": _SCROLL_DIRECTION_ALIASES[normalized_name]}
     return canonical_name, normalized_args
 
 
@@ -313,6 +343,38 @@ ALLOWED_TOOLS = frozenset({
 })
 
 
+EMPTY_AFTER_TOOLS_TEXT = "✅ Done."
+
+
+def finish_empty_reply(
+    history: list,
+    base_history_len: int,
+    provider_label: str,
+    finish_reason: Optional[str] = None,
+) -> ProviderResult:
+    """Resolve a final model reply that has no text, without corrupting history.
+
+    An empty text part stored in the shared history is rejected by Gemini
+    (HTTP 400) on every later request, which would break the conversation until
+    /new. So an empty reply is never stored:
+
+    * If tools already ran this turn their side effects happened — report
+      success with a short placeholder (and store that, not an empty part).
+    * Otherwise roll the pending turn back and report a retryable error so the
+      router can fall back to another provider (nothing has been executed).
+    """
+    if len(history) > base_history_len + 1:
+        history.append({"role": "model", "parts": [{"text": EMPTY_AFTER_TOOLS_TEXT}]})
+        return ProviderResult(text=EMPTY_AFTER_TOOLS_TEXT)
+
+    del history[base_history_len:]
+    reason = f" (reason: {finish_reason})" if finish_reason and finish_reason != "STOP" else ""
+    return ProviderResult(
+        text=f"{provider_label} returned an empty response{reason}. Please try rephrasing.",
+        is_retryable_error=True,
+    )
+
+
 @dataclass
 class ToolTurnResult:
     """Outcome of dispatching one normalized tool call."""
@@ -342,7 +404,10 @@ async def run_tool_turn(
     """
     func_name, args = normalize_tool_call(raw_func_name, raw_args)
     if func_name != raw_func_name or args != raw_args:
-        logger.info("Normalized tool call '%s' -> '%s' with args %s", raw_func_name, func_name, args)
+        logger.info(
+            "Normalized tool call '%s' -> '%s' with args %s",
+            raw_func_name, func_name, _loggable_args(args),
+        )
 
     normalized_call = {"name": func_name, "args": args}
 
@@ -358,7 +423,7 @@ async def run_tool_turn(
             normalized_call=normalized_call,
         )
 
-    logger.info("AI Turn %d: requested tool %s with %s", turn, func_name, args)
+    logger.info("AI Turn %d: requested tool %s with %s", turn, func_name, _loggable_args(args))
 
     image_bytes: Optional[bytes] = None
     if func_name == "list_directory":
@@ -372,8 +437,8 @@ async def run_tool_turn(
             file_manager.get_tree_structure,
             user_id,
             args.get("path"),
-            args.get("max_depth", 3),
-            args.get("max_files", 100),
+            max(1, min(_as_int(args.get("max_depth"), default=3), 10)),
+            max(1, min(_as_int(args.get("max_files"), default=100), 500)),
         )
         tool_result = {"result": result_text, "success": success}
     elif func_name == "read_file":
@@ -392,18 +457,28 @@ async def run_tool_turn(
         )
         tool_result = {"result": result_text, "success": success}
     else:
-        dispatched = await dispatch_gemini_tool(
-            user_id=user_id,
-            func_name=func_name,
-            args=args,
-            file_manager=file_manager,
-            tool_runtime=tool_runtime,
-        )
-        tool_result = dispatched.to_response()
-        result_text = dispatched.result
-        image_bytes = dispatched.image_bytes
+        try:
+            dispatched = await dispatch_gemini_tool(
+                user_id=user_id,
+                func_name=func_name,
+                args=args,
+                file_manager=file_manager,
+                tool_runtime=tool_runtime,
+            )
+        except Exception as exc:
+            # Report the failure to the model instead of aborting the whole
+            # turn: an exception here would roll back history and make the
+            # router retry on another provider, re-running earlier tools
+            # that already had side effects.
+            logger.error("Tool %s raised: %s", func_name, exc, exc_info=True)
+            result_text = f"Error: tool '{func_name}' failed: {type(exc).__name__}: {exc}"
+            tool_result = {"result": result_text, "success": False}
+        else:
+            tool_result = dispatched.to_response()
+            result_text = dispatched.result
+            image_bytes = dispatched.image_bytes
 
-    logger.info("Tool %s result: %s", func_name, str(result_text)[:100])
+    logger.info("Tool %s result: %s", func_name, _loggable_result(func_name, result_text))
 
     return ToolTurnResult(
         tool_result=tool_result,

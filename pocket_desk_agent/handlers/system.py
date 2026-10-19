@@ -13,6 +13,7 @@ from typing import Optional
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from pocket_desk_agent.app_catalog import build_builtin_app_catalog, resolve_app_query
+from pocket_desk_agent.async_utils import spawn_background_task
 from pocket_desk_agent.app_control import close_desktop_app, launch_desktop_app
 
 from pocket_desk_agent.handlers._shared import (
@@ -73,7 +74,7 @@ def _set_privacy_mode_windows(enable: bool) -> tuple[bool, str]:
     wm_syscommand = 0x0112
     sc_monitorpower = 0xF170
     if enable:
-        user32.SendMessageW(hwnd_broadcast, wm_syscommand, sc_monitorpower, 2)
+        user32.PostMessageW(hwnd_broadcast, wm_syscommand, sc_monitorpower, 2)
         _set_privacy_mode_state(True)
         logger.info("Privacy mode enabled: display power-off requested without locking")
         return (
@@ -85,7 +86,7 @@ def _set_privacy_mode_windows(enable: bool) -> tuple[bool, str]:
         )
 
     # Request a monitor wake without injecting a real keystroke into the active app.
-    user32.SendMessageW(hwnd_broadcast, wm_syscommand, sc_monitorpower, -1)
+    user32.PostMessageW(hwnd_broadcast, wm_syscommand, sc_monitorpower, -1)
     _set_privacy_mode_state(False)
     logger.info("Privacy mode disabled: display wake requested")
     return (
@@ -197,7 +198,9 @@ async def _expire_image_clipboard_after_ttl(
             or expected_hash != _global_image_clipboard_hash
         ):
             return
-        cleared = _clear_windows_clipboard_if_image_hash_matches(expected_hash)
+        cleared = await asyncio.to_thread(
+            _clear_windows_clipboard_if_image_hash_matches, expected_hash
+        )
         if cleared:
             logger.info(
                 "Auto-cleared Telegram image from clipboard after %ss",
@@ -222,7 +225,7 @@ def _schedule_image_clipboard_expiry(expected_hash: str) -> None:
     _global_image_clipboard_generation += 1
     current_generation = _global_image_clipboard_generation
     _global_image_clipboard_hash = expected_hash
-    task = asyncio.create_task(
+    task = spawn_background_task(
         _expire_image_clipboard_after_ttl(current_generation, expected_hash)
     )
     _global_image_clipboard_task = task
@@ -566,10 +569,15 @@ async def screenshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     try:
         import pyautogui
-        img = pyautogui.screenshot()
-        screenshot = io.BytesIO()
-        img.save(screenshot, format='PNG')
-        screenshot.seek(0)
+
+        def _capture_png() -> io.BytesIO:
+            # Grab + PNG-encode take hundreds of ms; keep them off the event loop.
+            buffer = io.BytesIO()
+            pyautogui.screenshot().save(buffer, format='PNG')
+            buffer.seek(0)
+            return buffer
+
+        screenshot = await asyncio.to_thread(_capture_png)
 
         if screenshot:
             # Send screenshot to user
@@ -727,9 +735,9 @@ async def hotkey_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             import pyautogui
             from pocket_desk_agent.automation_utils import write_text
 
-            write_text(pyautogui, text_to_type, interval=0.05)
+            await asyncio.to_thread(write_text, pyautogui, text_to_type, interval=0.05)
             await update.message.reply_text(f"✅ Typed: {text_to_type[:100]}{'...' if len(text_to_type) > 100 else ''}")
-            logger.info(f"Typed text: {text_to_type[:50]}")
+            logger.info("Typed %d characters", len(text_to_type))
         except Exception as e:
             await update.message.reply_text(f"❌ Error typing text: {str(e)}")
             logger.error(f"Error typing text: {e}")
@@ -758,7 +766,7 @@ async def hotkey_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # If text provided, copy to clipboard first
         if clipboard_text:
             pyperclip.copy(clipboard_text)
-            logger.info(f"Copied to clipboard: {clipboard_text[:50]}")
+            logger.info("Copied %d characters to the clipboard", len(clipboard_text))
             await update.message.reply_text(f"\U0001f4cb Copied to clipboard: {clipboard_text[:100]}{'...' if len(clipboard_text) > 100 else ''}")
             await asyncio.sleep(0.2)
         
@@ -1014,7 +1022,7 @@ async def pasteimage_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
             await update.message.reply_text("Could not download the image bytes.")
             return
 
-        dib_hash = _copy_image_bytes_to_windows_clipboard(image_bytes)
+        dib_hash = await asyncio.to_thread(_copy_image_bytes_to_windows_clipboard, image_bytes)
         _schedule_image_clipboard_expiry(dib_hash)
 
         import pyautogui
@@ -1101,7 +1109,7 @@ async def pasteimages_command(update: Update, context: ContextTypes.DEFAULT_TYPE
             if not image_bytes:
                 raise RuntimeError(f"Image #{index} download returned empty bytes.")
 
-            dib_hash = _copy_image_bytes_to_windows_clipboard(image_bytes)
+            dib_hash = await asyncio.to_thread(_copy_image_bytes_to_windows_clipboard, image_bytes)
             _schedule_image_clipboard_expiry(dib_hash)
             await asyncio.sleep(0.12)
             send_hotkey(pyautogui, "ctrl", "v")

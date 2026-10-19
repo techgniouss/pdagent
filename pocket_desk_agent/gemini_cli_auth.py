@@ -468,7 +468,7 @@ class GeminiCLIOAuth:
                 return True
 
             self._update_status(f"Token refresh failed: {response.text}")
-            if response.status_code in (400, 401, 403) or "invalid_grant" in response.text:
+            if response.status_code == 401 or "invalid_grant" in response.text:
                 logger.warning(
                     "Gemini CLI token refresh rejected by Google (HTTP %d). Auto-logging out.",
                     response.status_code,

@@ -194,3 +194,87 @@ def test_gemini_history_to_openai_still_pairs_well_formed_history() -> None:
     assert messages[3]["role"] == "tool"
     assert messages[3]["tool_call_id"] == messages[2]["tool_calls"][0]["id"]
     assert messages[4] == {"role": "assistant", "content": "Found a.txt"}
+
+
+def test_trim_history_never_starts_on_an_orphaned_tool_turn() -> None:
+    from pocket_desk_agent.constants import MAX_HISTORY_TURNS
+    from pocket_desk_agent.gemini_client import _trim_history
+
+    limit = MAX_HISTORY_TURNS * 2
+    history = [{"role": "user", "parts": [{"text": "first question"}]}]
+    # Many tool-call rounds so the cut is likely to land inside a pair.
+    for index in range(limit):
+        history.append({"role": "model", "parts": [{"functionCall": {"name": "t", "args": {}}}]})
+        history.append({"role": "user", "parts": [{"functionResponse": {"name": "t", "response": {"i": index}}}]})
+    history.append({"role": "model", "parts": [{"text": "answer"}]})
+
+    for extra in range(4):  # try every alignment of the cut
+        trimmed = _trim_history(history + [{"role": "user", "parts": [{"text": "q"}]}] * extra)
+        assert trimmed == [] or (
+            trimmed[0]["role"] == "user"
+            and "text" in trimmed[0]["parts"][0]
+            and len(trimmed) <= limit
+        )
+
+
+def test_trim_history_keeps_short_histories_untouched() -> None:
+    from pocket_desk_agent.gemini_client import _trim_history
+
+    history = [
+        {"role": "user", "parts": [{"text": "hi"}]},
+        {"role": "model", "parts": [{"text": "hello"}]},
+    ]
+    assert _trim_history(history) is history
+
+
+def test_trim_history_drops_to_next_user_text_turn() -> None:
+    from pocket_desk_agent.constants import MAX_HISTORY_TURNS
+    from pocket_desk_agent.gemini_client import _trim_history
+
+    limit = MAX_HISTORY_TURNS * 2
+    history = []
+    for _ in range(limit):
+        history.append({"role": "user", "parts": [{"text": "q"}]})
+        history.append({"role": "model", "parts": [{"text": "a"}]})
+    # Force the window to begin on a model turn.
+    history.insert(1, {"role": "model", "parts": [{"text": "extra"}]})
+    trimmed = _trim_history(history)
+    assert trimmed and trimmed[0] == {"role": "user", "parts": [{"text": "q"}]}
+
+
+def test_trim_history_strips_old_screenshots() -> None:
+    from pocket_desk_agent.gemini_client import _trim_history
+
+    history = [
+        {"role": "user", "parts": [{"text": "take a screenshot"}]},
+        {"role": "model", "parts": [{"functionCall": {"name": "capture_screenshot", "args": {}}}]},
+        {"role": "user", "parts": [
+            {"functionResponse": {"name": "capture_screenshot", "response": {"ok": True}}},
+            {"inlineData": {"mimeType": "image/jpeg", "data": "A" * 1000}},
+        ]},
+        {"role": "model", "parts": [{"text": "done"}]},
+    ]
+    trimmed = _trim_history(history)
+    assert all("inlineData" not in part for entry in trimmed for part in entry["parts"])
+    # The tool response itself must survive so the call/response pairing stays valid.
+    assert any("functionResponse" in part for entry in trimmed for part in entry["parts"])
+
+
+def test_gemini_tool_declarations_have_no_empty_object_schemas() -> None:
+    from pocket_desk_agent.gemini_client import _get_api_tools
+
+    declarations = _get_api_tools()[0]["functionDeclarations"]
+    for decl in declarations:
+        params = decl.get("parameters")
+        assert params is None or params.get("properties"), f"{decl['name']} declares empty properties"
+    names = [d["name"] for d in declarations]
+    assert len(names) == len(set(names)) and "get_current_directory" in names
+
+
+def test_openai_conversion_restores_a_schema_for_argument_less_tools() -> None:
+    from pocket_desk_agent.ai_history import gemini_tools_to_openai
+    from pocket_desk_agent.gemini_client import _get_api_tools
+
+    tools = gemini_tools_to_openai(_get_api_tools()[0]["functionDeclarations"])
+    by_name = {t["function"]["name"]: t["function"] for t in tools}
+    assert by_name["capture_screenshot"]["parameters"] == {"type": "object", "properties": {}}

@@ -36,7 +36,11 @@ class AIRouter:
         if provider == "gemini":
             if Config.GEMINI_AUTH_MODE == AUTH_MODE_APIKEY:
                 return bool(Config.GOOGLE_API_KEY)
-            return bool(self._auth_client.is_authenticated(user_id))
+            # Prefer the network-free check: is_authenticated() may refresh an
+            # expired token with a blocking HTTP call, and this runs on the
+            # event loop for every message.
+            check = getattr(self._auth_client, "has_credentials", None) or self._auth_client.is_authenticated
+            return bool(check(user_id))
         if provider == "nvidia":
             return bool(self.nvidia.is_configured())
         return False

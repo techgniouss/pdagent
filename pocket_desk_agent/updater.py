@@ -19,6 +19,7 @@ update_checker_loop() -> coroutine    (periodic background checker)
 import asyncio
 import logging
 import os
+import re
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -59,11 +60,21 @@ def is_git_repo() -> bool:
 
 
 def _parse_version(v: str) -> tuple:
-    """Parse a semver string into a comparable tuple (major, minor, patch)."""
-    try:
-        return tuple(int(x) for x in v.split(".")[:3])
-    except Exception:
+    """Parse a version string into a comparable (major, minor, patch) tuple.
+
+    Tolerates pre-release/dev suffixes ("1.0.0rc1" -> (1, 0, 0)) and short
+    versions ("1.2" -> (1, 2, 0)), so equal releases always compare equal.
+    """
+    parts: list[int] = []
+    for chunk in str(v).strip().lstrip("vV").split(".")[:3]:
+        match = re.match(r"\d+", chunk)
+        if not match:
+            break
+        parts.append(int(match.group(0)))
+    if not parts:
         return (0, 0, 0)
+    parts.extend([0] * (3 - len(parts)))
+    return tuple(parts)
 
 
 # ── Cached state (module-level, survives across calls) ────────────────────────
@@ -222,6 +233,21 @@ def apply_update() -> tuple[bool, str]:
 async def restart_bot_after_delay(delay: float = 2.0) -> None:
     """Wait briefly so pending messages flush, then restart the bot process."""
     await asyncio.sleep(delay)
+    # os._exit() below skips post_shutdown, so stop any live remote-desktop
+    # session (and its public cloudflared tunnel) first instead of orphaning it.
+    try:
+        from pocket_desk_agent.handlers.remote import teardown_all_sessions
+
+        await asyncio.wait_for(teardown_all_sessions(), timeout=10.0)
+    except Exception as exc:
+        logger.warning(f"[updater] remote teardown before restart failed: {exc}")
+    # Release the single-instance lock so the replacement doesn't see us alive.
+    try:
+        from pocket_desk_agent.app_paths import app_path
+
+        app_path("bot.pid").unlink(missing_ok=True)
+    except Exception:
+        pass
     try:
         subprocess.Popen(
             [sys.executable, "-m", "pocket_desk_agent.main"],

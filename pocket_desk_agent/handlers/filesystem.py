@@ -1,5 +1,6 @@
 """File system command handlers."""
 
+import asyncio
 import logging
 import os
 import time
@@ -8,14 +9,18 @@ from pathlib import Path
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
+from pocket_desk_agent.async_utils import reply_long_text
 from pocket_desk_agent.handlers._shared import (
     file_manager,
     getfile_retrieval_state,
+    reset_selection_workflows,
 )
 from pocket_desk_agent.handlers.build import send_document_with_upload_fallback
 
 logger = logging.getLogger(__name__)
 GETFILE_STATE_TIMEOUT_SECS = 600
+# Keeps the browser message under Telegram's 4096-character limit.
+_GETFILE_MAX_LISTED_ITEMS = 60
 
 
 def _format_blocked_file_message(path: Path) -> str:
@@ -51,7 +56,7 @@ def _render_getfile_browser(folder_path: Path) -> str:
     if not items:
         message += "(empty folder)\n\n"
     else:
-        for index, item in enumerate(items, 1):
+        for index, item in enumerate(items[:_GETFILE_MAX_LISTED_ITEMS], 1):
             if item.is_dir():
                 message += f"{index}. 📁 {item.name}/\n"
                 continue
@@ -66,6 +71,13 @@ def _render_getfile_browser(folder_path: Path) -> str:
 
             label = "🚫" if file_manager.is_blocked_download_file(item) else "📄"
             message += f"{index}. {label} {item.name} ({size_str}, modified {mtime_str})\n"
+
+    hidden = len(items) - _GETFILE_MAX_LISTED_ITEMS
+    if hidden > 0:
+        message += (
+            f"\n... {hidden} more item(s) not shown. "
+            "Use /cd to move into a subfolder or /getfile <path> for a specific file.\n"
+        )
 
     message += (
         "\nReply with:\n"
@@ -146,7 +158,8 @@ async def ls_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     success, message = file_manager.list_directory(user_id, path)
 
     if success:
-        await update.message.reply_text(message)
+        # 50 entries with long names can exceed Telegram's 4096-character limit.
+        await reply_long_text(update.message, message)
     else:
         await update.message.reply_text(f"❌ {message}")
 
@@ -196,6 +209,7 @@ async def getfile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     current_path = file_manager.get_current_dir(user_id)
+    reset_selection_workflows(user_id, keep="getfile")
     getfile_retrieval_state[user_id] = {
         "current_path": current_path,
         "timestamp": time.time(),
@@ -215,10 +229,11 @@ async def find_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     pattern = " ".join(context.args)
-    success, message = file_manager.search_files(user_id, pattern)
+    # A walk of a big folder can take seconds; keep it off the event loop.
+    success, message = await asyncio.to_thread(file_manager.search_files, user_id, pattern)
 
     if success:
-        await update.message.reply_text(message)
+        await reply_long_text(update.message, message)
     else:
         await update.message.reply_text(f"❌ {message}")
 
@@ -292,13 +307,20 @@ async def check_getfile_selection(update: Update, context: ContextTypes.DEFAULT_
         await update.message.reply_text(f"❌ Error reading folder: {exc}")
         return True
 
+    shown = min(len(items), _GETFILE_MAX_LISTED_ITEMS)
     index = int(selection)
-    if index < 1 or index > len(items):
-        await update.message.reply_text(f"❌ Invalid selection. Please choose 1-{len(items)}.")
+    if index < 1 or index > shown:
+        await update.message.reply_text(f"❌ Invalid selection. Please choose 1-{shown}.")
         return True
 
     selected_item = items[index - 1]
     state["timestamp"] = time.time()
+
+    # A symlink/junction inside an approved folder can point outside the
+    # sandbox; the direct /getfile <path> form validates this, so must we.
+    if not file_manager._is_safe_path(selected_item):
+        await update.message.reply_text("❌ Access denied: that item resolves outside the approved directories.")
+        return True
 
     if selected_item.is_dir():
         state["current_path"] = selected_item

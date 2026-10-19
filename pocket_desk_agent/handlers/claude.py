@@ -35,6 +35,8 @@ def _load_win_deps():
     gw = _gw
     ImageGrab = _ig
 
+from pocket_desk_agent.window_utils import NON_APP_TITLE_MARKERS
+
 logger = logging.getLogger(__name__)
 
 
@@ -48,7 +50,7 @@ async def openclaude_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     try:
         # First check if Claude is already running
         if PYWINAUTO_AVAILABLE:
-            window = find_claude_window()
+            window = await asyncio.to_thread(find_claude_window)
             if window:
                 # Claude is already open, just restore and activate
                 try:
@@ -130,15 +132,44 @@ async def openclaude_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
             logger.info("Claude desktop app opened on macOS")
         
         elif system == "Linux":
-            subprocess.Popen(["claude"])
-            await update.message.reply_text("✅ Claude desktop app opened!")
-            logger.info("Claude desktop app opened on Linux")
+            # There is no Claude desktop app for Linux. Running `claude` here would
+            # spawn the CLI with no terminal, exit at once, and still report success.
+            await update.message.reply_text(
+                "ℹ️ The Claude desktop app isn't available on Linux.\n\n"
+                "Use /claudecli to work with Claude CLI instead."
+            )
+            logger.info("/openclaude ignored: no Claude desktop app on Linux")
         
     except Exception as e:
         await update.message.reply_text(f"❌ Error opening Claude app: {str(e)}")
         logger.error(f"Error opening Claude desktop app: {e}")
 
 
+
+
+# Windows whose title merely *contains* "Claude" but which are not the Claude
+# desktop app: browsers, IDEs, and the terminal the bot itself opens for
+# /claudecli. Typing a prompt into any of these would send keystrokes to the
+# wrong application.
+_NON_CLAUDE_TITLE_MARKERS = NON_APP_TITLE_MARKERS + ("visual studio code",)
+
+
+def pick_claude_window_title(titles) -> str | None:
+    """Choose the Claude desktop window title from all open window titles.
+
+    Prefers the exact title "Claude"; otherwise a title that starts with
+    "Claude" and isn't a browser/IDE/terminal window. Returns None when no
+    title qualifies.
+    """
+    candidates = [
+        title for title in titles
+        if title and title.strip().lower().startswith("claude")
+        and not any(marker in title.lower() for marker in _NON_CLAUDE_TITLE_MARKERS)
+    ]
+    for title in candidates:
+        if title.strip() == "Claude":
+            return title
+    return candidates[0] if candidates else None
 
 
 def find_claude_window():
@@ -148,25 +179,15 @@ def find_claude_window():
     _load_win_deps()
 
     try:
-        # Try to find Claude window - try multiple title variations
         window = None
-        
-        # Try exact match first
-        windows = gw.getWindowsWithTitle("Claude")
-        if windows:
-            window = windows[0]
-        
-        # If not found, try partial match (in case title has extra text)
-        if not window:
-            all_windows = gw.getAllTitles()
-            for title in all_windows:
-                if "Claude" in title and "Claude.exe" not in title:
-                    windows = gw.getWindowsWithTitle(title)
-                    if windows:
-                        window = windows[0]
-                        logger.info(f"Found Claude window with title: {title}")
-                        break
-        
+        chosen_title = pick_claude_window_title(gw.getAllTitles())
+        if chosen_title is not None:
+            # getWindowsWithTitle matches by substring, so re-check equality.
+            matching = [w for w in gw.getWindowsWithTitle(chosen_title) if w.title == chosen_title]
+            if matching:
+                window = matching[0]
+                logger.info(f"Found Claude window with title: {chosen_title}")
+
         if window:
             # Check if window is minimized and restore it
             if window.isMinimized:
@@ -303,13 +324,13 @@ async def claudescreen_command(update: Update, context: ContextTypes.DEFAULT_TYP
     
     try:
         # Ensure Claude is open
-        window = ensure_claude_open()
+        window = await asyncio.to_thread(ensure_claude_open)
         if not window:
             await update.message.reply_text("❌ Could not open or find Claude desktop app.")
             return
         
         # Capture screenshot
-        screenshot = capture_claude_screenshot()
+        screenshot = await asyncio.to_thread(capture_claude_screenshot)
         
         if screenshot:
             await update.message.reply_photo(
@@ -362,8 +383,16 @@ def _click_claude_input(window, pyautogui) -> None:
     if PYWINAUTO_AVAILABLE:
         try:
             _load_win_deps()
-            app = Application(backend="uia").connect(title_re=".*Claude.*")
-            claude_window = app.window(title_re=".*Claude.*")
+            # Bind to the exact window we located. A title regex also matches
+            # browser tabs and terminals, and a click_input on e.g. a browser's
+            # address bar would paste the prompt there.
+            handle = getattr(window, "_hWnd", None)
+            if handle is not None:
+                app = Application(backend="uia").connect(handle=int(handle))
+                claude_window = app.window(handle=int(handle))
+            else:
+                app = Application(backend="uia").connect(title_re=r"^Claude$")
+                claude_window = app.window(title_re=r"^Claude$")
             for spec in (
                 {
                     "title_re": r".*[Tt]ype\s*/\s*for\s*[Cc]ommand.*",
@@ -501,12 +530,37 @@ def _click_claude_input(window, pyautogui) -> None:
     logger.info("Focused Claude input via coordinate fallback near composer area")
 
 
+def _require_foreground(window) -> None:
+    """Raise unless ``window`` is the foreground window (Windows only).
+
+    Without a native handle (non-Windows or a stub window) there is nothing
+    to verify, so the check is skipped.
+    """
+    handle = getattr(window, "_hWnd", None)
+    if handle is None:
+        return
+    from pocket_desk_agent.window_utils import activate_window, foreground_window_handle
+
+    if foreground_window_handle() == int(handle):
+        return
+    if activate_window(int(handle)) and foreground_window_handle() == int(handle):
+        return
+    raise RuntimeError(
+        "The Claude window could not be brought to the foreground; not sending the "
+        "prompt so it isn't typed into another application."
+    )
+
+
 def send_prompt_to_claude(window, prompt: str, *, submit: bool = True) -> None:
     """Focus Claude input, paste prompt text, and optionally submit."""
     import pyautogui
     import pyperclip
 
+    _require_foreground(window)
     _click_claude_input(window, pyautogui)
+    # Ctrl+V + Enter in the wrong window would paste (and run) the prompt
+    # there — e.g. in a terminal. Re-check right before sending keystrokes.
+    _require_foreground(window)
     pyperclip.copy(prompt)
     time.sleep(0.3)
     pyautogui.hotkey("ctrl", "v")

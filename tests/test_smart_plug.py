@@ -128,3 +128,72 @@ def test_qubo_client_connect_mqtt_force(monkeypatch) -> None:
     asyncio.run(_run())
 
 
+
+
+def test_battery_manager_retries_until_plug_is_reachable(monkeypatch) -> None:
+    import asyncio
+
+    from pocket_desk_agent.handlers import smart_plug
+
+    attempts = {"n": 0}
+    sleeps: list[float] = []
+
+    class FakePlug:
+        async def get_status(self):
+            raise asyncio.CancelledError  # stop right after the plug connected
+
+    async def flaky_connect():
+        attempts["n"] += 1
+        if attempts["n"] < 3:
+            raise RuntimeError("network not up yet")
+        return FakePlug()
+
+    async def fake_sleep(delay):
+        sleeps.append(delay)
+
+    class Bot:
+        def __init__(self):
+            self.sent: list[str] = []
+
+        async def send_message(self, chat_id, text):
+            self.sent.append(text)
+
+    bot = Bot()
+    monkeypatch.setattr(smart_plug, "_get_or_create_plug", flaky_connect)
+    monkeypatch.setattr(smart_plug.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(smart_plug, "_bot", bot)
+    monkeypatch.setattr(smart_plug, "_user_id", 5)
+
+    try:
+        asyncio.run(smart_plug._battery_manager_loop())
+    except asyncio.CancelledError:
+        pass
+
+    assert attempts["n"] == 3
+    assert sleeps == [30, 60]  # exponential backoff between the two failures
+    assert len(bot.sent) == 1 and "keep retrying" in bot.sent[0]
+
+
+def test_battery_manager_gives_up_when_credentials_missing(monkeypatch) -> None:
+    import asyncio
+
+    from pocket_desk_agent.handlers import smart_plug
+
+    async def no_creds():
+        raise smart_plug.PlugNotConfiguredError("Qubo credentials are not set.")
+
+    class Bot:
+        def __init__(self):
+            self.sent: list[str] = []
+
+        async def send_message(self, chat_id, text):
+            self.sent.append(text)
+
+    bot = Bot()
+    monkeypatch.setattr(smart_plug, "_get_or_create_plug", no_creds)
+    monkeypatch.setattr(smart_plug, "_bot", bot)
+    monkeypatch.setattr(smart_plug, "_user_id", 5)
+
+    asyncio.run(smart_plug._battery_manager_loop())  # returns instead of looping forever
+
+    assert len(bot.sent) == 1 and "can't start" in bot.sent[0]

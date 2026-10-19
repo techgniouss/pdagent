@@ -9,6 +9,7 @@ import re
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from pocket_desk_agent.async_utils import spawn_background_task
 from pocket_desk_agent.automation_utils import find_text_in_image, validate_command_name
 from pocket_desk_agent.command_registry import get_registry
 from pocket_desk_agent.desktop_adapters import (
@@ -334,19 +335,44 @@ async def reciperun_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         )
         return
 
+    user_id = update.effective_user.id if update.effective_user else 0
+    running = _running_recipes.get(user_id)
+    if running is not None and not running.done():
+        await update.message.reply_text(
+            "A recipe is already running. Wait for it to finish before starting another."
+        )
+        return
+
     variables = _parse_template_variables(context.args[1:])
     await update.message.reply_text(
         f"Running recipe '{recipe.name}' with {len(recipe.steps)} steps..."
     )
-    ok, message = await _execute_recipe(recipe, variables, update, context)
-    await update.message.reply_text(message)
-    if ok:
-        usage_saved = get_recipe_registry().mark_used(recipe.name)
-        if not usage_saved:
-            await update.message.reply_text(
-                "Recipe run completed, but usage stats could not be saved."
-            )
+    # Recipes can wait minutes (wait_text, wait_seconds). Handlers run one at a
+    # time, so awaiting the recipe here would block every other command —
+    # including /stopbot and /stopremote — until it finished.
+    _running_recipes[user_id] = spawn_background_task(
+        _run_recipe_in_background(recipe, variables, update, context)
+    )
+
+
+_running_recipes: dict[int, "asyncio.Task"] = {}
+
+
+async def _run_recipe_in_background(recipe, variables: dict[str, str], update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Run a recipe to completion and report the outcome in the chat."""
+    chat = update.message
+    try:
+        ok, message = await _execute_recipe(recipe, variables, update, context)
+    except Exception as exc:
+        logger.error("Recipe '%s' crashed: %s", recipe.name, exc, exc_info=True)
+        ok, message = False, f"Recipe '{recipe.name}' failed: {type(exc).__name__}: {exc}"
+    try:
+        await chat.reply_text(message)
+        if ok and not get_recipe_registry().mark_used(recipe.name):
+            await chat.reply_text("Recipe run completed, but usage stats could not be saved.")
             logger.warning("Failed to persist recipe usage for '%s'", recipe.name)
+    except Exception as exc:
+        logger.warning("Could not report recipe result for '%s': %s", recipe.name, exc)
 
 
 async def _execute_recipe(recipe, variables: dict[str, str], update: Update, context: ContextTypes.DEFAULT_TYPE) -> tuple[bool, str]:
@@ -386,15 +412,17 @@ async def _execute_recipe(recipe, variables: dict[str, str], update: Update, con
             prompt, missing = _render_template(step.payload, variables)
             if missing:
                 return False, f"Recipe failed at step {index}: missing variables {sorted(set(missing))}"
-            window = ensure_claude_open()
+            # These block for seconds (app launch, OCR, typing): keep them
+            # off the event loop like the scheduler does.
+            window = await asyncio.to_thread(ensure_claude_open)
             if not window:
                 return False, f"Recipe failed at step {index}: Claude desktop window not found."
             try:
-                window.activate()
+                await asyncio.to_thread(window.activate)
             except Exception:
                 pass
             await asyncio.sleep(1.0)
-            send_prompt_to_claude(window, prompt)
+            await asyncio.to_thread(send_prompt_to_claude, window, prompt)
             continue
 
         if step.kind == STEP_KIND_WAIT_TEXT:
@@ -429,17 +457,17 @@ async def _wait_for_text(
     while asyncio.get_running_loop().time() <= deadline:
         image = None
         if scope == "screen":
-            image = pyautogui.screenshot()
+            image = await asyncio.to_thread(pyautogui.screenshot)
         else:
-            window = find_adapter_window(scope)
+            window = await asyncio.to_thread(find_adapter_window, scope)
             if window:
                 await activate_adapter_window(window)
                 region = window_region(window)
                 if region:
-                    image = pyautogui.screenshot(region=region)
+                    image = await asyncio.to_thread(pyautogui.screenshot, region=region)
 
         if image is not None:
-            matches = find_text_in_image(image, search_text)
+            matches = await asyncio.to_thread(find_text_in_image, image, search_text)
             if matches:
                 return True
         await asyncio.sleep(interval_seconds)

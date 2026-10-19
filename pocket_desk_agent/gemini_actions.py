@@ -14,14 +14,17 @@ from typing import Any, Optional
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
+from pocket_desk_agent.async_utils import spawn_background_task
 from pocket_desk_agent.app_catalog import get_app_entry_by_id, resolve_app_query
 from pocket_desk_agent.app_control import close_desktop_app, launch_desktop_app
 from pocket_desk_agent.command_registry import CommandAction, get_registry
 from pocket_desk_agent.rate_limiter import RateLimiter
 from pocket_desk_agent.scheduler_registry import ScheduledTask, get_scheduler_registry
+from pocket_desk_agent.scheduling_utils import parse_schedule_time
 
 logger = logging.getLogger(__name__)
 
+_PENDING_ACTION_TTL_SECONDS = 600
 _CONFIRM_PREFIX = "geminicf_"
 _CANCEL_PREFIX = "geminix_"
 _MAX_TEXT_PREVIEW = 180
@@ -75,6 +78,25 @@ class PendingGeminiAction:
 
 
 pending_gemini_actions: dict[str, PendingGeminiAction] = {}
+
+
+def _purge_expired_pending_actions(now: Optional[float] = None) -> None:
+    """Drop approval requests older than the TTL so stale buttons can't fire."""
+    cutoff = (now if now is not None else time.time()) - _PENDING_ACTION_TTL_SECONDS
+    for action_id in [k for k, v in pending_gemini_actions.items() if v.created_at < cutoff]:
+        pending_gemini_actions.pop(action_id, None)
+
+
+def _opt_int(value: Any) -> Optional[int]:
+    """Parse an optional integer tool argument; None when absent or unparseable."""
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return int(float(value))
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
 _GEMINI_TOOL_RATE_LIMITER = RateLimiter(default_calls=20, default_window=60)
 _RATE_LIMIT_LABELS = {
     "capture_screenshot": "screenshot captures",
@@ -621,6 +643,7 @@ async def handle_gemini_confirmation_callback(update, context) -> bool:
         action_id = query.data[len(_CONFIRM_PREFIX):]
     else:
         action_id = query.data[len(_CANCEL_PREFIX):]
+    _purge_expired_pending_actions()
     pending = pending_gemini_actions.get(action_id)
     if not pending:
         await query.edit_message_text("This Gemini action is no longer available. Ask again if you still want to run it.")
@@ -635,19 +658,22 @@ async def handle_gemini_confirmation_callback(update, context) -> bool:
         await query.edit_message_text(f"Cancelled: {pending.summary}")
         return True
 
+    # Claim the action before running it so a double-tap on Approve can't
+    # execute a side-effecting action (shutdown, delete, ...) twice.
+    if pending_gemini_actions.pop(action_id, None) is None:
+        return True
+
     await query.edit_message_text(f"Running: {pending.summary}")
     try:
         result = await _execute_confirmed_action(pending, context.bot)
     except Exception as exc:
         logger.error("Gemini confirmed action failed: %s", exc, exc_info=True)
-        pending_gemini_actions.pop(action_id, None)
         await context.bot.send_message(
             chat_id=pending.chat_id,
             text=f"Action failed: {type(exc).__name__}: {exc}",
         )
         return True
 
-    pending_gemini_actions.pop(action_id, None)
     await context.bot.send_message(chat_id=pending.chat_id, text=result.result)
     return True
 
@@ -683,7 +709,7 @@ async def dispatch_gemini_tool(
         return GeminiToolResult(True, _list_open_windows(user_id))
 
     if func_name == "focus_window":
-        selection = int(args.get("selection", 0))
+        selection = _opt_int(args.get("selection")) or 0
         return GeminiToolResult(*_focus_window(user_id, selection))
 
     if func_name == "view_clipboard":
@@ -803,36 +829,35 @@ async def dispatch_gemini_tool(
         return await _direct_mouse_action(
             "click",
             text=str(args.get("text", "")).strip(),
-            x=int(args["x"]) if args.get("x") is not None else None,
-            y=int(args["y"]) if args.get("y") is not None else None,
+            x=_opt_int(args.get("x")),
+            y=_opt_int(args.get("y")),
         )
 
     if func_name == "double_click_on_screen":
         return await _direct_mouse_action(
             "double_click",
             text=str(args.get("text", "")).strip(),
-            x=int(args["x"]) if args.get("x") is not None else None,
-            y=int(args["y"]) if args.get("y") is not None else None,
+            x=_opt_int(args.get("x")),
+            y=_opt_int(args.get("y")),
         )
 
     if func_name == "right_click_on_screen":
         return await _direct_mouse_action(
             "right_click",
             text=str(args.get("text", "")).strip(),
-            x=int(args["x"]) if args.get("x") is not None else None,
-            y=int(args["y"]) if args.get("y") is not None else None,
+            x=_opt_int(args.get("x")),
+            y=_opt_int(args.get("y")),
         )
 
     if func_name == "scroll_screen":
         direction = str(args.get("direction", "down")).strip().lower()
         if direction not in {"up", "down", "left", "right"}:
             direction = "down"
-        raw_amount = args.get("amount")
-        amount = max(1, int(raw_amount)) if raw_amount is not None else 3
+        amount = max(1, _opt_int(args.get("amount")) or 3)
         return await _direct_mouse_action(
             "scroll",
-            x=int(args["x"]) if args.get("x") is not None else None,
-            y=int(args["y"]) if args.get("y") is not None else None,
+            x=_opt_int(args.get("x")),
+            y=_opt_int(args.get("y")),
             direction=direction,
             amount=amount,
         )
@@ -872,8 +897,8 @@ async def dispatch_gemini_tool(
         return await _queue_confirmation(
             user_id=user_id,
             action_type=func_name,
-            args={"x": int(args.get("x", 0)), "y": int(args.get("y", 0))},
-            summary=f"click screen coordinates ({int(args.get('x', 0))}, {int(args.get('y', 0))})",
+            args={"x": _opt_int(args.get("x")) or 0, "y": _opt_int(args.get("y")) or 0},
+            summary=f"click screen coordinates ({_opt_int(args.get('x')) or 0}, {_opt_int(args.get('y')) or 0})",
             tool_runtime=tool_runtime,
         )
 
@@ -1009,6 +1034,11 @@ async def dispatch_gemini_tool(
     if func_name == "schedule_claude_prompt":
         execute_at = str(args.get("execute_at", ""))
         prompt = str(args.get("prompt", ""))
+        if not prompt.strip():
+            return GeminiToolResult(False, "Please provide the prompt to schedule.")
+        invalid_time = _check_schedule_time(execute_at)
+        if invalid_time is not None:
+            return invalid_time
         return await _queue_confirmation(
             user_id=user_id,
             action_type=func_name,
@@ -1021,6 +1051,9 @@ async def dispatch_gemini_tool(
         execute_at = str(args.get("execute_at", ""))
         name = str(args.get("name", "")).strip()
         actions = args.get("actions", [])
+        invalid_time = _check_schedule_time(execute_at)
+        if invalid_time is not None:
+            return invalid_time
         return await _queue_confirmation(
             user_id=user_id,
             action_type=func_name,
@@ -1044,7 +1077,8 @@ async def dispatch_gemini_tool(
         if existing:
             return GeminiToolResult(
                 True,
-                f"A remote session is already active. Open: {existing.tunnel_url}",
+                "A remote session is already active. The viewer link is secret and is "
+                "not shown here; the user can run /remoteinfo to see it.",
             )
         return await _queue_confirmation(
             user_id=user_id,
@@ -1130,6 +1164,7 @@ async def _queue_confirmation(
     if rate_limited is not None:
         return rate_limited
 
+    _purge_expired_pending_actions()
     action_id = uuid.uuid4().hex[:10]
     pending_gemini_actions[action_id] = PendingGeminiAction(
         action_id=action_id,
@@ -1495,7 +1530,7 @@ async def _execute_confirmed_action(pending: PendingGeminiAction, bot: Any) -> G
         if keys.lower() == "type":
             if not text:
                 return GeminiToolResult(False, "The special 'type' mode requires text.")
-            write_text(pyautogui, str(text), interval=0.05)
+            await asyncio.to_thread(write_text, pyautogui, str(text), interval=0.05)
             return GeminiToolResult(True, f"Typed {_shorten(str(text))}")
 
         mapped_keys = map_keys_to_pyautogui(keys)
@@ -1507,15 +1542,15 @@ async def _execute_confirmed_action(pending: PendingGeminiAction, bot: Any) -> G
             send_hotkey(pyautogui, *mapped_keys)
         if text:
             await asyncio.sleep(0.4)
-            write_text(pyautogui, str(text), interval=0.05)
+            await asyncio.to_thread(write_text, pyautogui, str(text), interval=0.05)
             return GeminiToolResult(True, f"Sent hotkey '{keys}' and typed {_shorten(str(text))}")
         return GeminiToolResult(True, f"Sent hotkey '{keys}'")
 
     if action_type == "click_coordinates":
         import pyautogui
 
-        x = int(args.get("x", 0))
-        y = int(args.get("y", 0))
+        x = _opt_int(args.get("x")) or 0
+        y = _opt_int(args.get("y")) or 0
         pyautogui.click(x, y)
         return GeminiToolResult(True, f"Clicked coordinates ({x}, {y})")
 
@@ -1588,7 +1623,7 @@ async def _execute_confirmed_action(pending: PendingGeminiAction, bot: Any) -> G
         resolved, folder_or_error = resolve_workspace_folder(str(args.get("folder", "")))
         if not resolved:
             return GeminiToolResult(False, folder_or_error)
-        success, message = open_folder_in_vscode(folder_or_error)
+        success, message = await asyncio.to_thread(open_folder_in_vscode, folder_or_error)
         return GeminiToolResult(success, message)
 
     if action_type == "open_claude_cli":
@@ -1603,7 +1638,9 @@ async def _execute_confirmed_action(pending: PendingGeminiAction, bot: Any) -> G
     if action_type == "claude_cli_send_message":
         from pocket_desk_agent.handlers.antigravity import send_prompt_to_claude_cli
 
-        success, message = send_prompt_to_claude_cli(str(args.get("message", "")))
+        success, message = await asyncio.to_thread(
+            send_prompt_to_claude_cli, str(args.get("message", ""))
+        )
         return GeminiToolResult(success, message)
 
     if action_type == "schedule_claude_prompt":
@@ -1678,7 +1715,7 @@ async def _execute_confirmed_action(pending: PendingGeminiAction, bot: Any) -> G
         loop = asyncio.get_running_loop()
         success, message = await loop.run_in_executor(None, apply_pypi_update)
         if success:
-            asyncio.create_task(restart_bot_after_delay(3.0))
+            spawn_background_task(restart_bot_after_delay(3.0))
             return GeminiToolResult(True, f"{message}\n\n♻️ Restarting bot…")
         return GeminiToolResult(success, message)
 
@@ -1687,19 +1724,17 @@ async def _execute_confirmed_action(pending: PendingGeminiAction, bot: Any) -> G
 
 def _parse_schedule_time(time_str: str) -> Optional[dt.datetime]:
     """Parse schedule strings using the same formats as /schedule."""
-    now = dt.datetime.now().astimezone()
-    try:
-        if ":" in time_str and "-" not in time_str:
-            parsed = dt.datetime.strptime(time_str, "%H:%M")
-            candidate = now.replace(hour=parsed.hour, minute=parsed.minute, second=0, microsecond=0)
-            if candidate < now:
-                candidate += dt.timedelta(days=1)
-            return candidate
+    return parse_schedule_time(time_str)
 
-        parsed = dt.datetime.strptime(time_str, "%Y-%m-%d %H:%M")
-        return parsed.replace(tzinfo=now.tzinfo)
-    except Exception:
-        return None
+
+def _check_schedule_time(time_str: str) -> Optional[GeminiToolResult]:
+    """Return a failure result when ``time_str`` is unparseable or not in the future."""
+    parsed = _parse_schedule_time(time_str.strip())
+    if parsed is None:
+        return GeminiToolResult(False, "Invalid schedule time. Use HH:MM or YYYY-MM-DD HH:MM.")
+    if parsed <= dt.datetime.now().astimezone():
+        return GeminiToolResult(False, "That time is in the past. Please provide a future time.")
+    return None
 
 
 def _coerce_scheduled_actions(raw_actions: Any) -> list[CommandAction]:
@@ -1773,24 +1808,30 @@ class _MessageCollector:
         self.messages: list[str] = []
 
     async def reply_text(self, text: str, **kwargs):
-        """Forward reply_text calls to the real bot while collecting the text."""
+        """Collect the text for the tool result; nothing is sent to the chat here."""
         self.messages.append(text)
         return SimpleNamespace(text=text, kwargs=kwargs)
 
     async def reply_photo(self, photo: Any, caption: Optional[str] = None, **kwargs):
-        """Forward reply_photo calls to the real bot and remember the caption."""
+        """Send the photo through the real bot and remember the caption."""
         if caption:
             self.messages.append(caption)
         return await self._bot.send_photo(chat_id=self._chat_id, photo=photo, caption=caption, **kwargs)
 
 
 def _summarize_file_action(func_name: str, args: dict[str, Any]) -> str:
-    """Build a readable confirmation summary for file mutations."""
+    """Build a readable confirmation summary for file mutations.
+
+    Writes include a preview of the content: the user is approving what will
+    land on disk, and a path alone says nothing about that.
+    """
     path = str(args.get("path", ""))
-    if func_name == "write_file":
-        return f"overwrite or create the file '{path}'"
-    if func_name == "append_file":
-        return f"append content to the file '{path}'"
+    if func_name in {"write_file", "append_file"}:
+        content = str(args.get("content", ""))
+        preview = f" with {_shorten(content, 120)} ({len(content)} chars)" if content else " with empty content"
+        if func_name == "write_file":
+            return f"overwrite or create the file '{path}'{preview}"
+        return f"append content to the file '{path}'{preview}"
     if func_name == "delete_file":
         return f"delete the file '{path}'"
     return f"create the directory '{path}'"

@@ -348,15 +348,16 @@ async def execute_custom_command(update: Update, context: ContextTypes.DEFAULT_T
                     mapped_keys = map_keys_to_pyautogui(args[0])
                     
                     if mapped_keys:
+                        # Same order as the live /hotkey command: put the text on
+                        # the clipboard FIRST so a paste hotkey (ctrl+v) pastes it.
+                        if len(args) > 1:
+                            pyperclip.copy(args[1])
+                            await asyncio.sleep(0.2)
+
                         if len(mapped_keys) == 1:
                             press_key(pyautogui, mapped_keys[0])
                         else:
                             send_hotkey(pyautogui, *mapped_keys)
-                            
-                        # If there's clipboard text after the hotkey
-                        if len(args) > 1:
-                            pyperclip.copy(args[1])
-                            await asyncio.sleep(0.1)
                             
                         await update.message.reply_text(f"✅ Step {idx}/{len(actions)}: hotkey {args[0]}")
                     
@@ -371,8 +372,8 @@ async def execute_custom_command(update: Update, context: ContextTypes.DEFAULT_T
                     await update.message.reply_text(f"⏳ Step {idx}/{len(actions)}: finding text '{search_text}'...")
                     
                     from pocket_desk_agent.automation_utils import find_text_in_image
-                    screenshot = pyautogui.screenshot()
-                    matches = find_text_in_image(screenshot, search_text)
+                    screenshot = await asyncio.to_thread(pyautogui.screenshot)
+                    matches = await asyncio.to_thread(find_text_in_image, screenshot, search_text)
                     
                     if matches:
                         await update.message.reply_text(f"✅ Step {idx}/{len(actions)}: found '{search_text}' at ({matches[0].x}, {matches[0].y})")
@@ -385,8 +386,8 @@ async def execute_custom_command(update: Update, context: ContextTypes.DEFAULT_T
                     await update.message.reply_text(f"⏳ Step {idx}/{len(actions)}: smart clicking '{search_text}'...")
                     
                     from pocket_desk_agent.automation_utils import find_text_in_image
-                    screenshot = pyautogui.screenshot()
-                    matches = find_text_in_image(screenshot, search_text)
+                    screenshot = await asyncio.to_thread(pyautogui.screenshot)
+                    matches = await asyncio.to_thread(find_text_in_image, screenshot, search_text)
                     
                     if matches:
                         # Click the first match
@@ -421,7 +422,7 @@ async def execute_custom_command(update: Update, context: ContextTypes.DEFAULT_T
                         # Keep spaces between words
                         text_to_type = " ".join(args)
                     
-                    write_text(pyautogui, text_to_type, interval=0.05)
+                    await asyncio.to_thread(write_text, pyautogui, text_to_type, interval=0.05)
                     await asyncio.sleep(0.2)
                     press_key(pyautogui, "enter")
                     await update.message.reply_text(f"✅ Step {idx}/{len(actions)}: typeenter {text_to_type}")

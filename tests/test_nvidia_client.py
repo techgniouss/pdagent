@@ -26,7 +26,7 @@ class _FakeResponse:
 def _set_nvidia_config(monkeypatch, key: str = "nvapi-test-key") -> None:
     monkeypatch.setattr(Config, "NVIDIA_API_KEY", key)
     monkeypatch.setattr(Config, "NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
-    monkeypatch.setattr(Config, "NVIDIA_MODEL", "meta/llama-3.3-70b-instruct")
+    monkeypatch.setattr(Config, "NVIDIA_MODEL", "nvidia/nemotron-3-super-120b-a12b")
     monkeypatch.setattr(Config, "MAX_TOKENS_PER_REQUEST", 8000)
     monkeypatch.setattr(Config, "SYSTEM_PROMPT", "")
 
@@ -53,7 +53,7 @@ def test_send_message_plain_text_reply(monkeypatch) -> None:
     client = NvidiaClient()
 
     def fake_call_raw(self, payload):
-        assert payload["model"] == "meta/llama-3.3-70b-instruct"
+        assert payload["model"] == "nvidia/nemotron-3-super-120b-a12b"
         return {"choices": [{"message": {"role": "assistant", "content": "Hello!"}}]}
 
     monkeypatch.setattr(NvidiaClient, "_call_raw", fake_call_raw)
@@ -128,6 +128,7 @@ def test_send_message_with_image_success(monkeypatch) -> None:
     def fake_call_raw(self, payload):
         content_types = [c["type"] for c in payload["messages"][-1]["content"]]
         assert "image_url" in content_types
+        assert payload["model"] == Config.NVIDIA_VISION_MODEL
         return {"choices": [{"message": {"role": "assistant", "content": "A cat."}}]}
 
     monkeypatch.setattr(NvidiaClient, "_call_raw", fake_call_raw)

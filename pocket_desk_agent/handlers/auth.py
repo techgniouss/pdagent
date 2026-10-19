@@ -199,6 +199,15 @@ async def authcode_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     raw_input = " ".join(context.args).strip()
 
+    # The authorization code is a credential: don't leave it in the chat
+    # history (best effort — same treatment as /setnvidiakey).
+    try:
+        await context.bot.delete_message(
+            chat_id=update.effective_chat.id, message_id=update.message.message_id
+        )
+    except Exception as exc:
+        logger.info("Could not delete /authcode message (non-fatal): %s", exc)
+
     # Auto-detect and extract code from callback URL
     auth_code = raw_input
     callback_state = None
@@ -412,13 +421,15 @@ async def setnvidiakey_command(update: Update, context: ContextTypes.DEFAULT_TYP
         return
 
     import configparser
+    import io
     import os
 
     from pocket_desk_agent import configure as configure_module
     from pocket_desk_agent.config import Config
+    from pocket_desk_agent.json_store import write_private_text
 
     configure_module.ensure_app_dir()
-    cred_parser = configparser.ConfigParser()
+    cred_parser = configparser.ConfigParser(interpolation=None)
     cred_path = configure_module.credentials_path()
     if cred_path.exists():
         cred_parser.read(cred_path, encoding="utf-8")
@@ -426,12 +437,11 @@ async def setnvidiakey_command(update: Update, context: ContextTypes.DEFAULT_TYP
         cred_parser["default"] = {}
     cred_parser["default"]["nvidia_api_key"] = key
 
-    with open(cred_path, "w", encoding="utf-8") as f:
-        f.write("# Pocket Desk Agent — credentials\n")
-        f.write("# Keep this file private. Do not share or commit it.\n\n")
-        cred_parser.write(f)
-    if os.name != "nt":
-        os.chmod(cred_path, 0o600)
+    buffer = io.StringIO()
+    buffer.write("# Pocket Desk Agent — credentials\n")
+    buffer.write("# Keep this file private. Do not share or commit it.\n\n")
+    cred_parser.write(buffer)
+    write_private_text(cred_path, buffer.getvalue())
 
     os.environ["NVIDIA_API_KEY"] = key
     Config.load()

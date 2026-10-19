@@ -51,7 +51,7 @@ Manage the fundamental runtime state, session lifecycle, and system capabilities
 
 You do not need a slash command to talk to the AI.
 
-- **Text**: Send any message directly to chat with Gemini 2.0 Flash.
+- **Text**: Send any message directly to chat with Gemini.
 - **Vision**: Attach a photo or image document and ask a question — Gemini will analyze the image.
 - **Agentic Automation**: Gemini is equipped with tool-calling capabilities to actively browse files, capture screenshots, and automate UI tasks (clicking, typing, opening apps, scheduling actions) on your host PC via natural language. All destructive or system-altering actions require explicit human-in-the-loop approval via inline confirmation buttons.
 
@@ -261,7 +261,7 @@ Bridge the bot to VS Code via the Antigravity desktop extension.
 
 Schedule one-shot or repeating automations, Claude prompts, and temporary permission watchers. Tasks persist across restarts.
 
-> The scheduler checks for due tasks every **5 seconds**. The bot must be running when the scheduled time arrives. Watcher tasks (`/watchperm`, `/watchscreen`, `/watchnotify`) run in background threads independent of the main scheduler loop.
+> The scheduler checks for due tasks every **5 seconds**. The bot must be running when the scheduled time arrives. A one-shot task that was missed while the bot (or PC) was off is **skipped and reported** instead of running late — more than 10 minutes late for most tasks, more than 2 minutes late for a scheduled shutdown — so a shutdown set for last night never fires the next morning. Schedule it again if you still want it. Watcher tasks (`/watchperm`, `/watchscreen`, `/watchnotify`) run in background threads independent of the main scheduler loop.
 
 | Command | Description | Example |
 | :--- | :--- | :--- |
@@ -279,7 +279,7 @@ Schedule one-shot or repeating automations, Claude prompts, and temporary permis
 
 **Time formats:**
 - `HH:MM` — queues for later today, or tomorrow if the time has already passed (24-hour format)
-- `YYYY-MM-DD HH:MM` — explicit future date and time
+- `YYYY-MM-DD HH:MM` — explicit future date and time (a time in the past is rejected)
 
 **Repeat formats:**
 - `every 1m for 15m`
@@ -304,7 +304,7 @@ Build reusable multi-step workflows and run them with optional template variable
 | `/recipeaddnotify <recipe> <message template>` | Append a Telegram notification step with optional `{variables}`. | `/recipeaddnotify claude_fix Finished {repo} on {branch}` |
 | `/recipelist` | List all recipes with step count and usage stats. | `/recipelist` |
 | `/recipeshow <recipe>` | Show all steps in a recipe. | `/recipeshow claude_fix` |
-| `/reciperun <recipe> [key=value ...]` | Execute recipe steps sequentially with optional template variables. | `/reciperun claude_fix repo=pdagent branch=main` |
+| `/reciperun <recipe> [key=value ...]` | Execute recipe steps sequentially with optional template variables. The recipe runs in the background, so other commands (including `/stopbot` and `/stopremote`) stay available; only one recipe can run at a time. | `/reciperun claude_fix repo=pdagent branch=main` |
 | `/recipedelete <recipe>` | Delete a recipe permanently. | `/recipedelete claude_fix` |
 
 ---

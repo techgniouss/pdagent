@@ -17,7 +17,9 @@ and the (UA, hashed-IP) to match the first-hit fingerprint.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
+import hmac
 import json
 import logging
 import socket
@@ -89,12 +91,36 @@ def _cookie_token(request: Any) -> Optional[str]:
     return cookie if cookie else None
 
 
+def _token_matches(candidate: Optional[str], expected: str) -> bool:
+    """Constant-time token comparison."""
+    if not candidate or not expected:
+        return False
+    return hmac.compare_digest(candidate.encode("utf-8"), expected.encode("utf-8"))
+
+
+def _origin_allowed(request: Any) -> bool:
+    """Reject cross-origin WebSocket handshakes.
+
+    Browsers always send ``Origin`` on a WS handshake; the viewer is served
+    from the same host, so any other origin is a third-party page trying to
+    ride the cookie. Non-browser clients (no Origin header) are allowed —
+    they still need the session cookie.
+    """
+    origin = request.headers.get("Origin")
+    if not origin:
+        return True
+    from urllib.parse import urlsplit
+
+    return urlsplit(origin).netloc.lower() == (request.host or "").lower()
+
+
 def _authorize_ws(session: RemoteSession, request: Any) -> Optional[str]:
     """Return an error string when the WS request should be rejected."""
     if session.torn_down:
         return "session gone"
-    token = _cookie_token(request)
-    if not token or token != session.token:
+    if not _origin_allowed(request):
+        return "bad origin"
+    if not _token_matches(_cookie_token(request), session.token):
         return "bad cookie"
     current_fp = _fingerprint(request)
     if session.bound_fingerprint is None:
@@ -120,7 +146,7 @@ async def _handle_root(request: Any) -> Any:
     token = request.query.get("t", "")
     cookie_token = _cookie_token(request)
 
-    if token != session.token and cookie_token != session.token:
+    if not (_token_matches(token, session.token) or _token_matches(cookie_token, session.token)):
         logger.info("[remote] root request rejected: bad token")
         return web.Response(status=404, text="Not found.")
 
@@ -151,10 +177,33 @@ async def _handle_root(request: Any) -> Any:
     return response
 
 
+async def _handle_favicon(request: Any) -> Any:
+    """Browsers always ask for /favicon.ico; answer quietly instead of a 404."""
+    from aiohttp import web  # type: ignore
+
+    return web.Response(status=204)
+
+
 async def _handle_healthz(request: Any) -> Any:
     from aiohttp import web  # type: ignore
 
     return web.Response(text="ok")
+
+
+async def _discard_incoming(ws: Any) -> None:
+    """Read and drop everything the viewer sends on the video socket.
+
+    The video handler only writes. Without a concurrent reader it never sees
+    the client's close frame, so after a viewer disconnects the capture loop
+    keeps grabbing and encoding frames until the heartbeat times out (~30s).
+    The viewer reconnects every 2s on a flaky network, so those zombie loops
+    would pile up. Reading lets ``ws.closed`` flip the moment the peer leaves.
+    """
+    try:
+        async for _ in ws:
+            pass
+    except Exception:
+        pass
 
 
 async def _handle_ws_video(request: Any) -> Any:
@@ -166,7 +215,7 @@ async def _handle_ws_video(request: Any) -> Any:
         logger.info("[remote] /ws/video rejected (%s) for user %s", reject, session.user_id)
         return web.Response(status=401, text="Unauthorized.")
 
-    ws = web.WebSocketResponse(heartbeat=20.0, max_msg_size=0)
+    ws = web.WebSocketResponse(heartbeat=20.0, max_msg_size=4096)
     await ws.prepare(request)
     _disable_nagle(request)
     session.active_ws.add(ws)
@@ -175,9 +224,10 @@ async def _handle_ws_video(request: Any) -> Any:
     from pocket_desk_agent.remote.capture import frame_iter
 
     sent_frames = 0
+    reader = asyncio.create_task(_discard_incoming(ws))
     try:
         async for jpeg in frame_iter(session):
-            if ws.closed or session.torn_down:
+            if ws.closed or session.torn_down or reader.done():
                 break
             if not jpeg:
                 # Explicit skip sentinel from frame_iter — keep loop cadence.
@@ -203,6 +253,7 @@ async def _handle_ws_video(request: Any) -> Any:
                 logger.debug("[remote] ws/video send failed: %s", exc)
                 break
     finally:
+        reader.cancel()
         session.active_ws.discard(ws)
         if not ws.closed:
             try:
@@ -228,7 +279,7 @@ async def _handle_ws_input(request: Any) -> Any:
 
     from pocket_desk_agent.remote.input_bridge import InputDispatcher
 
-    ws = web.WebSocketResponse(heartbeat=20.0)
+    ws = web.WebSocketResponse(heartbeat=20.0, max_msg_size=64 * 1024)
     await ws.prepare(request)
     _disable_nagle(request)
     session.active_ws.add(ws)
@@ -289,6 +340,7 @@ def build_app(session: RemoteSession):
     app["session"] = session
     app.router.add_get("/", _handle_root)
     app.router.add_get("/healthz", _handle_healthz)
+    app.router.add_get("/favicon.ico", _handle_favicon)
     app.router.add_get("/ws/video", _handle_ws_video)
     app.router.add_get("/ws/input", _handle_ws_input)
     return app

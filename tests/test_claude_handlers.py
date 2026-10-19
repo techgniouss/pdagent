@@ -67,3 +67,59 @@ def test_click_claude_input_coordinate_fallback_targets_composer_area(monkeypatc
         (700, 788),
         (700, 752),
     ]
+
+
+def test_pick_claude_window_title_ignores_browsers_terminals_and_ides() -> None:
+    from pocket_desk_agent.handlers.claude import pick_claude_window_title
+
+    assert pick_claude_window_title(["Claude"]) == "Claude"
+    assert pick_claude_window_title(["Claude - Google Chrome", "Claude CLI", "Claude"]) == "Claude"
+    assert pick_claude_window_title(["Claude CLI", "Visual Studio Code - Claude Code"]) is None
+    assert pick_claude_window_title(["Notes", "Inbox - Mail"]) is None
+    assert pick_claude_window_title(["", "Claude (Beta)"]) == "Claude (Beta)"
+
+
+def test_send_prompt_refuses_when_claude_is_not_foreground(monkeypatch) -> None:
+    import sys
+    import types
+
+    import pytest
+
+    from pocket_desk_agent.handlers import claude
+    from pocket_desk_agent import window_utils
+
+    keys: list[str] = []
+    fake_gui = types.SimpleNamespace(
+        hotkey=lambda *k: keys.append("+".join(k)), press=lambda k: keys.append(k)
+    )
+    fake_clip = types.SimpleNamespace(copy=lambda t: keys.append("copy"))
+    monkeypatch.setitem(sys.modules, "pyautogui", fake_gui)
+    monkeypatch.setitem(sys.modules, "pyperclip", fake_clip)
+    monkeypatch.setattr(window_utils, "foreground_window_handle", lambda: 999)
+    monkeypatch.setattr(window_utils, "activate_window", lambda handle: False)
+
+    window = types.SimpleNamespace(_hWnd=123)
+    with pytest.raises(RuntimeError, match="foreground"):
+        claude.send_prompt_to_claude(window, "rm -rf /")
+    assert keys == []  # nothing was pasted or submitted anywhere
+
+
+def test_openclaude_on_linux_does_not_spawn_the_cli(monkeypatch) -> None:
+    import asyncio
+    from types import SimpleNamespace
+
+    from pocket_desk_agent.handlers import claude
+
+    spawned: list = []
+    monkeypatch.setattr(claude.subprocess, "Popen", lambda *a, **k: spawned.append(a))
+    monkeypatch.setattr(claude.platform, "system", lambda: "Linux")
+    replies: list[str] = []
+
+    class Msg:
+        async def reply_text(self, text, **kwargs):
+            replies.append(text)
+
+    asyncio.run(claude.openclaude_command(SimpleNamespace(message=Msg()), SimpleNamespace()))
+
+    assert spawned == []
+    assert any("isn't available on Linux" in r for r in replies)

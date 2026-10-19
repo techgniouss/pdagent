@@ -43,7 +43,7 @@ Yapay zeka ayarı olmadan, kullanıma hazır:
 - **Android APK'ları derleyin ve teslim edin** — React Native projelerinden Telegram üzerinden
 
 - **Scheduled shutdown** — Use `/scheduleshutdown <HH:MM>` to schedule a one-time shutdown (confirmation only when scheduling).
-**Google Gemini 2.0 Flash** kimlik bilgilerini ekleyerek açılacak özellikler:
+**Google Gemini** kimlik bilgilerini ekleyerek açılacak özellikler:
 - **Konuşmalı yapay zeka sohbeti** — çok turlu bellek ve görüntü analizi
 - **Ajanlı bilgisayar kontrolü** — Gemini dosyaları gezebilir, ekran görüntüsü alabilir, tıklayabilir, yazabilir ve doğal dil ile PC'nizi otomatikleştirebilir. Yıkıcı işlemler için insan onayı gerekir
 - **İstem geliştirme** `/enhance` komutu ile
@@ -68,7 +68,7 @@ Aşağıdakilerin tümü yapay zeka yapılandırması olmadan çalışır:
 
 **İsteğe bağlı — Google Gemini kimlik bilgileri gerektirir:**
 
-- **Yapay Zeka Sohbeti ve Bilgisayar Kontrolü**: Gemini 2.0 Flash ile çok turlu konuşma, görüntü analizi ve araç çağrıları. Tüm yıkıcı işlemler Telegram düğmeleri aracılığıyla açık insan onayı gerektirir.
+- **Yapay Zeka Sohbeti ve Bilgisayar Kontrolü**: Gemini ile çok turlu konuşma, görüntü analizi ve araç çağrıları. Tüm yıkıcı işlemler Telegram düğmeleri aracılığıyla açık insan onayı gerektirir.
 - **İstem Geliştirme**: `/enhance`, Gemini'nin bir istemi yeniden yazmasını ve geliştirmesini sağlar.
 
 ---

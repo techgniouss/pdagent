@@ -2,11 +2,15 @@ import re
 import tempfile
 from pathlib import Path
 
-import networkx as nx
 import pytest
 
-from graphify.extract import extract_python
-from graphify.report import generate
+# graphify and networkx are optional dev tools (not project dependencies):
+# without them this module must skip, not abort collection of the whole suite.
+nx = pytest.importorskip("networkx")
+pytest.importorskip("graphify")
+
+from graphify.extract import extract_python  # noqa: E402
+from graphify.report import generate  # noqa: E402
 
 
 _HEX_LIKE_RE = re.compile(r"\b[A-Fa-f0-9]{32,}\b")

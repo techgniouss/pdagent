@@ -95,3 +95,20 @@ def test_legacy_task_dict_without_failure_field_loads(registry):
 
     assert updated.status == "pending"
     assert updated.consecutive_failures == 1
+
+
+def test_unparseable_task_is_failed_once_not_polled_forever(tmp_path, monkeypatch) -> None:
+    from pocket_desk_agent import scheduler_registry as sr
+
+    monkeypatch.setattr(sr, "SCHEDULER_PATH", tmp_path / "scheduled_tasks.json")
+    registry = sr.SchedulerRegistry()
+    registry.tasks = [
+        {"id": "bad", "user_id": 1, "command": "claude_msg:x", "execute_at": "not-a-date", "status": "pending"},
+    ]
+
+    assert registry.get_pending_tasks() == []
+    assert registry.tasks[0]["status"] == "failed"
+    assert "Invalid scheduled time" in registry.tasks[0]["error"]
+    # Persisted, and no longer examined on later polls.
+    assert sr.SchedulerRegistry().tasks[0]["status"] == "failed"
+    assert registry.get_all_pending() == []

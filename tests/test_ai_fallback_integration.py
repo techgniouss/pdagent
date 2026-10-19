@@ -55,7 +55,7 @@ def test_fallback_with_realistic_pregenerated_history_produces_well_formed_paylo
     unanswered)."""
     monkeypatch.setattr(Config, "AI_PROVIDER_ORDER", ["gemini", "nvidia"])
     monkeypatch.setattr(Config, "NVIDIA_API_KEY", "nvapi-test")
-    monkeypatch.setattr(Config, "NVIDIA_MODEL", "meta/llama-3.3-70b-instruct")
+    monkeypatch.setattr(Config, "NVIDIA_MODEL", "nvidia/nemotron-3-super-120b-a12b")
     monkeypatch.setattr(Config, "MAX_TOKENS_PER_REQUEST", 8000)
     monkeypatch.setattr(Config, "SYSTEM_PROMPT", "")
 

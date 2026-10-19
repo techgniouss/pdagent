@@ -13,9 +13,17 @@ from __future__ import annotations
 
 import configparser
 import getpass
+import io
+import logging
 import os
 from pathlib import Path
 
+from pocket_desk_agent.json_store import write_private_text
+from pocket_desk_agent.constants import (
+    DEFAULT_GEMINI_MODEL,
+    DEFAULT_NVIDIA_MODEL,
+    RETIRED_NVIDIA_MODELS,
+)
 from pocket_desk_agent.app_paths import (
     app_path,
     app_path_candidates,
@@ -68,6 +76,8 @@ def has_config() -> bool:
     return existing_app_path("config").exists() and existing_app_path("credentials").exists()
 
 
+logger = logging.getLogger(__name__)
+
 # ---------------------------------------------------------------------------
 # INI -> os.environ loader
 # ---------------------------------------------------------------------------
@@ -91,6 +101,8 @@ _INI_ENV_MAP: dict[tuple[str, str, str], str] = {
     ("config", "bot", "gemini_auth_mode"):       "GEMINI_AUTH_MODE",
     ("config", "bot", "gemini_model"):          "GEMINI_MODEL",
     ("config", "bot", "nvidia_model"):          "NVIDIA_MODEL",
+    ("config", "bot", "nvidia_vision_model"):   "NVIDIA_VISION_MODEL",
+    ("config", "bot", "nvidia_base_url"):       "NVIDIA_BASE_URL",
     ("config", "bot", "ai_provider_order"):     "AI_PROVIDER_ORDER",
     ("config", "bot", "max_tokens_per_request"): "MAX_TOKENS_PER_REQUEST",
     ("config", "bot", "system_prompt"):         "SYSTEM_PROMPT",
@@ -126,8 +138,15 @@ def load_into_environ() -> None:
 def _load_file(file_type: str, path: Path) -> None:
     if not path.exists():
         return
-    parser = configparser.ConfigParser()
-    parser.read(path, encoding="utf-8")
+    # interpolation=None: values are literal (passwords/prompts may contain '%').
+    parser = configparser.ConfigParser(interpolation=None)
+    try:
+        parser.read(path, encoding="utf-8")
+    except (configparser.Error, OSError, UnicodeDecodeError) as exc:
+        # This runs at import time, before any error reporting exists: a bad
+        # file must degrade to "not configured", not crash startup.
+        logger.warning("Ignoring unreadable config file %s: %s", path, exc)
+        return
     for (ftype, section, key), env_var in _INI_ENV_MAP.items():
         if ftype != file_type:
             continue
@@ -336,8 +355,8 @@ def _note_implicit_repo_path(cfg_parser: configparser.ConfigParser) -> None:
 
 def _show_current_config() -> None:
     """Display current configuration values (secrets masked)."""
-    parser_cred = configparser.ConfigParser()
-    parser_cfg = configparser.ConfigParser()
+    parser_cred = configparser.ConfigParser(interpolation=None)
+    parser_cfg = configparser.ConfigParser(interpolation=None)
     current_credentials_path = existing_app_path("credentials")
     current_config_path = existing_app_path("config")
     if current_credentials_path.exists():
@@ -649,7 +668,7 @@ def _run_full_wizard() -> None:
     # ------------------------------------------------------------------
     # Write credentials file
     # ------------------------------------------------------------------
-    cred_parser = configparser.ConfigParser()
+    cred_parser = configparser.ConfigParser(interpolation=None)
     cred_parser["default"] = {
         "telegram_bot_token": token,
         "google_api_key": google_api_key,
@@ -660,10 +679,7 @@ def _run_full_wizard() -> None:
         "qubo_password": smart_plug_fields["qubo_password"],
         "nvidia_api_key": nvidia_api_key,
     }
-    with open(credentials_path(), "w", encoding="utf-8") as f:
-        f.write("# Pocket Desk Agent — credentials\n")
-        f.write("# Keep this file private. Do not share or commit it.\n\n")
-        cred_parser.write(f)
+    _write_credentials_file(cred_parser)
 
     # Restrict permissions on Unix (no-op on Windows)
     if os.name != "nt":
@@ -672,15 +688,15 @@ def _run_full_wizard() -> None:
     # ------------------------------------------------------------------
     # Write config file
     # ------------------------------------------------------------------
-    cfg_parser = configparser.ConfigParser()
+    cfg_parser = configparser.ConfigParser(interpolation=None)
     cfg_parser["bot"] = {
         "authorized_user_ids": authorized_user_ids,
         "telegram_bot_username": telegram_bot_username,
         "approved_directories": approved_directories,
         "gemini_auth_mode": gemini_auth_mode,
         "google_oauth_enabled": google_oauth_enabled,
-        "gemini_model": "gemini-2.0-flash",
-        "nvidia_model": "meta/llama-3.3-70b-instruct",
+        "gemini_model": DEFAULT_GEMINI_MODEL,
+        "nvidia_model": DEFAULT_NVIDIA_MODEL,
         "ai_provider_order": ai_provider_order,
         "max_tokens_per_request": "8000",
         "system_prompt": "",
@@ -699,10 +715,7 @@ def _run_full_wizard() -> None:
         "battery_low_threshold": smart_plug_fields["battery_low_threshold"],
         "battery_poll_interval": smart_plug_fields["battery_poll_interval"],
     }
-    with open(config_path(), "w", encoding="utf-8") as f:
-        f.write("# Pocket Desk Agent — configuration\n")
-        f.write("# Edit values here and restart the bot to apply changes.\n\n")
-        cfg_parser.write(f)
+    write_config_file(config_path(), cfg_parser)
 
     # ------------------------------------------------------------------
     # Success message
@@ -727,8 +740,8 @@ def _run_full_wizard() -> None:
 
 def _read_existing_parsers() -> tuple[configparser.ConfigParser, configparser.ConfigParser]:
     """Load the current credentials and config files into two ConfigParser objects."""
-    cred_parser = configparser.ConfigParser()
-    cfg_parser = configparser.ConfigParser()
+    cred_parser = configparser.ConfigParser(interpolation=None)
+    cfg_parser = configparser.ConfigParser(interpolation=None)
 
     current_credentials_path = existing_app_path("credentials")
     current_config_path = existing_app_path("config")
@@ -748,6 +761,24 @@ def _read_existing_parsers() -> tuple[configparser.ConfigParser, configparser.Co
     return cred_parser, cfg_parser
 
 
+def write_config_file(path: Path, parser: configparser.ConfigParser) -> None:
+    """Write the INI config atomically (a crash must not truncate it)."""
+    buffer = io.StringIO()
+    buffer.write("# Pocket Desk Agent — configuration\n")
+    buffer.write("# Edit values here and restart the bot to apply changes.\n\n")
+    parser.write(buffer)
+    write_private_text(path, buffer.getvalue())
+
+
+def _write_credentials_file(cred_parser: configparser.ConfigParser) -> None:
+    """Write the credentials file atomically with owner-only permissions."""
+    buffer = io.StringIO()
+    buffer.write("# Pocket Desk Agent — credentials\n")
+    buffer.write("# Keep this file private. Do not share or commit it.\n\n")
+    cred_parser.write(buffer)
+    write_private_text(credentials_path(), buffer.getvalue())
+
+
 def _write_parsers(
     cred_parser: configparser.ConfigParser,
     cfg_parser: configparser.ConfigParser,
@@ -755,18 +786,12 @@ def _write_parsers(
     """Write both parsers back to their canonical paths."""
     ensure_app_dir()
 
-    with open(credentials_path(), "w", encoding="utf-8") as f:
-        f.write("# Pocket Desk Agent — credentials\n")
-        f.write("# Keep this file private. Do not share or commit it.\n\n")
-        cred_parser.write(f)
+    _write_credentials_file(cred_parser)
 
     if os.name != "nt":
         os.chmod(credentials_path(), 0o600)
 
-    with open(config_path(), "w", encoding="utf-8") as f:
-        f.write("# Pocket Desk Agent — configuration\n")
-        f.write("# Edit values here and restart the bot to apply changes.\n\n")
-        cfg_parser.write(f)
+    write_config_file(config_path(), cfg_parser)
 
     print("\nConfiguration updated:")
     print(f"  {config_path()}")
@@ -1103,7 +1128,8 @@ def _update_nvidia_fallback(
 ) -> None:
     """Prompt for and update the NVIDIA fallback key, model, and provider order."""
     current_key = cred_parser.get("default", "nvidia_api_key", fallback="")
-    current_model = cfg_parser.get("bot", "nvidia_model", fallback="meta/llama-3.3-70b-instruct")
+    current_model = cfg_parser.get("bot", "nvidia_model", fallback=DEFAULT_NVIDIA_MODEL)
+    current_model = RETIRED_NVIDIA_MODELS.get(current_model.strip().lower(), current_model)
     current_order = cfg_parser.get("bot", "ai_provider_order", fallback="gemini,nvidia")
 
     print(f"\n  Current NVIDIA API Key : {_mask(current_key) if current_key else '(not set)'}")
@@ -1123,7 +1149,7 @@ def _update_nvidia_fallback(
         )
     new_model = _prompt_optional(
         "New NVIDIA Model",
-        hint="e.g. meta/llama-3.3-70b-instruct",
+        hint=f"e.g. {DEFAULT_NVIDIA_MODEL}",
         default=current_model,
     )
     while True:
@@ -1239,12 +1265,10 @@ def persist_approved_directories(dirs: list) -> None:
     Creates the config file with minimal content if it doesn't exist yet.
     """
     path = config_path()
-    parser = configparser.ConfigParser()
+    parser = configparser.ConfigParser(interpolation=None)
     if path.exists():
         parser.read(path, encoding="utf-8")
     if not parser.has_section("bot"):
         parser.add_section("bot")
     parser.set("bot", "approved_directories", ",".join(str(d) for d in dirs))
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as fh:
-        parser.write(fh)
+    write_config_file(path, parser)

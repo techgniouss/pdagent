@@ -24,6 +24,18 @@ from pocket_desk_agent.config import Config
 logger = logging.getLogger(__name__)
 
 _URL_PATTERN = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com")
+# Hostnames cloudflared mentions in its own log/error lines (e.g. the
+# "Post https://api.trycloudflare.com/tunnel" failure) that are not tunnels.
+_NON_TUNNEL_HOSTS = frozenset({"api"})
+
+
+def _extract_tunnel_url(line: str) -> Optional[str]:
+    """Return the quick-tunnel URL in ``line``, ignoring cloudflared's API host."""
+    for match in _URL_PATTERN.finditer(line):
+        host = match.group(0).split("//", 1)[1].split(".", 1)[0]
+        if host not in _NON_TUNNEL_HOSTS:
+            return match.group(0)
+    return None
 _URL_WAIT_SECS = 25.0
 _READY_WAIT_SECS = 8.0
 _START_MAX_ATTEMPTS = 2
@@ -209,9 +221,9 @@ async def _read_url_and_ready(
 
         if _line_has_ready_signal(line):
             ready = True
-        match = _URL_PATTERN.search(line)
-        if match:
-            url = match.group(0)
+        found_url = _extract_tunnel_url(line)
+        if found_url:
+            url = found_url
 
     if ready:
         return url, True
@@ -227,9 +239,9 @@ async def _read_url_and_ready(
         if _line_has_ready_signal(line):
             return url, True
         # cloudflared may print a newer URL line in rare retries; keep the latest one.
-        match = _URL_PATTERN.search(line)
-        if match:
-            url = match.group(0)
+        found_url = _extract_tunnel_url(line)
+        if found_url:
+            url = found_url
 
     return url, False
 

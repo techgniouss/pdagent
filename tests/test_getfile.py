@@ -56,7 +56,7 @@ def test_is_blocked_download_file_rejects_windows_executables() -> None:
 
 
 def test_resolve_downloadable_file_rejects_paths_outside_approved_directories() -> None:
-    with tempfile.TemporaryDirectory(dir="C:\\tmp") as temp_dir:
+    with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir)
         manager = FileManager()
         approved = root / "approved"
@@ -89,7 +89,7 @@ def test_getfile_command_rejects_blocked_path(monkeypatch) -> None:
 
 
 def test_getfile_command_sends_allowed_file(monkeypatch) -> None:
-    with tempfile.TemporaryDirectory(dir="C:\\tmp") as temp_dir:
+    with tempfile.TemporaryDirectory() as temp_dir:
         target = Path(temp_dir) / "app.apk"
         target.write_bytes(b"apk")
         message = DummyMessage()
@@ -114,7 +114,7 @@ def test_getfile_command_sends_allowed_file(monkeypatch) -> None:
 
 
 def test_getfile_command_without_args_starts_browser(monkeypatch) -> None:
-    with tempfile.TemporaryDirectory(dir="C:\\tmp") as temp_dir:
+    with tempfile.TemporaryDirectory() as temp_dir:
         getfile_retrieval_state.clear()
         start_path = Path(temp_dir) / "repo"
         start_path.mkdir()
@@ -146,3 +146,77 @@ def test_check_getfile_selection_cancel_clears_state() -> None:
     assert handled is True
     assert 7 not in getfile_retrieval_state
     assert "cancelled" in message.replies[-1].lower()
+
+
+def test_getfile_browser_refuses_symlink_that_escapes_the_sandbox(monkeypatch) -> None:
+    import os
+
+    with tempfile.TemporaryDirectory() as root:
+        approved = Path(root) / "approved"
+        outside = Path(root) / "outside"
+        approved.mkdir()
+        outside.mkdir()
+        secret = outside / "secret.txt"
+        secret.write_text("top secret", encoding="utf-8")
+        link = approved / "link.txt"
+        try:
+            os.symlink(secret, link)
+        except (OSError, NotImplementedError):
+            import pytest
+
+            pytest.skip("symlinks unavailable on this platform")
+
+        manager = FileManager()
+        manager.approved_dirs = [approved]
+        monkeypatch.setattr(filesystem, "file_manager", manager)
+        sent: list[Path] = []
+
+        async def fake_send(update_arg, context_arg, file_path: Path) -> None:
+            sent.append(file_path)
+
+        monkeypatch.setattr(filesystem, "_send_requested_file", fake_send)
+
+        getfile_retrieval_state.clear()
+        getfile_retrieval_state[7] = {"current_path": approved, "timestamp": time.time()}
+        message = DummyMessage()
+        message.text = "1"
+        handled = asyncio.run(
+            filesystem.check_getfile_selection(make_update(message), DummyContext(args=[]))
+        )
+
+        assert handled is True
+        assert sent == []
+        assert "access denied" in message.replies[-1].lower()
+
+
+def test_getfile_browser_caps_long_listings() -> None:
+    with tempfile.TemporaryDirectory() as root:
+        folder = Path(root)
+        for index in range(filesystem._GETFILE_MAX_LISTED_ITEMS + 25):
+            (folder / f"file_{index:03d}.txt").write_text("x", encoding="utf-8")
+
+        text = filesystem._render_getfile_browser(folder)
+
+        assert len(text) < 4096
+        assert "25 more item(s) not shown" in text
+
+
+def test_search_files_skips_heavy_dirs_and_honours_time_limit(monkeypatch) -> None:
+    with tempfile.TemporaryDirectory() as root:
+        base = Path(root)
+        (base / "src").mkdir()
+        (base / "src" / "target_file.py").write_text("x", encoding="utf-8")
+        (base / "node_modules" / "pkg").mkdir(parents=True)
+        (base / "node_modules" / "pkg" / "target_dep.js").write_text("x", encoding="utf-8")
+
+        manager = FileManager()
+        manager.approved_dirs = [base]
+        manager.current_dirs[1] = base
+
+        ok, text = manager.search_files(1, "target")
+        assert ok and "target_file.py" in text and "target_dep.js" not in text
+
+        # An already-expired deadline stops the walk and says so.
+        monkeypatch.setattr(FileManager, "_SEARCH_TIME_LIMIT_SECONDS", -1.0)
+        ok, text = manager.search_files(1, "target")
+        assert ok and "Search stopped" in text
