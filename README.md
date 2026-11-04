@@ -38,6 +38,30 @@
 
 **Pocket Desk Agent** is a self-hosted Telegram bot that gives you full remote control of your Windows PC from any device. Unlike TeamViewer, AnyDesk, or RDP — it needs no account, no open inbound ports, no router config, and no subscription. It runs entirely on your machine; only Telegram's message relay and the optional Gemini API touch the internet.
 
+## Quick start (about two minutes)
+
+1. Create a Telegram bot with [@BotFather](https://t.me/BotFather) and copy its token (details in [Before You Start](#before-you-start)).
+2. On your Windows PC:
+
+```bash
+pip install pocket-desk-agent
+pdagent
+```
+
+3. Follow the setup wizard, then message your bot from your phone. Try `/screenshot`.
+
+## Why not TeamViewer, AnyDesk or RDP?
+
+| | Pocket Desk Agent | TeamViewer / AnyDesk | RDP |
+| :--- | :---: | :---: | :---: |
+| Account or subscription | None | Required | None |
+| Open inbound ports / router setup | None (outbound only) | None | Required |
+| Works from any Telegram client | ✅ | ❌ | ❌ |
+| Scheduled and repeating tasks | ✅ | ❌ | ❌ |
+| OCR click-by-text and macros | ✅ | ❌ | ❌ |
+| Natural-language PC control (Gemini) | ✅ | ❌ | ❌ |
+| Self-hosted, runs only on your PC | ✅ | ❌ | ✅ |
+
 Out of the box, with zero AI setup:
 - **Browse and read files** sandboxed to your approved directories
 - **Control your desktop** — screenshots, keyboard shortcuts, clipboard, window switching, sleep, shutdown

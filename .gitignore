@@ -100,3 +100,8 @@ graphify-out/.graphify_*
 
 # Git worktrees (local scratch, never commit)
 .worktrees/
+
+# Local scratch
+_run.log
+_run.err.log
+graphify-out/
