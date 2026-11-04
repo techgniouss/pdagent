@@ -1,0 +1,30 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; }
+  body { width: 1280px; height: 640px; background: #0d1117; color: #e6edf3; font-family: 'Segoe UI', system-ui, sans-serif; position: relative; overflow: hidden; }
+  .glow { position: absolute; right: -180px; top: -180px; width: 700px; height: 700px; border-radius: 50%; background: radial-gradient(circle, rgba(88,166,255,.28), rgba(13,17,23,0) 65%); }
+  .wrap { position: absolute; inset: 0; padding: 70px 80px; display: flex; flex-direction: column; justify-content: space-between; }
+  .brand { display: flex; align-items: center; gap: 16px; font-size: 34px; font-weight: 700; }
+  .badge { width: 56px; height: 56px; border-radius: 14px; background: #1f6feb; display: grid; place-items: center; font-size: 32px; }
+  h1 { font-size: 66px; line-height: 1.08; font-weight: 800; max-width: 960px; letter-spacing: -1px; }
+  h1 em { font-style: normal; color: #58a6ff; }
+  .sub { margin-top: 22px; font-size: 27px; color: #9da7b3; max-width: 900px; line-height: 1.35; }
+  .term { align-self: flex-start; background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 18px 26px; font-family: 'Cascadia Mono', Consolas, monospace; font-size: 24px; color: #7ee787; }
+  .term span { color: #9da7b3; }
+  .foot { display: flex; justify-content: space-between; align-items: flex-end; font-size: 22px; color: #9da7b3; gap: 20px; }
+  .tools { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+  .tools b { font-weight: 600; background: #21262d; border: 1px solid #30363d; border-radius: 999px; padding: 6px 16px; color: #c9d1d9; font-size: 20px; }
+</style></head><body>
+  <div class="glow"></div>
+  <div class="wrap">
+    <div class="brand"><div class="badge">💻</div>Pocket Desk Agent</div>
+    <div>
+      <h1>Control your Windows PC <em>from Telegram.</em></h1>
+      <p class="sub">No account, no open ports, no subscription. Screenshots, OCR clicking, macros, scheduling and Gemini computer use.</p>
+    </div>
+    <div class="foot">
+      <div class="term"><span>$</span> pip install pocket-desk-agent</div>
+      <div class="tools"><b>Telegram</b><b>Gemini</b><b>OCR</b><b>Windows</b></div>
+    </div>
+  </div>
+</body></html>
